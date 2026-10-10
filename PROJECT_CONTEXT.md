@@ -6,8 +6,8 @@ Dokumentacja techniczna i stan projektu Metin2 opartego na repozytorium `mt2009-
 
 ## 1. Wersjonowanie i Identyfikacja
 
-- **Wersja serwera (`Server/VERSION`):** `2.29.0`
-- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-48`
+- **Wersja serwera (`Server/VERSION`):** `2.29.1`
+- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-49`
 - **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.60`
 - **Baza kodu:** Fork projektu *Metin2 Playerbots Singleplayer* (`mt2009`) autorstwa Tieru, wywodzący się z bazy MartySama r41023 (oraz wczesnych serwerfiles AzzlackSyndicate).
 - **Główni autorzy rozszerzenia SP+:** ZAXEP / SIZOWSKI, Digi Rasta, Vekirion, seban latino, OskarPWA, Iwakura.
@@ -50,9 +50,11 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 
 ---
 
-## 3. Kluczowe Własne Systemy i Modyfikacje (v2.29.0 / mod-48)
+## 3. Kluczowe Własne Systemy i Modyfikacje (v2.29.1 / mod-49)
 
-- **Świątynia Zodiaku (Zodiac Temple):** Mapa 358 (`metin2_12zi_stage`), 12 portali, Kule Animy, broń/zbroje Zodiaku, instancje pięter.
+- **Świątynia Zodiaku (Zodiac Temple) & Towarzysz (v2.29.1):** Mapa 358 (`metin2_12zi_stage`), 12 portali, Kule Animy, broń/zbroje Zodiaku, instancje pięter; pełna obsługa Towarzysza (wskrzeszanie Pryzmatami Ożywienia, automatyczne czyszczenie flag Zodiaku i autowstanie po 30s).
+- **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu.
+- **Naprawa Łowienia Towarzysza:** Bezpośrednie sterowanie pętlą wędkowania w trybie "Na ryby", zapobiegające porzucaniu łowienia.
 - **Ruiny Atlantydy (Ruins of Atlantis):** Mapa 158, dungeon grupowy/solo od poziomu 75+.
 - **Moduł Arezzo:** Nowe mapy exp (360-362) i dungeony (363-366).
 - **Playerbots AI:** Ponad 18 000 linii kodu C++ wbudowane w `game/src/` (`playerbot_manager.cpp`, `playerbot_types.h`), obsługa dungeonów, tobołków offline, farming linków, walki i zrzutek na ziemie gildii.

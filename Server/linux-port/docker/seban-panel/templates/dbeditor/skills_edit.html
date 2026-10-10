@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{# MT2009_PLUS_DB_EDITOR_V1: one skill of world.skill_proto with live previews (dbeditor/skills.py skill_edit). #}
+{% block title %}{{ skill.name_pl }} · Umiejętności · {{ panel_brand }}{% endblock %}
+{% macro formula(col, label) %}
+{% set p = previews[col] %}
+<div class="dbe-formula" data-dbe-formula="{{ col }}">
+  <label for="f-{{ col }}"><b>{{ label }}</b> <code>{{ col }}</code></label>
+  <div class="dbe-formula-row">
+    <input id="f-{{ col }}" name="{{ col }}" value="{{ values[col] }}" maxlength="100" spellcheck="false" autocomplete="off"
+           class="dbe-mono" data-dbe-poly="{{ col }}" data-original="{{ skill[col] }}">
+    <span class="dbe-quick">
+      <button type="button" class="dbe-small quiet-btn" data-dbe-scale="0.8" title="Pomnóż cały wzór przez 0,8">−20%</button>
+      <button type="button" class="dbe-small quiet-btn" data-dbe-scale="0.9">−10%</button>
+      <button type="button" class="dbe-small quiet-btn" data-dbe-scale="1.1">+10%</button>
+      <button type="button" class="dbe-small quiet-btn" data-dbe-scale="1.2">+20%</button>
+      <button type="button" class="dbe-small quiet-btn" data-dbe-reset title="Przywróć wzór z bazy">↺</button>
+    </span>
+  </div>
+  <div class="dbe-preview" data-dbe-preview="{{ col }}">
+    {% if p.error %}<p class="dbe-error">{{ p.error }}</p>{% endif %}
+    {% for w in p.warnings %}<p class="dbe-warn">{{ w }}</p>{% endfor %}
+    {% if p.ok %}
+    <table class="dbe-table compact dbe-levels"><tr><th>Poziom</th>{% for v in p['values'] %}<th class="{{ '' if v.used else 'is-unused' }}">{{ v.label }}</th>{% endfor %}</tr>
+      <tr><td>Wynik</td>{% for v in p['values'] %}<td class="{{ '' if v.used else 'is-unused' }}">{{ v.min if v.min == v.max else '%d – %d'|format(v.min, v.max) }}</td>{% endfor %}</tr></table>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+{% macro point_type(col, label) %}
+{# MT2009_PLUS_DB_EDITOR_SKILL_POINT_TYPES_V1: the effect's type, one of the game's names (skill.cpp kPointOnTypes) #}
+{% set cur = (values[col] or 'NONE')|upper %}
+<div class="dbe-formula dbe-point-type" data-dbe-point-type="{{ col }}">
+  <label for="t-{{ col }}"><b>{{ label }}</b> <code>{{ col }}</code></label>
+  <select id="t-{{ col }}" name="{{ col }}" data-original="{{ (skill[col] or 'NONE')|upper }}">
+    {% if cur not in point_types %}<option value="{{ cur }}" selected>{{ cur }} – nieznany grze (wybierz inny)</option>{% endif %}
+    {% for name in point_types %}<option value="{{ name }}"{{ ' selected' if name == cur }}>{{ point_on.get(name, name) }} ({{ name }})</option>{% endfor %}
+  </select>
+  {% for level, text in effect_notes.get(col, []) %}<p class="{{ 'dbe-warn' if level == 'warn' else 'muted' }}">{{ text }}</p>{% endfor %}
+</div>
+{% endmacro %}
+{% block content %}
+<script>document.body.dataset.ajaxForms='1';</script>
+{% set dbe_tab = 'skills' %}{% include 'dbeditor/_items_common.html' %}
+<p><a href="{{ url_for('dbeditor.skills', klasa=skill.bType) }}">← Lista umiejętności</a></p>
+<section class="panel dbe-head">
+  {% if icon %}<img src="{{ icon }}" alt="">{% else %}<span class="dbe-noicon big">✦</span>{% endif %}
+  <div>
+    <p class="eyebrow">UMIEJĘTNOŚĆ #{{ skill.dwVnum }} · {{ skill.szName }}</p>
+    <h1>{{ skill.name_pl }}</h1>
+    <p class="muted">{{ path or 'Umiejętność bez klasy' }} · działa na: <b>{{ point_on.get(skill.szPointOn, skill.szPointOn) }}</b>{% for c in ["szPointOn2", "szPointOn3"] if skill[c] and skill[c] != "NONE" %} oraz {{ point_on.get(skill[c], skill[c]) }}{% endfor %}</p>
+  </div>
+</section>
+
+<form method="post" class="dbe-form" id="dbe-skill-form" data-preview-url="{{ url_for('dbeditor.skill_preview') }}" data-max-level="{{ skill.bMaxLevel }}">
+  <input type="hidden" name="dbe_csrf" value="{{ dbe_csrf }}">
+
+  <section class="panel dbe-help">
+    <details>
+      <summary><b>Jak czytać wzory?</b> – k, poziomy M1/G1/P i przykładowa postać</summary>
+      <p>Gra liczy każdy wzór dla poziomu umiejętności. Zmienna <code>k</code> to „moc” umiejętności z tabeli {{ 'SKILL_POWER_BY_LEVEL (common.locale)' if power_source != 'default' else 'domyślnej SKILL_POWER_BY_LEVEL' }}:
+      {% for lvl in [1, 10, 20, 30, 40] %}<b>{{ level_label(lvl) }}</b> k = {{ '%.2f'|format(power[lvl] * skill.bMaxLevel / 100) }}{{ ', ' if not loop.last }}{% endfor %}.
+      Działania: <code>+ - * / ( )</code>, potęga <code>^</code>, funkcje <code>min(a,b)</code>, <code>max(a,b)</code>, <code>number(a,b)</code> (losowa liczba), <code>floor(x)</code>, <code>sqrt(x)</code>, <code>log(podstawa,x)</code>. Ułamki z kropką: <code>1.5</code>. Wynik jest obcinany do liczby całkowitej.</p>
+      <p>Zmienne: {% for name, help in var_help.items() %}<code>{{ name }}</code> {{ help }}{{ '; ' if not loop.last }}{% endfor %}.</p>
+      <p class="muted">Obrażenia zależą też od broni, obrony celu i bonusów – podgląd liczy je dla przykładowej postaci poniżej, więc pokazuje proporcje, nie dokładne liczby z gry.</p>
+      <div class="dbe-sample">
+        {% for name in sample_editable %}<label>{{ name }}<input type="number" name="sample_{{ name }}" value="{{ sample_now[name]|int }}" data-dbe-sample="{{ name }}"></label>{% endfor %}
+      </div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <h2>Czas trwania i odnowienia</h2>
+    {{ formula('szDurationPoly', 'Czas trwania efektu (sekundy)') }}
+    {{ formula('szCooldownPoly', 'Czas odnowienia – ładowania (sekundy)') }}
+  </section>
+
+  <section class="panel">
+    <h2>Siła i obrażenia</h2>
+    <p class="muted">Dla umiejętności zadających obrażenia wynik jest ujemny (np. −2400 = 2400 obrażeń). Od poziomu G1 gra używa drugiego wzoru („od Arcymistrza”).</p>
+    {{ formula('szPointPoly', 'Siła / obrażenia (poziomy 1 – M10)') }}
+    <label class="dbe-check"><input type="checkbox" name="same_master" value="1" data-dbe-mirror="szPointPoly:szMasterBonusPoly"{{ ' checked' if values.szMasterBonusPoly == values.szPointPoly and values.szPointPoly }}> Na G i P użyj tego samego wzoru</label>
+    {{ formula('szMasterBonusPoly', 'Siła / obrażenia od Arcymistrza (G1 – P)') }}
+  </section>
+
+  <section class="panel">
+    <h2>Koszt PM</h2>
+    {{ formula('szSPCostPoly', 'Koszt PM (poziomy 1 – M10)') }}
+    <label class="dbe-check"><input type="checkbox" name="same_master_sp" value="1" data-dbe-mirror="szSPCostPoly:szGrandMasterAddSPCostPoly"{{ ' checked' if values.szGrandMasterAddSPCostPoly == values.szSPCostPoly and values.szSPCostPoly }}> Na G i P ten sam koszt</label>
+    {{ formula('szGrandMasterAddSPCostPoly', 'Koszt PM od Arcymistrza (G1 – P)') }}
+  </section>
+
+  <section class="panel">
+    <h2>Efekty – co zmienia umiejętność</h2>
+    <details class="dbe-help">
+      <summary><b>Jak gra liczy efekty 1–3?</b></summary>
+      <ul>
+        <li>Umiejętność ma do trzech efektów: <b>typ</b> (co zmienia), <b>siła</b> (wzór) i <b>czas trwania</b> (wzór, sekundy). Typ „brak” wyłącza efekt – jego wzory gra wtedy pomija.</li>
+        <li>Pierwszy efekt bierze siłę ze wzoru „Siła / obrażenia” do M10, a od G1 ze wzoru „od Arcymistrza”. Drugi i trzeci mają jeden wzór na wszystkie poziomy – różnicę między stopniami daje zmienna <code>gr</code> (0 zwykły, 1 M, 2 G, 3 P), np. <code>10*k*min(1, floor(gr/2))</code> działa dopiero od G1.</li>
+        <li>Trzeci efekt działa na <b>każdym</b> poziomie umiejętności, nie tylko od Arcymistrza.</li>
+        <li><b>Czas trwania &gt; 0</b>: efekt z ikoną, znika po czasie. Wszystkie efekty jednej umiejętności to jeden efekt w grze – ponowne użycie odświeża je razem. <b>Pusty czas (0)</b>: jednorazowa zmiana – ma sens tylko dla PŻ i PM (leczenie, mana); inny typ zostałby u postaci do przeliczenia statystyk.</li>
+        <li><b>Wzmocnienia</b> (bez flagi ATTACK): wszystkie efekty dostaje cel wzmocnienia (przy SELFONLY – sam rzucający).</li>
+        <li><b>Umiejętności ofensywne</b>: pierwszy efekt typu HP (wzór ujemny) to obrażenia. Drugi i trzeci efekt dostaje każdy trafiony cel (osłabienie wroga, przy SPLASH – wszyscy w obszarze). Z flagą THIRD_POINT_SELFONLY trzeci efekt dostaje tylko rzucający (tak działają Ognista Strzała i Smoczy Skowyt). Szarża nie nakłada efektów 2–3 na cele.</li>
+        <li>Niektóre flagi same czytają wzory drugiego efektu jako szansę/czas: {% for f in ['PENETRATE', 'ATTACK_FIRE_CONT', 'ATTACK_STUN', 'ATTACK_SLOW', 'ATTACK_POISON', 'REMOVE_BAD_AFFECT', 'HP_ABSORB'] %}<code>{{ f }}</code>{{ ', ' if not loop.last }}{% endfor %} itd. Wtedy drugi efekt zostaw jako „brak”, chyba że ten sam wzór ma też coś dodawać.</li>
+        <li>Od G1 czas drugiego efektu rośnie o 50% tylko we wzmocnieniach, trzeciego – we wzmocnieniach i przy THIRD_POINT_SELFONLY.</li>
+        <li>Flaga wyglądu efektu (setAffectFlag2/3) nie jest potrzebna – nowy efekt działa bez niej.</li>
+        <li>Podpowiedź w kliencie: nowy typ efektu 1–3 trafia do opisu umiejętności (locale/pl/skilldesc.txt) w paczce danych klienta z „Zastosuj” – gracz musi wgrać nowy zip.</li>
+      </ul>
+    </details>
+    {{ point_type('szPointOn', 'Pierwszy efekt – typ') }}
+    <h3>Drugi efekt</h3>
+    {{ point_type('szPointOn2', 'Drugi efekt – typ') }}
+    {{ formula('szPointPoly2', 'Drugi efekt – siła') }}
+    {{ formula('szDurationPoly2', 'Drugi efekt – czas trwania (s)') }}
+    <h3>Trzeci efekt</h3>
+    {{ point_type('szPointOn3', 'Trzeci efekt – typ') }}
+    {{ formula('szPointPoly3', 'Trzeci efekt – siła') }}
+    {{ formula('szDurationPoly3', 'Trzeci efekt – czas trwania (s)') }}
+  </section>
+
+  <details class="panel dbe-advanced">
+    <summary><b>Zaawansowane</b> – zasięgi, koszt utrzymania, obrażenia obszarowe</summary>
+    {% for col, label, group, vars, use in formulas if group == 'adv' %}{{ formula(col, label) }}{% endfor %}
+    <div class="dbe-grid dense">
+    {% for col, label, low, high in numbers %}
+      <label>{{ label }}<input type="number" name="{{ col }}" min="{{ low }}" max="{{ high }}" value="{{ values[col] }}"><small><code>{{ col }}</code></small></label>
+    {% endfor %}
+    </div>
+  </details>
+
+  <div class="dbe-actions">
+    <button type="submit">💾 Zapisz zmiany</button>
+    <span class="muted">Zapis sprawdza składnię jak gra – błędny wzór nie zostanie zapisany. Zmiana czeka na restart gry („Zastosuj”).</span>
+  </div>
+</form>
+
+{% if history %}
+<section class="panel">
+  <h2>Ostatnie zmiany tej umiejętności</h2>
+  {% include 'dbeditor/_items_history_list.html' %}
+  <p><a href="{{ url_for('dbeditor.proto_history', tbl='world.skill_proto', key=skill.dwVnum) }}">Cała historia tej umiejętności →</a></p>
+</section>
+{% endif %}
+<script src="{{ static_asset_url('dbeditor-items.js') }}"></script>
+{% endblock %}

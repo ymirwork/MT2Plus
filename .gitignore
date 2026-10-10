@@ -1,0 +1,15 @@
+# Ignoruj klienta i backupy bazy
+/Klient/
+/backups/
+/Server/backups/
+
+# Ignoruj pliki srodowiska i stanu lokalnego
+/Server/linux-port/docker/.env
+/Server/linux-port/docker/.env.last-good
+/Server/linux-port/docker/.env.tmp
+/Server/linux-port/docker/.env-backups/
+/Server/launcher-logs/
+/Server/.update-cache/
+/Server/.m2launcher-state.json
+/Server/.m2launcher-offers.json
+/Server/.m2launcher-client-hashes.json

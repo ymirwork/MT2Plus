@@ -91,6 +91,11 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - Patcher: `MT2009-Patcher.exe` (.NET 4.7.2).
 - Paczki: format EterPack (`.data` / `.index`), spakowane narzędziem PackMakerLite (klucz `22srh2fgh3`) lub przez `m2clientpack` w panelu Seban.
 - Konfiguracja połączenia: pliki `channel.inf` oraz `coop.cfg`.
+- **Kompilacja i Pakowanie Klienta:**
+  - Skrypt wsadowy: [`Klient/Kompiluj-Paczki.bat`](file:///d:/Github/MT2Plus/Klient/Kompiluj-Paczki.bat) (menu interaktywne).
+  - Skrypt PowerShell: [`Klient/Compile-ClientPack.ps1`](file:///d:/Github/MT2Plus/Klient/Compile-ClientPack.ps1) / [`Server/tools/Compile-ClientPack.ps1`](file:///d:/Github/MT2Plus/Server/tools/Compile-ClientPack.ps1).
+  - Silnik pakerów: `PackMakerLite-RS` (`packmakerlite-cli.exe` z konfiguracją `PackMakerLite.json`).
+  - Funkcjonalności: szybkie pakowanie wybranej paczki (np. `root`), masowe pakowanie rozpakowanych folderów (`pack-all`), rozpakowywanie (`unpack`), tryb autokompilacji przy zapisie plików (`watch`), automatyczne tworzenie kopii zapasowej `.bak` oraz synchronizacja gotowych plików `.data`/`.index` między folderem Dev i Oficjalnym.
 
 ---
 

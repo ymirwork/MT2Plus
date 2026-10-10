@@ -78,3 +78,6 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 2. **Tabele MyISAM**: Zawsze stosować czyste zatrzymywanie serwera (`docker compose down` lub `stop.bat`), aby uniknąć uszkodzenia indeksów.
 3. **Synchronizacja bazy i klienta**: Zmiany w `world.item_proto` i `world.mob_proto` wymagają wygenerowania nowej paczki `dbdata` i wgrania jej do klienta (`Klient/pack/`).
 4. **Edycja kodu C++**: Źródła serwera znajdują się w `Server/linux-port/docker/game/src/server/`. Wszelkie zmiany wymagają kompilacji w kontenerze 32-bitowym (`i386`).
+5. **Automatyczny Push na GitHub**: Po każdej zmianie, pomyślnej kompilacji i poprawnym teście środowiska, gotowy fix / modyfikacja jest automatycznie commitowana i wypychana do repozytorium GitHub (`git push origin main`). Po teście serwer deweloperski jest zawsze czysto wyłączany (`docker compose down`).
+6. **Katalog Addonów (`Server/addons/`)**: Wszelkie gotowe, zmodyfikowane systemy, paczki dodatków, spakowane fixy i customowe moduły przygotowywane dla serwera należy umieszczać w dedykowanym katalogu `Server/addons/`.
+

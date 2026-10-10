@@ -11073,14 +11073,18 @@ namespace
 			return true;
 		if (KeepPlayerBotSidekickFishing(ch, state, *rec, rt, dwNow))
 			return true;
+		if (rt.bFishing)
+		{
+			// MT2009_PLUS_SIDEKICK_PLAN_V1: sent fishing ("Na ryby"), the water is
+			// the exclusive plan. Drive fishing directly and prevent sidekick trip/grind.
+			EndPlayerBotSidekickPlan(ch, "fishing");
+			if (ManagePlayerBotFishing(ch, state, dwNow))
+				return true;
+			return true;
+		}
 		if (rec->bMode != PLAYERBOT_SIDEKICK_FOLLOW)
 		{
-			// MT2009_PLUS_SIDEKICK_PLAN_V1: off the leash, one plan; sent
-			// fishing ("Na ryby"), the water is the plan and the plan stands back.
-			if (rt.bFishing)
-				EndPlayerBotSidekickPlan(ch, "fishing");
-			else
-				ManagePlayerBotSidekickPlan(ch, state, *rec, dwNow);
+			ManagePlayerBotSidekickPlan(ch, state, *rec, dwNow);
 			WatchPlayerBotSidekickTrip(ch, state, *rec, dwNow);	// MT2009_PLUS_SIDEKICK_TRIP_V1
 			return false;
 		}

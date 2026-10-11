@@ -28,9 +28,8 @@ Dokumentacja techniczna, struktura środowisk i stan projektu Metin2 opartego na
 
 ### 2.3. Środowisko Oficjalne / Produkcyjne (Gałąź `main`)
 - **Repozytorium zdalne:** `https://github.com/ymirwork/MT2Plus.git` (gałąź `main`)
-- **Model wydawniczy:** Zmiany z gałęzi `dev` po pełnym przetestowaniu i zatwierdzeniu są scalane (**Merge / Pull Request**) do gałęzi `main`. Gałąź `main` stanowi oficjalną, w 100% stabilną wersję gry (Release).
-- **Środowisko lokalne uruchomieniowe (opcjonalne / gracza):** `d:\MT2\Metin2 Singleplayer Plus` (jeśli uruchamiane niezależnie).
-- **Koniec z ręcznym kopiowaniem:** Zarządzanie wersjami i zmianami odbywa się w pełni przez Git (`dev` -> `main`), eliminując konieczność ręcznego synchronizowania i kopiowania plików pomiędzy folderami.
+- **Środowisko Oficjalne (Gra gracza):** Gracz gra na gałęzi `main` w `d:\Github\MT2Plus` jako wersji Oficjalnej/Stabilnej.
+- **Koniec z ręcznym kopiowaniem:** Zarządzanie wersjami odbywa się wyłącznie przez Git (`dev` -> `main`). Żadne pliki nie są kopiowane do zewnętrznych folderów.
 
 ---
 

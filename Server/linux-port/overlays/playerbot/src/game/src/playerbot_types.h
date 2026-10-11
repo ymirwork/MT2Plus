@@ -1694,6 +1694,13 @@ namespace
 	// them from nobody.
 	const DWORD PLAYERBOT_BONUS_CHANGE_VNUM = 71084;
 	const DWORD PLAYERBOT_BONUS_ADD_VNUM = 71085;
+	const DWORD PLAYERBOT_TRADEABLE_CHANGE_VNUM = 71284;
+	const DWORD PLAYERBOT_TRADEABLE_ADD_VNUM = 71285;
+
+	inline bool IsPlayerBotTradeableBonusVnum(DWORD vnum)
+	{
+		return vnum == PLAYERBOT_TRADEABLE_CHANGE_VNUM || vnum == PLAYERBOT_TRADEABLE_ADD_VNUM;
+	}
 	// Below this the gear itself is still changing every few levels, and a
 	// plain stone is worth more than the piece it would go on - so a bot this
 	// young spends only the green ones, which are for that gear and no other
@@ -7579,7 +7586,8 @@ namespace
 		PLAYERBOT_RARE_GOODS_NONE = 0,
 		PLAYERBOT_RARE_GOODS_COR = 1,
 		PLAYERBOT_RARE_GOODS_SASH = 2,
-		PLAYERBOT_RARE_GOODS_KINDS = 3
+		PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS = 3,
+		PLAYERBOT_RARE_GOODS_KINDS = 4
 	};
 	// Every "Cor Draconis" of the item table; not the Cor Draconis chest
 	// (83014) nor the recipe (30650).
@@ -7600,6 +7608,7 @@ namespace
 	// line of it may add more, up to PLAYERBOT_RARE_GOODS_LINES_PER_SHOP.
 	const int PLAYERBOT_RARE_GOODS_SHOP_PERCENT_COR = 20;
 	const int PLAYERBOT_RARE_GOODS_SHOP_PERCENT_SASH = 20;
+	const int PLAYERBOT_RARE_GOODS_SHOP_PERCENT_TRADEABLE_BONUS = 20;
 	const int PLAYERBOT_RARE_GOODS_LINES_PER_SHOP = 3;
 	// Where it ranks among a counter's goods: under a level-30 weapon (2000),
 	// over a big bonus roll (1500).
@@ -7780,6 +7789,8 @@ namespace
 			return PLAYERBOT_RARE_GOODS_COR;
 		if (IsPlayerBotSashVnum(vnum))
 			return PLAYERBOT_RARE_GOODS_SASH;
+		if (IsPlayerBotTradeableBonusVnum(vnum))
+			return PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS;
 		return PLAYERBOT_RARE_GOODS_NONE;
 	}
 
@@ -7854,7 +7865,8 @@ namespace
 	int GetPlayerBotRareGoodsShopPercent(int kind)
 	{
 		return kind == PLAYERBOT_RARE_GOODS_COR ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_COR
-				: kind == PLAYERBOT_RARE_GOODS_SASH ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_SASH : 0;
+				: kind == PLAYERBOT_RARE_GOODS_SASH ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_SASH
+				: kind == PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_TRADEABLE_BONUS : 0;
 	}
 
 	// A bot that has been AFK and was struck puts the next stop off this long.

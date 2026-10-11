@@ -145,10 +145,25 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 
 ## 6. Dobre Praktyki i Zasady Bezpieczeństwa
 
-1. **Wymóg wersji MariaDB 11.8+**: Nie downgrade'ować do 10.x z powodu kolacji `utf8mb3_uca1400_ai_ci`.
-2. **Tabele MyISAM**: Zawsze stosować czyste zatrzymywanie serwera (`docker compose down` lub `stop.bat`), aby uniknąć uszkodzenia indeksów.
-3. **Synchronizacja bazy i klienta**: Zmiany w `world.item_proto` i `world.mob_proto` wymagają wygenerowania nowej paczki `dbdata` i wgrania jej do klienta (`Klient/pack/`).
-4. **Edycja kodu C++**: Źródła serwera znajdują się w `Server/linux-port/docker/game/src/server/` oraz `Server/linux-port/overlays/playerbot/src/game/src/`. Wszelkie zmiany wymagają kompilacji w kontenerze 32-bitowym (`i386`).
-5. **Automatyczny Push na GitHub**: Po każdej zmianie, pomyślnej kompilacji i poprawnym teście środowiska, gotowy fix / modyfikacja jest automatycznie commitowana i wypychana do repozytorium GitHub (`git push origin main`). Po teście serwer deweloperski jest zawsze czysto wyłączany (`docker compose down`).
-6. **Katalog Addonów (`Server/addons/`)**: Wszelkie gotowe, zmodyfikowane systemy, paczki dodatków, spakowane fixy i customowe moduły przygotowywane dla serwera należy umieszczać w dedykowanym katalogu `Server/addons/`.
-7. **Launcher Windows**: Przy zmianie wersji serwera zawsze aktualizować `Server/.m2launcher-state.json` oraz `Server/VERSION`, aby GUI launchera (`Metin2-Launcher-GUI.bat`) poprawnie prezentowało stan wersji.
+1. **Zasada Nienaruszalności Bazy Danych i Postaci Gracza (Zero-Data-Loss):**
+   - Aktualizacje serwera i kompilacje silnika C++ **nigdy nie mogą modyfikować ani usuwać wolumenów bazy danych (`db-data`)**, tabel graczy (`player.player`, `player.item`, `account.account`) ani stanu ekwipunku/postaci.
+   - Wszelkie migracje schematów SQL (z Upstream lub z naszych modyfikacji) muszą być ściśle **addytywne** (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN ... IF NOT EXISTS`) i w 100% bezstratne dla istniejącego świata gry.
+
+2. **Zasada Złotego Trójkąta Spójności Proto (Baza SQL ↔ Serwer ↔ Klient):**
+   - Silnik ładuje definicje proto z bazy SQL (`PROTO_FROM_DB = 1`).
+   - Każda zmiana w `world.item_proto` lub `world.mob_proto` (nowe bronie, zbroje, bonusy, ulepszenia) bezwzględnie wymaga wygenerowania zaktualizowanej paczki klienta `dbdata` (przez edytor bazy w panelu Seban lub `dbdata.py`) i jej rekompilacji do `Klient/pack/`.
+   - Zapobiega to desynchronizacji opisów, błędnym ikonom i crashom klienta gry.
+
+3. **Zasada Atomowej Izolacji Środowisk (Dev vs Oficjalny):**
+   - **Dev (`MT2Plus`):** Poligon doświadczalny, edycja kodu C++, tworzenie questów, kompilacje kontenerów (`mt2dev`) oraz wersjonowanie Git.
+   - **Oficjalny (`Metin2 Singleplayer Plus`):** Środowisko produkcyjne / docelowe gracza (Ready-to-Play). Trafia do niego wyłącznie kod i paczki w 100% przetestowane, skompilowane i zweryfikowane, gwarantując pełną stabilność rozgrywki.
+
+4. **Zasada Weryfikacji Czystego Stanu Git (Clean Tree Guard):**
+   - Przed przystąpieniem do jakiejkolwiek aktualizacji z Upstream stan repozytorium na Dev musi być czysty (`git status`).
+   - Po każdej udanej zmianie, pomyślnej kompilacji i teście, gotowe zmiany są natychmiast commitowane i wypychane na zdalny GitHub (`git push origin main`), a serwer deweloperski czysto wyłączany (`docker compose down`).
+
+5. **Wymóg wersji MariaDB 11.8+:** Nie wolno dokonywać downgrade'u do MariaDB 10.x z powodu twardego wymogu kolacji `utf8mb3_uca1400_ai_ci`.
+6. **Tabele MyISAM i czyste zatrzymywanie:** Zawsze stosować czyste zatrzymywanie usług (`docker compose down` lub `stop.bat`), aby chronić tabele MyISAM przed uszkodzeniem indeksów.
+7. **Edycja kodu C++ (i386):** Źródła serwera znajdują się w `Server/linux-port/docker/game/src/server/` oraz `Server/linux-port/overlays/playerbot/src/game/src/`. Wszelkie modyfikacje wymagają poprawnej kompilacji w kontenerze 32-bitowym (`i386`).
+8. **Katalog Addonów (`Server/addons/`):** Wszystkie gotowe paczki dodatków, spakowane fixy i moduły przygotowywane dla serwera należy umieszczać w dedykowanym katalogu `Server/addons/`.
+9. **Synchronizacja Stanu Launchera Windows:** Przy każdej zmianie wersji serwera należy zaktualizować zarówno `Server/VERSION`, jak i plik `Server/.m2launcher-state.json`, aby GUI launchera (`Metin2-Launcher-GUI.bat`) natychmiast odczytywało aktualny stan wersji.

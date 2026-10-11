@@ -127,10 +127,20 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 
 ---
 
-## 5. Kluczowe Własne Systemy i Modyfikacje (v2.29.1 / mod-49)
+## 5. Kluczowe Własne Systemy i Modyfikacje (v2.30.0 / mod-50)
 
+- **Szybkie Podnoszenie Przedmiotów (Fast Area Pickup):** Natychmiastowe zbieranie dropu w promieniu postaci pod klawiszem `Z` / `~` (`/pickup_nearby` wywoływane w pierwszej klatce naciśnięcia, interwał przytrzymania skrócony do 150 ms, cooldown po stronie serwera w `char_item.cpp` zredukowany do 100 ms).
+- **Szybkie Ulepszanie (Fast Refine without Animation Lock):** Usunięte blokujące wyskakujące okienka dialogowe sukcesu/porażki z `game.py` i `digiserverqol.py` (przekierowane na czytelne komunikaty na czacie), natychmiastowe zatwierdzanie klawiszem Enter i wysoka responsywność u kowala.
+- **Zdalny Biolog (Remote Biologist):** Quest `zdalny_biolog.quest` od poziomu 30+ umożliwiający zdalne oddawanie próbek biologa oraz sprawdzanie aktualnego stanu badań i oczekiwania bez konieczności każdorazowego biegania do Chaegiraba / Beak-Go.
+- **Skrócony Czas Oczekiwania po Zamknięciu Okien (3s Portal/Safebox/Trade Cooldown):** Zredukowany z 10 sekund do 3 sekund (`g_nPortalLimitTime = 3` w `char_item.cpp`) po zamknięciu handlu, magazynu lub dozorcy przed przejściem przez portal.
+- **Upłynnianie Ulepszaczy M1/M2 przez Boty (Bot-Only M1/M2 Liquidation & Market Balance):** Wewnętrzny mechanizm symulacji gospodarki botów w `playerbot_bonus.h` / `playerbot_market.h` / `playerbot_types.h`:
+  - Przetapianie nadmiaru ulepszaczy M1/M2 (50 szt. pospolitych lub 25 szt. rzadkich + opłata Yang skalowana inflacją) na handlowalne Zaczarowania (`71284`) i Wzmocnienia (`71285`).
+  - Priorytet zużycia na własne uzbrojenie bota (do 4–5 bonusów i rollowanie statystyk).
+  - Nadwyżki wystawiane w tobołkach z twardym limitem maks. 20% sklepów na rynku i do 3 slotów na sklep (`PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS`), analogicznie do szarf i Cor Draconis.
+  - **Skup z tobołków (15% botów):** 15% puli botów aktywnie skupuje ulepszacze M1/M2 z rynku graczy/botów po uczciwych cenach rynkowych (do 120% cennika, maks. 20% sakiewki bota), aby zamieniać je na bonusy, zapewniając stały popyt na drop z początkowych map i stabilizując gospodarkę Hard.
+  - *Uwaga:* Emerytury botów pozostają domyślnie wyłączone do późniejszej konfiguracji przez operatora.
 - **Świątynia Zodiaku (Zodiac Temple) & Towarzysz (v2.29.1):** Mapa 358 (`metin2_12zi_stage`), 12 portali, Kule Animy, broń/zbroje Zodiaku, instancje pięter; pełna obsługa Towarzysza (wskrzeszanie Pryzmatami Ożywienia, automatyczne czyszczenie flag Zodiaku i autowstanie po 30s).
-- **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu. Paczka instalacyjna w `Server/addons/Paczka_Recykling_Bonusow.zip`.
+- **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu dla gracza. Paczka instalacyjna w `Server/addons/Paczka_Recykling_Bonusow.zip`.
 - **Naprawa Łowienia Towarzysza:** Bezpośrednie sterowanie pętlą wędkowania w trybie "Na ryby" (`playerbot_sidekick.h`), zapobiegające porzucaniu łowienia przez bota.
 - **Dom Aukcyjny (AH_V1, Autor: Vekirion):** Wyszukiwarka i zakupy ofert ze sklepów offline (Ikarus) bez nowych pakietów binarnych, komendy `/ah_*` w `auction_house.cpp`, hooki transakcyjne w `ikarus_shop_manager.cpp` i `cmd.cpp`, quest `flea_market.quest` oraz interfejs klienta `uiauctionhouse.py`.
 - **Rozszerzony Pierścień Teleportacji:** Quest `teleport_ring.quest` ze skrótami do lochów (Loch Pająków V1, Trudny/Normalny/Łatwy Loch Małp) oraz map Arezzo (360 Dolina Cyklopów, 361 Pustkowie Faraona).

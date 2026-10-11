@@ -198,3 +198,14 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
     - Przy wywoływaniu operacji terminala Windows / PowerShell:
       - **Kopiowanie i synchronizacja:** Bezwzględnie preferować sprawdzone polecenia natywne `robocopy <src> <dst> [pliki] /E /NFL /NDL /NJH /NJS` (kod wyjścia 1 = sukces) lub jednoznaczne cmdlety PowerShell `Copy-Item -Path ... -Destination ... -Force` bez wieloliniowych skomplikowanych pętli i bez używania niesprawdzonych konstrukcji potoków/cudzysłowów narażonych na zacinanie.
       - **Śledzenie zadań w tle (Task Watchdog):** Jeżeli zadanie uruchomione asynchronicznie (np. robocopy, git, powershell) nie zgłosi zakończenia w ciągu spodziewanego czasu (maksymalnie 15–30 sekund dla operacji plikowych), natychmiast sprawdzić jego log (`manage_task action='status'`), zamiast biernie czekać. W przypadku błędu składniowego lub zawieszenia natychmiast anulować proces (`manage_task action='kill'`) i dokończyć operację niezawodną metodą synchroniczną.
+
+12. **Zasada Weryfikacji Stanu Serwera Przed Zmianami (Selective Shutdown & Safe Backup Guard):**
+    - **Weryfikacja stanu serwera:** Przed przystąpieniem do wprowadzania jakichkolwiek zmian, instalacji dodatków, modyfikacji bazy danych lub kodu silnika gry, zawsze najpierw sprawdź, czy serwer jest aktualnie uruchomiony (`docker ps`).
+    - **Minimalizacja przestojów (Wyłączaj/restartuj tylko gdy to konieczne):**
+      - Wyłączaj lub restartuj serwer **tylko i wyłącznie wtedy, kiedy musisz / jest to bezwzględnie konieczne** (np. rekompilacja silnika C++, zmiany schematów i tabel w MariaDB wymagające zatrzymania, modyfikacje plików montowanych bezpośrednio w aktywnych rdzeniach gry).
+      - Jeżeli wyłączenie serwera nie jest konieczne (np. przygotowywanie paczek klienta, pisanie kodu w folderze deweloperskim, edycja dokumentacji czy skryptów pomocniczych), **nie wyłączaj serwera** – niech działa nieprzerwanie.
+    - **Procedura przy konieczności wyłączenia serwera do zmian:**
+      1. **Bezpieczne zatrzymanie:** Jeżeli serwer jest włączony i jego wyłączenie jest wymagane, zatrzymaj go czysto i bezpiecznie (np. `.\Metin2-Launcher.ps1 -Action Stop` lub `docker compose stop`), aby procesy gry (`m2-supervise`) i MariaDB dokonały bezpiecznego zrzutu (flush) danych na dysk.
+      2. **Kopia zapasowa bazy danych (Backup):** Przed wprowadzeniem modyfikacji zrób kopię zapasową bazy danych do katalogu `Server/backups/` (np. procedurą launchera `BackupDb` lub zrzutem bazy).
+      3. **Wprowadzenie zmian:** Zaaplikuj przygotowane modyfikacje, fixy lub konfigurację.
+      4. **Restart i weryfikacja:** Uruchom serwer ponownie (`docker compose up -d`) i upewnij się, że wszystkie rdzenie poprawnie nasłuchują.

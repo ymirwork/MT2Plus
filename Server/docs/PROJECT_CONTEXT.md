@@ -37,24 +37,51 @@ Dokumentacja techniczna, struktura środowisk i stan projektu Metin2 opartego na
 
 ---
 
-## 3. Procedura Aktualizacji do Nowych Wersji Upstream
+## 3. Żelazna Procedura Cyklu Aktualizacji (5 Kroków)
 
-Przy każdej aktualizacji z oficjalnego repozytorium `zaxerrrr-dot/mt2009-sp-plus`:
-1. **Pobranie zmian:** `git fetch upstream` w folderze Dev.
-2. **Analiza różnic:** Porównanie diffa między wersjami (np. `git diff v2.29.0 v2.29.1`) z wyodrębnieniem zmienionych plików C++, skryptów, baz SQL i manifestów.
-3. **Zachowanie własnych modyfikacji:**
-   - **Kod C++:** Nakładanie zmian w plikach `playerbot_*` z zachowaniem naszych poprawek (np. bezpośredniego sterowania łowieniem w `playerbot_sidekick.h` czy hooków Domu Aukcyjnego w `ikarus_shop_manager.cpp` i `cmd.cpp`).
-   - **Questy:** Zachowanie naszych questów w `Server/linux-port/docker/game/quest/` (`recykling_bonusow.quest`, rozszerzony `teleport_ring.quest`, `flea_market.quest`).
-   - **Dockerfile:** Utrzymanie dopisanych questów w pętli kompilacji qc (`recykling_bonusow`).
-   - **Katalog Addonów:** Trzymanie gotowych zipów dodatków w `Server/addons/`.
-4. **Weryfikacja kompilacji:** Zbudowanie kontenerów w Dev (`docker compose build game panel seban-panel`).
-5. **Aktualizacja znaczników wersji i launchera:**
-   - `Server/VERSION`, `Server/MOD_VERSION`.
-   - `Server/update-manifest-mt2009.json`, `Server/CHANGELOG.md`.
+Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-etapowy proces decyzyjno-wdrożeniowy:
+
+### Krok 1: Sprawdzenie zmian w Upstream (Oficjalny SP+)
+1. Pobranie najnowszych referencji: `git fetch upstream` w repozytorium Dev (`d:\Github\MT2Plus`).
+2. Szczegółowa analiza diffa między wersją aktualną a nowym tagiem/wydaniem (np. `git diff v2.29.0 v2.29.1`):
+   - Zmiany w silniku C++ (`linux-port/overlays/playerbot/...`).
+   - Zmiany w questach (`linux-port/docker/game/quest/...`).
+   - Zmiany w schematach i seedach bazy danych (`linux-port/docker/mariadb/playerbot/...`).
+   - Zmiany w panelach www (`admin_panel.py`, panele seban/classic).
+   - Zmiany w pakietach instalacyjnych i manifeście (`update-manifest-mt2009.json`, `CHANGELOG.md`).
+
+### Krok 2: Wdrożenie zmian Upstream na Dev (`d:\Github\MT2Plus`)
+1. Naniesienie oficjalnych zmian silnika, skryptów i paneli na drzewo deweloperskie.
+2. Zaktualizowanie znaczników wersji:
+   - `Server/VERSION` oraz `Server/MOD_VERSION`.
    - `Server/linux-port/docker/panel/app/VERSION` oraz `Server/linux-port/docker/seban-panel/VERSION`.
-   - `Server/.m2launcher-state.json` (ustawienie pola `"server"` na nowy numer wersji, aby `Metin2-Launcher-GUI.bat` od razu widział zgodność bez monitów o konieczność pobierania).
-6. **Synchronizacja do Oficjalnego Folderu:** Przeniesienie zaktualizowanych i zmodyfikowanych plików do `d:\MT2\Metin2 Singleplayer Plus\Server`.
-7. **Automatyczny Push:** Zatwierdzenie zmian i wypchnięcie commitu na `origin/main`.
+   - `Server/update-manifest-mt2009.json` oraz `Server/CHANGELOG.md`.
+
+### Krok 3: Dodanie naszych modyfikacji z `Server/addons/` (bezinwazyjnie dla Upstream)
+1. Zaaplikowanie naszych autorskich systemów i modułów umieszczonych w `Server/addons/` oraz własnych komponentów:
+   - System recyklingu bonów u Dozorcy (`recykling_bonusow.quest`, rejestracja w `Dockerfile`, paczka w `Server/addons/`).
+   - Naprawa pętli wędkowania towarzysza (`playerbot_sidekick.h` – bezpośrednie sterowanie `rt.bFishing`).
+   - Rozszerzony Pierścień Teleportacji (`teleport_ring.quest` – lochy, miasta).
+   - Dom Aukcyjny / AH_V1 (`auction_house.cpp`, `cmd.cpp`, `ikarus_shop_manager.cpp`, `flea_market.quest`).
+2. Bezwzględny warunek: implementacja musi być bezinwazyjna – żadna nasza modyfikacja nie może usunąć ani zepsuć nowego kodu ani logiki wprowadzonej przez Upstream.
+
+### Krok 4: Rozwiązanie kolizji i adaptacja (Merge Resolution)
+1. Jeżeli dochodzi do kolizji między naszym kodem a zmianami Upstream (np. nakładające się linie w C++, zmiany sygnatur funkcji w silniku, zmodyfikowane pętle questów):
+   - **Zasada nadrzędna:** Przeprojektować i zrefaktoryzować nasz kod tak, aby **w 100% zachować oficjalną funkcjonalność z Upstream**, przy jednoczesnym **pełnym działaniu naszych modyfikacji**.
+2. Weryfikacja integralności w Dockerze na Dev:
+   - Przebudowa kontenerów: `docker compose build game panel seban-panel`.
+   - Sprawdzenie kompilacji kodu C++20 (i386) oraz kompilatora questów `qc` – zero błędów.
+   - Po teście czyste wygaszenie kontenerów: `docker compose down`.
+
+### Krok 5: Publikacja na GitHub i wdrożenie na Oficjalny (`d:\MT2\Metin2 Singleplayer Plus`)
+Dopiero po pomyślnym przejściu Kroków 1–4:
+1. **GitHub Push:**
+   - Zacommitowanie przetestowanych zmian z czytelnym opisem konwencji Conventional Commits.
+   - Wypchnięcie zmian do repozytorium zdalnego: `git push origin main`.
+2. **Wdrożenie na Oficjalny:**
+   - Synchronizacja wszystkich zmodyfikowanych i zaktualizowanych plików do folderu produkcyjnego: `d:\MT2\Metin2 Singleplayer Plus\Server`.
+   - Aktualizacja pliku stanu launchera: `Server/.m2launcher-state.json` (klucz `"server"` na nowy numer wersji).
+   - W przypadku zmian w zasobach klienta (`pack/root` itp.): skompilowanie nowej paczki za pomocą `Kompiluj-Paczki.bat` / `Compile-ClientPack.ps1` i zsynchronizowanie do obu klientów.
 
 ---
 

@@ -181,3 +181,8 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
       > 1. Pobierz załączone archiwum `.zip` / `.rar`.
       > 2. Wypakuj zawartość do głównego folderu gry / serwera (zastąp istniejące pliki).
       > 3. Zrestartuj serwer (`stop.bat` -> `start.bat`) lub uruchom ponownie klienta gry.
+
+11. **Niezawodność Poleceń Terminala i Synchronizacji (Zero-Hang Execution Guard):**
+    - Przy wywoływaniu operacji terminala Windows / PowerShell:
+      - **Kopiowanie i synchronizacja:** Bezwzględnie preferować sprawdzone polecenia natywne `robocopy <src> <dst> [pliki] /E /NFL /NDL /NJH /NJS` (kod wyjścia 1 = sukces) lub jednoznaczne cmdlety PowerShell `Copy-Item -Path ... -Destination ... -Force` bez wieloliniowych skomplikowanych pętli i bez używania niesprawdzonych konstrukcji potoków/cudzysłowów narażonych na zacinanie.
+      - **Śledzenie zadań w tle (Task Watchdog):** Jeżeli zadanie uruchomione asynchronicznie (np. robocopy, git, powershell) nie zgłosi zakończenia w ciągu spodziewanego czasu (maksymalnie 15–30 sekund dla operacji plikowych), natychmiast sprawdzić jego log (`manage_task action='status'`), zamiast biernie czekać. W przypadku błędu składniowego lub zawieszenia natychmiast anulować proces (`manage_task action='kill'`) i dokończyć operację niezawodną metodą synchroniczną.

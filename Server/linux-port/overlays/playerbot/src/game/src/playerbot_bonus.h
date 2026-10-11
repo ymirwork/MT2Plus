@@ -2132,6 +2132,43 @@ namespace
 		return false;
 	}
 
+	// 15% of bots act as M1/M2 material liquidation buyers to keep market liquidity
+	const int PLAYERBOT_LIQUIDATE_BUYER_PERCENT = 15;
+	const int PLAYERBOT_LIQUIDATE_BUY_PURSE_PERCENT = 20;
+
+	bool IsPlayerBotM1M2LiquidationBuyer(LPCHARACTER ch)
+	{
+		if (!ch || ch->GetLevel() < PLAYERBOT_BONUS_MIN_LEVEL)
+			return false;
+		return (ch->GetPlayerID() % 100) < (DWORD)PLAYERBOT_LIQUIDATE_BUYER_PERCENT;
+	}
+
+	bool IsPlayerBotM1M2LiquidationBuyOffer(LPCHARACTER ch, LPITEM offer)
+	{
+		if (!ch || !offer || !IsPlayerBotM1M2LiquidationBuyer(ch))
+			return false;
+		const DWORD vnum = offer->GetVnum();
+		const int reqUnits = GetPlayerBotLiquidationRequiredUnits(vnum);
+		if (reqUnits <= 0)
+			return false;
+		if (CountPlayerBotFreeInventoryCells(ch) < 2)
+			return false;
+		// Bot buys when it has fewer bonus stones than desired reserve (3)
+		const int tradeAdds = (int)ch->CountSpecifyItem(PLAYERBOT_TRADEABLE_ADD_VNUM);
+		const int tradeChanges = (int)ch->CountSpecifyItem(PLAYERBOT_TRADEABLE_CHANGE_VNUM);
+		if (tradeAdds >= PLAYERBOT_TRADEABLE_BONUS_KEEP && tradeChanges >= PLAYERBOT_TRADEABLE_BONUS_KEEP)
+			return false;
+
+		const int surplus = std::max(0, GetPlayerBotExchangeSurplus(ch, vnum));
+		if (surplus >= reqUnits)
+			return false;
+		// Do not buy more than what completes the pack
+		if (surplus + (int)offer->GetCount() > reqUnits)
+			return false;
+		const long long fee = GetPlayerBotLiquidationFee();
+		return (long long)ch->GetGold() > fee * 2 + PLAYERBOT_SHOPPING_GOLD_FLOOR;
+	}
+
 	// A line of such a material a bot short of the stones would take off a
 	// stand for the exchange, up to what one exchange wants.
 	bool IsPlayerBotExchangeBuyOffer(LPCHARACTER ch, LPITEM offer)

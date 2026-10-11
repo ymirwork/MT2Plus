@@ -331,6 +331,10 @@ namespace
 		if (IsPlayerBotExchangeBuyOffer(ch, offer))
 			return true;
 
+		// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V1: 15% of bots buy M1/M2 materials to liquidate
+		if (IsPlayerBotM1M2LiquidationBuyOffer(ch, offer))
+			return true;
+
 		// A material it is short of right now. This is the whole reason a bot
 		// walks the market: the alternative is farming the same material for an
 		// hour while a neighbour has spares on a counter three metres away.
@@ -791,6 +795,12 @@ namespace
 			return price / std::max<long long>(1, (long long)item->GetCount()) <=
 					(long long)ScalePlayerBotIwakuraPrice(PLAYERBOT_EXCHANGE_UNIT_PRICE_MAX) &&
 					price <= spare * PLAYERBOT_EXCHANGE_BUY_PERCENT / 100;
+		// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V1: buy M1/M2 liquidation offer at or near fair price
+		if (IsPlayerBotM1M2LiquidationBuyOffer(ch, item) && !PlayerBotNeedsRefineMaterial(ch, item->GetVnum())) {
+			const long long fair = GetPlayerBotShopAskingPrice(item);
+			return fair > 0 && price <= fair * 120 / 100 &&
+					price <= spare * PLAYERBOT_LIQUIDATE_BUY_PURSE_PERCENT / 100;
+		}
 		// The piece over outdated gear: PLAYERBOT_OUTDATED_GEAR_BUDGET_PERCENT
 		// of what the bot can spend, near the market's price for it.
 		if (IsPlayerBotOutdatedGearOffer(ch, item)) {

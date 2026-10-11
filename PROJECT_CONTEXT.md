@@ -168,7 +168,15 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 7. **Edycja kodu C++ (i386):** Źródła serwera znajdują się w `Server/linux-port/docker/game/src/server/` oraz `Server/linux-port/overlays/playerbot/src/game/src/`. Wszelkie modyfikacje wymagają poprawnej kompilacji w kontenerze 32-bitowym (`i386`).
 8. **Katalog Addonów (`Server/addons/`) i Zasada Cyklu Życia Dodatków:** Wszystkie gotowe paczki dodatków, spakowane fixy i moduły przygotowywane dla serwera należy umieszczać w dedykowanym katalogu `Server/addons/`. Jeżeli w nowym wydaniu Upstream oficjalnie wprowadził fixa lub funkcjonalność, którą wcześniej realizowaliśmy jako addon, dany dodatek można **bezpiecznie usunąć z `Server/addons/`**, przechodząc w pełni na oficjalny kod bazowy.
 9. **Synchronizacja Stanu Launchera Windows:** Przy każdej zmianie wersji serwera należy zaktualizować zarówno `Server/VERSION`, jak i plik `Server/.m2launcher-state.json`, aby GUI launchera (`Metin2-Launcher-GUI.bat`) natychmiast odczytywało aktualny stan wersji.
-10. **Raportowanie Poprawek z Discorda (Standard Opisu Błędów):**
-    - W przypadku naprawy błędu pochodzącego ze zgłoszeń społeczności Discord (gdy użytkownik wskaże, że problem pochodzi z Discorda), asystent po wdrożeniu fixa bezwzględnie generuje zwięzły opis w Markdown wyjaśniający: **co dokładnie naprawia ten fix** oraz **dlaczego funkcja wcześniej nie działała (przyczyna techniczna)**.
+10. **Raportowanie Poprawek z Discorda (Standard Opisu Błędów i Instalacji):**
+    - W przypadku naprawy błędu pochodzącego ze zgłoszeń społeczności Discord (gdy użytkownik wskaże, że problem pochodzi z Discorda), asystent po wdrożeniu fixa bezwzględnie generuje zwięzły opis w formacie Markdown zawierający:
+      1. **Co dokładnie naprawia ten fix**
+      2. **Dlaczego funkcja wcześniej nie działała (przyczyna techniczna / root cause)**
+      3. **Krótki opis jak zainstalować** (proste, precyzyjne kroki wdrożenia dla gracza lub administratora)
     - Wzorzec formatu:
-      > *- Naprawia błąd w silniku (char.cpp), gdzie funkcja powrotu po wojnie przekazywała zerowe koordynaty (m_posWarp) zamiast zapamiętanych (m_posExit), przez co gracze zostawali uwięzieni na zamykanej instancji mapy.*
+      > **Opis poprawki:**
+      > - Naprawia błąd w silniku (`char.cpp`), gdzie funkcja powrotu po wojnie przekazywała zerowe koordynaty (`m_posWarp`) zamiast zapamiętanych (`m_posExit`), przez co gracze zostawali uwięzieni na zamykanej instancji mapy.
+      >
+      > **Instrukcja instalacji:**
+      > 1. Pobierz przygotowaną paczkę z `Server/addons/` (lub zaktualizuj pliki klienta).
+      > 2. Wypakuj plik do wskazanego katalogu (np. `Klient/pack/`) / zrestartuj serwer (`stop.bat` -> `start.bat` lub przebuduj kontener `docker compose build game`).

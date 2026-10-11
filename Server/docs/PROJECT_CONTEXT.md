@@ -199,13 +199,14 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
       - **Kopiowanie i synchronizacja:** Bezwzględnie preferować sprawdzone polecenia natywne `robocopy <src> <dst> [pliki] /E /NFL /NDL /NJH /NJS` (kod wyjścia 1 = sukces) lub jednoznaczne cmdlety PowerShell `Copy-Item -Path ... -Destination ... -Force` bez wieloliniowych skomplikowanych pętli i bez używania niesprawdzonych konstrukcji potoków/cudzysłowów narażonych na zacinanie.
       - **Śledzenie zadań w tle (Task Watchdog):** Jeżeli zadanie uruchomione asynchronicznie (np. robocopy, git, powershell) nie zgłosi zakończenia w ciągu spodziewanego czasu (maksymalnie 15–30 sekund dla operacji plikowych), natychmiast sprawdzić jego log (`manage_task action='status'`), zamiast biernie czekać. W przypadku błędu składniowego lub zawieszenia natychmiast anulować proces (`manage_task action='kill'`) i dokończyć operację niezawodną metodą synchroniczną.
 
-12. **Zasada Weryfikacji Stanu Serwera Przed Zmianami (Selective Shutdown & Safe Backup Guard):**
-    - **Weryfikacja stanu serwera:** Przed przystąpieniem do wprowadzania jakichkolwiek zmian, instalacji dodatków, modyfikacji bazy danych lub kodu silnika gry, zawsze najpierw sprawdź, czy serwer jest aktualnie uruchomiony (`docker ps`).
-    - **Minimalizacja przestojów (Wyłączaj/restartuj tylko gdy to konieczne):**
-      - Wyłączaj lub restartuj serwer **tylko i wyłącznie wtedy, kiedy musisz / jest to bezwzględnie konieczne** (np. rekompilacja silnika C++, zmiany schematów i tabel w MariaDB wymagające zatrzymania, modyfikacje plików montowanych bezpośrednio w aktywnych rdzeniach gry).
-      - Jeżeli wyłączenie serwera nie jest konieczne (np. przygotowywanie paczek klienta, pisanie kodu w folderze deweloperskim, edycja dokumentacji czy skryptów pomocniczych), **nie wyłączaj serwera** – niech działa nieprzerwanie.
-    - **Procedura przy konieczności wyłączenia serwera do zmian:**
-      1. **Bezpieczne zatrzymanie:** Jeżeli serwer jest włączony i jego wyłączenie jest wymagane, zatrzymaj go czysto i bezpiecznie (np. `.\Metin2-Launcher.ps1 -Action Stop` lub `docker compose stop`), aby procesy gry (`m2-supervise`) i MariaDB dokonały bezpiecznego zrzutu (flush) danych na dysk.
-      2. **Kopia zapasowa bazy danych (Backup):** Przed wprowadzeniem modyfikacji zrób kopię zapasową bazy danych do katalogu `Server/backups/` (np. procedurą launchera `BackupDb` lub zrzutem bazy).
-      3. **Wprowadzenie zmian:** Zaaplikuj przygotowane modyfikacje, fixy lub konfigurację.
-      4. **Restart i weryfikacja:** Uruchom serwer ponownie (`docker compose up -d`) i upewnij się, że wszystkie rdzenie poprawnie nasłuchują.
+12. **Żelazna Zasada Weryfikacji Serwera i Spójności Bazy (Server Change Shutdown & Safe Backup Rule):**
+    - **Rozróżnienie typu wprowadzanych zmian:**
+      - **A. ZMIANY PO STRONIE SERWERA (Kod C++, baza MariaDB, pliki konfiguracyjne, tabele, migracje, questy i pliki montowane w kontenerach):**
+        - **Zasada nadrzędna:** W przypadku jakichkolwiek modyfikacji serwerowych **ZAWSZE bezwzględnie zatrzymaj serwer i wykonaj kopię zapasową przed wprowadzeniem zmian**. Silnik Metin2 agresywnie buforuje dane w pamięci RAM (`db cache`), a MariaDB trzyma blokady transakcyjne – wprowadzanie zmian lub robienie backupu na działającym serwerze grozi nadpisaniem danych starym stanem z RAM przy wyłączeniu lub uszkodzeniem tabel InnoDB.
+        - **Ścisła 4-etapowa procedura zmian serwerowych:**
+          1. **Weryfikacja i bezpieczne zatrzymanie:** Sprawdź stan (`docker ps`). Jeżeli serwer działa, zatrzymaj go czysto i bezpiecznie (np. `.\Metin2-Launcher.ps1 -Action Stop` lub `docker compose stop`), pozwalając procesom `m2-supervise` i MariaDB na kompletny zrzut (flush) buforów pamięci na dysk.
+          2. **Automatyczny backup bazy (Zero-Data-Loss):** Wykonaj pełną kopię zapasową bazy danych do katalogu `Server/backups/` (używając akcji launchera `BackupDb` lub procedury tworzenia zrzutu `.zip`).
+          3. **Aplikacja zmian:** Wprowadź zaplanowane modyfikacje kodu, schematów SQL, konfiguracji lub plików dodatków.
+          4. **Uruchomienie i weryfikacja:** Uruchom serwer ponownie (`docker compose up -d`) i zweryfikuj brak błędów w logach `docker logs` oraz `syserr` rdzeni (`all cores up`).
+      - **B. ZMIANY PO STRONIE KLIENTA / DOKUMENTACJI (Skrypty Pythona klienta, pakowanie paczek w `Klient/pack/`, edycja `PROJECT_CONTEXT.md`, narzędzia w `Server/tools/`):**
+        - **Brak przestojów:** Ponieważ te operacje w ogóle nie ingerują w procesy ani wolumeny bazy danych serwera, **serwera NIE trzeba wyłączać** – może bezpiecznie działać w tle, oszczędzając czas.

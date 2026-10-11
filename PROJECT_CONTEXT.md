@@ -20,29 +20,26 @@ Dokumentacja techniczna, struktura środowisk i stan projektu Metin2 opartego na
 - **Repozytorium GitHub:** `https://github.com/zaxerrrr-dot/mt2009-sp-plus`
 - **Rola:** Oficjalne źródło wydań, hotfixów, manifestów (`update-manifest-mt2009.json`) oraz paczek aktualizacji serwera i klienta.
 
-### 2.2. Środowisko Developerskie (Dev)
-- **Ścieżka robocza:** `d:\Github\MT2Plus`
-- **Repozytorium zdalne:** `https://github.com/ymirwork/MT2Plus.git` (gałąź `main`)
+### 2.2. Środowisko Rozwojowe (Gałąź `dev`)
+- **Ścieżka robocza:** `d:\Github\MT2Plus` (gałąź `dev`)
+- **Repozytorium zdalne:** `https://github.com/ymirwork/MT2Plus.git` (gałąź `dev`)
 - **Docker Project Name:** `mt2dev`
-- **Rola:** Izolowane środowisko programistyczne. Tutaj wprowadzane są zmiany w kodzie C++, questach i konfiguracji, przeprowadzana jest kompilacja obrazów Docker (`docker compose build`), weryfikacja poprawności oraz automatyczny commit i push do GitHub.
+- **Rola:** Poligon doświadczalny i codzienne środowisko programistyczne. Tutaj wprowadzane są zmiany w kodzie C++, questach i konfiguracji, przeprowadzana jest kompilacja obrazów Docker (`docker compose build`), weryfikacja poprawności oraz commity i pushe do gałęzi `dev`.
 
-### 2.3. Środowisko Oficjalne / Produkcyjne (Official)
-- **Ścieżka robocza:** `d:\MT2\Metin2 Singleplayer Plus`
-- **Docker Project Name:** `m2pb-07befa8f` (lub właściwy z lokalnego `.m2install.json` / `.env`)
-- **Rola:** Docelowa instalacja uruchomieniowa dla gry. Zawiera:
-  - Oficjalny serwer w kontenerach (`Server/`).
-  - Klienta gry (`Klient/`) z plikami `.data`/`.index` (oraz rozpakowanym `pack/root`).
-  - Launcher Windows: `Server/Metin2-Launcher-GUI.bat` / `Server/Metin2-Launcher.bat`.
-  - Stan wersji launchera zapisany w `Server/.m2launcher-state.json`.
+### 2.3. Środowisko Oficjalne / Produkcyjne (Gałąź `main`)
+- **Repozytorium zdalne:** `https://github.com/ymirwork/MT2Plus.git` (gałąź `main`)
+- **Model wydawniczy:** Zmiany z gałęzi `dev` po pełnym przetestowaniu i zatwierdzeniu są scalane (**Merge / Pull Request**) do gałęzi `main`. Gałąź `main` stanowi oficjalną, w 100% stabilną wersję gry (Release).
+- **Środowisko lokalne uruchomieniowe (opcjonalne / gracza):** `d:\MT2\Metin2 Singleplayer Plus` (jeśli uruchamiane niezależnie).
+- **Koniec z ręcznym kopiowaniem:** Zarządzanie wersjami i zmianami odbywa się w pełni przez Git (`dev` -> `main`), eliminując konieczność ręcznego synchronizowania i kopiowania plików pomiędzy folderami.
 
 ---
 
-## 3. Żelazna Procedura Cyklu Aktualizacji (5 Kroków)
+## 3. Żelazna Procedura Cyklu Aktualizacji i Merge (5 Kroków)
 
 Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-etapowy proces decyzyjno-wdrożeniowy:
 
 ### Krok 1: Sprawdzenie zmian w Upstream (Oficjalny SP+)
-1. Pobranie najnowszych referencji: `git fetch upstream` w repozytorium Dev (`d:\Github\MT2Plus`).
+1. Pobranie najnowszych referencji: `git fetch upstream` w repozytorium Dev (`d:\Github\MT2Plus`, na gałęzi `dev`).
 2. Szczegółowa analiza diffa między wersją aktualną a nowym tagiem/wydaniem (np. `git diff v2.29.0 v2.29.1`):
    - Zmiany w silniku C++ (`linux-port/overlays/playerbot/...`).
    - Zmiany w questach (`linux-port/docker/game/quest/...`).
@@ -50,8 +47,8 @@ Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-et
    - Zmiany w panelach www (`admin_panel.py`, panele seban/classic).
    - Zmiany w pakietach instalacyjnych i manifeście (`update-manifest-mt2009.json`, `CHANGELOG.md`).
 
-### Krok 2: Wdrożenie zmian Upstream na Dev (`d:\Github\MT2Plus`)
-1. Naniesienie oficjalnych zmian silnika, skryptów i paneli na drzewo deweloperskie.
+### Krok 2: Wdrożenie zmian Upstream na Gałąź `dev` (`d:\Github\MT2Plus`)
+1. Naniesienie oficjalnych zmian silnika, skryptów i paneli na gałąź `dev`.
 2. Zaktualizowanie znaczników wersji:
    - `Server/VERSION` oraz `Server/MOD_VERSION`.
    - `Server/linux-port/docker/panel/app/VERSION` oraz `Server/linux-port/docker/seban-panel/VERSION`.
@@ -66,23 +63,27 @@ Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-et
 2. **Bezpieczne usuwanie zaadoptowanych modyfikacji (Addon Cleanup):** Jeżeli Upstream oficjalnie wprowadził fixa lub system, który dotychczas utrzymywaliśmy jako naszą modyfikację w `Server/addons/`, wówczas naszą paczkę/patch **bezpiecznie usuwamy z `Server/addons/`**, przechodząc na oficjalne rozwiązanie z Upstream i eliminując duplikację kodu.
 3. Bezwzględny warunek: implementacja musi być bezinwazyjna – żadna nasza modyfikacja nie może usunąć ani zepsuć nowego kodu ani logiki wprowadzonej przez Upstream.
 
-### Krok 4: Rozwiązanie kolizji i adaptacja (Merge Resolution)
+### Krok 4: Rozwiązanie kolizji i weryfikacja w kontenerach (`dev`)
 1. Jeżeli dochodzi do kolizji między naszym kodem a zmianami Upstream (np. nakładające się linie w C++, zmiany sygnatur funkcji w silniku, zmodyfikowane pętle questów):
    - **Zasada nadrzędna:** Przeprojektować i zrefaktoryzować nasz kod tak, aby **w 100% zachować oficjalną funkcjonalność z Upstream**, przy jednoczesnym **pełnym działaniu naszych modyfikacji**.
-2. Weryfikacja integralności w Dockerze na Dev:
+2. Weryfikacja integralności w Dockerze na `dev`:
    - Przebudowa kontenerów: `docker compose build game panel seban-panel`.
    - Sprawdzenie kompilacji kodu C++20 (i386) oraz kompilatora questów `qc` – zero błędów.
    - Po teście czyste wygaszenie kontenerów: `docker compose down`.
 
-### Krok 5: Publikacja na GitHub i wdrożenie na Oficjalny (`d:\MT2\Metin2 Singleplayer Plus`)
+### Krok 5: Publikacja na GitHub (`dev`) i Merge do `main` (Oficjalny Release)
 Dopiero po pomyślnym przejściu Kroków 1–4:
-1. **GitHub Push:**
-   - Zacommitowanie przetestowanych zmian z czytelnym opisem konwencji Conventional Commits.
-   - Wypchnięcie zmian do repozytorium zdalnego: `git push origin main`.
-2. **Wdrożenie na Oficjalny:**
-   - Synchronizacja wszystkich zmodyfikowanych i zaktualizowanych plików do folderu produkcyjnego: `d:\MT2\Metin2 Singleplayer Plus\Server`.
-   - Aktualizacja pliku stanu launchera: `Server/.m2launcher-state.json` (klucz `"server"` na nowy numer wersji).
-   - W przypadku zmian w zasobach klienta (`pack/root` itp.): skompilowanie nowej paczki za pomocą `Kompiluj-Paczki.bat` / `Compile-ClientPack.ps1` i zsynchronizowanie do obu klientów.
+1. **Zatwierdzenie na gałęzi `dev`:**
+   - Commit przetestowanych zmian z czytelnym opisem konwencji Conventional Commits.
+   - Wypchnięcie zmian: `git push origin dev`.
+2. **Scalenie do gałęzi `main` (Release):**
+   - Przełączenie na gałąź `main`: `git checkout main`.
+   - Scalenie zmian: `git merge dev`.
+   - Wypchnięcie oficjalnej wersji: `git push origin main`.
+   - Powrót do gałęzi roboczej: `git checkout dev`.
+   - Opcjonalnie: Utworzenie taga wydania na GitHub (np. `v2.30.0-mod50`).
+3. **Paczki klienta:**
+   - W przypadku modyfikacji plików klienta (`pack/root` itp.): skompilowanie nowej paczki za pomocą `Kompiluj-Paczki.bat` / `Compile-ClientPack.ps1` i wygenerowanie archiwum wydania dla graczy.
 
 ---
 
@@ -165,13 +166,14 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
    - Każda zmiana w `world.item_proto` lub `world.mob_proto` (nowe bronie, zbroje, bonusy, ulepszenia) bezwzględnie wymaga wygenerowania zaktualizowanej paczki klienta `dbdata` (przez edytor bazy w panelu Seban lub `dbdata.py`) i jej rekompilacji do `Klient/pack/`.
    - Zapobiega to desynchronizacji opisów, błędnym ikonom i crashom klienta gry.
 
-3. **Zasada Atomowej Izolacji Środowisk (Dev vs Oficjalny):**
-   - **Dev (`MT2Plus`):** Poligon doświadczalny, edycja kodu C++, tworzenie questów, kompilacje kontenerów (`mt2dev`) oraz wersjonowanie Git.
-   - **Oficjalny (`Metin2 Singleplayer Plus`):** Środowisko produkcyjne / docelowe gracza (Ready-to-Play). Trafia do niego wyłącznie kod i paczki w 100% przetestowane, skompilowane i zweryfikowane, gwarantując pełną stabilność rozgrywki.
+3. **Zasada Atomowej Izolacji Gałęzi (`dev` vs `main`):**
+   - **Gałąź `dev` (`MT2Plus`):** Poligon doświadczalny, edycja kodu C++, tworzenie questów, kompilacje kontenerów (`mt2dev`) oraz wersjonowanie robocze.
+   - **Gałąź `main`:** Oficjalna wersja produkcyjna / docelowa (Ready-to-Play). Trafia do niej wyłącznie kod i paczki w 100% przetestowane, skompilowane i zweryfikowane poprzez kontrolowany merge z `dev`.
+   - **Eliminacja ręcznej synchronizacji:** Zarządzanie spójnością kodu odbywa się bezpośrednio przez mechanizmy Git, eliminując zawodne ręczne kopiowanie plików między folderami.
 
 4. **Zasada Weryfikacji Czystego Stanu Git (Clean Tree Guard):**
-   - Przed przystąpieniem do jakiejkolwiek aktualizacji z Upstream stan repozytorium na Dev musi być czysty (`git status`).
-   - Po każdej udanej zmianie, pomyślnej kompilacji i teście, gotowe zmiany są natychmiast commitowane i wypychane na zdalny GitHub (`git push origin main`), a serwer deweloperski czysto wyłączany (`docker compose down`).
+   - Przed przystąpieniem do jakiejkolwiek aktualizacji z Upstream stan repozytorium na gałęzi `dev` musi być czysty (`git status`).
+   - Po każdej udanej zmianie, pomyślnej kompilacji i teście, gotowe zmiany są commitowane i wypychane na gałąź zdalną `dev` (`git push origin dev`). Po decyzji o wydaniu nowej wersji oficjalnej następuje merge do `main` (`git checkout main && git merge dev && git push origin main`), a serwer deweloperski czysto wyłączany (`docker compose down`).
 
 5. **Wymóg wersji MariaDB 11.8+:** Nie wolno dokonywać downgrade'u do MariaDB 10.x z powodu twardego wymogu kolacji `utf8mb3_uca1400_ai_ci`.
 6. **Tabele MyISAM i czyste zatrzymywanie:** Zawsze stosować czyste zatrzymywanie usług (`docker compose down` lub `stop.bat`), aby chronić tabele MyISAM przed uszkodzeniem indeksów.

@@ -169,14 +169,15 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 8. **Katalog Addonów (`Server/addons/`) i Zasada Cyklu Życia Dodatków:** Wszystkie gotowe paczki dodatków, spakowane fixy i moduły przygotowywane dla serwera należy umieszczać w dedykowanym katalogu `Server/addons/`. Jeżeli w nowym wydaniu Upstream oficjalnie wprowadził fixa lub funkcjonalność, którą wcześniej realizowaliśmy jako addon, dany dodatek można **bezpiecznie usunąć z `Server/addons/`**, przechodząc w pełni na oficjalny kod bazowy.
 9. **Synchronizacja Stanu Launchera Windows:** Przy każdej zmianie wersji serwera należy zaktualizować zarówno `Server/VERSION`, jak i plik `Server/.m2launcher-state.json`, aby GUI launchera (`Metin2-Launcher-GUI.bat`) natychmiast odczytywało aktualny stan wersji.
 10. **Raportowanie Poprawek z Discorda (Standard Opisu Błędów i Instalacji):**
-    - W przypadku naprawy błędu pochodzącego ze zgłoszeń społeczności Discord (gdy użytkownik wskaże, że problem pochodzi z Discorda), asystent po wdrożeniu fixa bezwzględnie generuje zwięzły opis w formacie Markdown zawierający:
+    - W przypadku naprawy błędu pochodzącego ze zgłoszeń społeczności Discord (gdy użytkownik wskaże, że problem pochodzi z Discorda), asystent po wdrożeniu fixa bezwzględnie generuje zwięzły opis w formacie Markdown dla graczy na Discordzie zawierający:
       1. **Co dokładnie naprawia ten fix**
       2. **Dlaczego funkcja wcześniej nie działała (przyczyna techniczna / root cause)**
-      3. **Krótki opis jak zainstalować** (proste, precyzyjne kroki wdrożenia dla gracza lub administratora)
+      3. **Krótki opis jak zainstalować** (proste, precyzyjne kroki dla graczy pobierających udostępniony plik `.zip` / `.rar`; pamiętać, że `Server/addons/` to wyłącznie nasz wewnętrzny katalog projektowy, a społeczność na Discordzie otrzymuje bezpośrednią paczkę archiwum).
     - Wzorzec formatu:
       > **Opis poprawki:**
       > - Naprawia błąd w silniku (`char.cpp`), gdzie funkcja powrotu po wojnie przekazywała zerowe koordynaty (`m_posWarp`) zamiast zapamiętanych (`m_posExit`), przez co gracze zostawali uwięzieni na zamykanej instancji mapy.
       >
       > **Instrukcja instalacji:**
-      > 1. Pobierz przygotowaną paczkę z `Server/addons/` (lub zaktualizuj pliki klienta).
-      > 2. Wypakuj plik do wskazanego katalogu (np. `Klient/pack/`) / zrestartuj serwer (`stop.bat` -> `start.bat` lub przebuduj kontener `docker compose build game`).
+      > 1. Pobierz załączone archiwum `.zip` / `.rar`.
+      > 2. Wypakuj zawartość do głównego folderu gry / serwera (zastąp istniejące pliki).
+      > 3. Zrestartuj serwer (`stop.bat` -> `start.bat`) lub uruchom ponownie klienta gry.

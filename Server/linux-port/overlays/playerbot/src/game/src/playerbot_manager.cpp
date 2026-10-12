@@ -1040,7 +1040,10 @@ namespace
 		return ch && IsPlayerBotSummoned(ch->GetPlayerID()) ? "summoned" : NULL;
 	}
 
-	// Agreeing to a duel.
+#include "playerbot_duel.h"
+
+	// Agreeing to an autonomous bot-v-bot duel. Human challenges use the
+	// preparation and ready handshake in playerbot_duel.h instead.
 	//
 	// CPVPManager::Insert is a two-sided agreement, so answering a challenge is
 	// the same call the challenger made. The engine recorded the challenge
@@ -1061,6 +1064,15 @@ namespace
 		uint32_t challengerPid = 0, seenAt = 0;
 		if (!playerbot_pvp::PeekChallenge(ch->GetPlayerID(), challengerPid, seenAt, dwNow))
 			return;
+		LPCHARACTER person = CHARACTER_MANAGER::instance().FindByPID(challengerPid);
+		if (person && person->GetDesc() && !person->GetDesc()->IsBot())
+			return; // Human challenges belong to the preparation flow above.
+		// MT2009_PLUS_BOT_DUEL_AI_V1: so do bot challenges marked for it.
+		{
+			auto pending = playerbot_pvp::challenges.find(ch->GetPlayerID());
+			if (pending != playerbot_pvp::challenges.end() && pending->second.botChallenger)
+				return;
+		}
 		if (ch->IsDead())
 		{
 			playerbot_pvp::Forget(ch->GetPlayerID());
@@ -1475,11 +1487,12 @@ namespace
 	void ManagePlayerBotPvpChallenge(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 	{
 		static std::map<DWORD, DWORD> s_mapPlayerBotPvpRollNext;
+		ManagePlayerBotDuelAiCensus(dwNow); // MT2009_PLUS_BOT_DUEL_AI_V1
 		if (!ch || ch->IsDead() || ch->GetSectree() == NULL)
 			return;
 		if (IsPlayerBotSafeZone(ch->GetMapIndex(), ch->GetX(), ch->GetY()))
 			return;
-		if (playerbot_pvp::IsInDuel(ch->GetPlayerID(), dwNow))
+		if (playerbot_pvp::IsInDuel(ch->GetPlayerID(), dwNow) || IsPlayerBotDuelAiBusy(ch->GetPlayerID()))
 			return;
 		// Under PK_PROTECT_LEVEL the engine refuses every blow on the kingdom's own
 		// maps: a challenge from there is a duel nobody can fight or end.
@@ -1521,7 +1534,8 @@ namespace
 					return false;
 				if (candidate->GetParty() && candidate->GetParty() == m_me->GetParty())
 					return false;
-				if (playerbot_pvp::IsInDuel(candidate->GetPlayerID(), m_now))
+				if (playerbot_pvp::IsInDuel(candidate->GetPlayerID(), m_now) ||
+						IsPlayerBotDuelAiBusy(candidate->GetPlayerID()))
 					return false;
 				// Not a bot on the bank with its rod out, nor one at a vein.
 				if (GetPlayerBotDuelRefusal(candidate, m_now) != NULL)
@@ -1551,6 +1565,40 @@ namespace
 		ch->GetSectree()->ForEachAround(finder);
 		if (!finder.m_pFound)
 			return;
+		// MT2009_PLUS_BOT_DUEL_AI_V1: by default both bots get ready first - the
+		// challenged one asks "r?", this one answers - and fight the prepared
+		// duel. The event flag bot_duel_ai_off, or a full core, keeps the old
+		// instant agreement below.
+		if (IsPlayerBotDuelAiOn())
+		{
+			if (CountPlayerBotDuelAiPairs() < PLAYERBOT_DUEL_AI_MAX_BOT_PAIRS)
+			{
+				const DWORD targetPid = finder.m_pFound->GetPlayerID();
+				CPVPManager::instance().Insert(ch, finder.m_pFound);
+				auto pending = playerbot_pvp::challenges.find(targetPid);
+				if (pending != playerbot_pvp::challenges.end() &&
+						pending->second.challengerPid == ch->GetPlayerID())
+				{
+					pending->second.botChallenger = true;
+					playerbot_pvp::Challenge& side = playerbot_pvp::botSides[ch->GetPlayerID()];
+					side = playerbot_pvp::Challenge{};
+					side.challengerPid = targetPid;
+					side.seenAt = 0;
+					sys_log(0, "PLAYERBOT_DUEL_BB: challenge pid=%u name=%s target_pid=%u target=%s level=%u target_level=%u active=%d",
+							ch->GetPlayerID(), ch->GetName(), targetPid, finder.m_pFound->GetName(),
+							(unsigned int)ch->GetLevel(), (unsigned int)finder.m_pFound->GetLevel(),
+							CountPlayerBotDuelAiPairs());
+					return;
+				}
+				// The engine kept no pending challenge: fall back to the old agreement
+				// on the pair Insert has just made.
+				playerbot_pvp::NoteDuelStarted(ch->GetPlayerID(), targetPid, dwNow + PLAYERBOT_PVP_DUEL_ASSUMED);
+				sys_log(0, "PLAYERBOT_PVP: challenged another bot pid=%u name=%s target_pid=%u target=%s (no pending entry)",
+						ch->GetPlayerID(), ch->GetName(), targetPid, finder.m_pFound->GetName());
+				return;
+			}
+			++s_playerBotDuelAiCensus.capped;
+		}
 		// The challenge itself. The other bot's tick agrees three seconds later
 		// through the same journal a player's challenge goes through.
 		CPVPManager::instance().Insert(ch, finder.m_pFound);
@@ -1641,7 +1689,8 @@ namespace
 					return false;
 				if (candidate->GetParty() && candidate->GetParty() == m_me->GetParty())
 					return false;
-				if (playerbot_pvp::IsInDuel(candidate->GetPlayerID(), m_now))
+				if (playerbot_pvp::IsInDuel(candidate->GetPlayerID(), m_now) ||
+						IsPlayerBotDuelAiBusy(candidate->GetPlayerID()))   // MT2009_PLUS_BOT_DUEL_AI_V1
 					return false;
 				// The same for a quarrel: nobody is set upon with a rod in hand.
 				if (GetPlayerBotDuelRefusal(candidate, m_now) != NULL)
@@ -5061,6 +5110,11 @@ bool CPlayerBotManager::Despawn(DWORD dwPlayerID, BYTE bSessionOut, DWORD dwRest
 
 	LPDESC d = it->second;
 	m_mapBots.erase(it);
+	if (d && d->GetCharacter())
+	{
+		auto state = s_mapPlayerBotAIStates.find(dwPlayerID);
+		if (state != s_mapPlayerBotAIStates.end()) CleanupPlayerBotDuelOnLeave(d->GetCharacter(), state->second);
+	}
 	// MT2009_PLUS_BOT_SESSIONS_V1: the session ends here, with its reason;
 	// the descriptor's end below no longer finds the bot.
 	ClosePlayerBotSession(dwPlayerID, bSessionOut, dwRestSeconds);
@@ -5645,6 +5699,11 @@ void CPlayerBotManager::OnDescriptorDestroyed(LPDESC d)
 {
 	if (!d || !d->IsBot())
 		return;
+	if (d->GetCharacter())
+	{
+		auto state = s_mapPlayerBotAIStates.find(d->GetCharacter()->GetPlayerID());
+		if (state != s_mapPlayerBotAIStates.end()) CleanupPlayerBotDuelOnLeave(d->GetCharacter(), state->second);
+	}
 
 	// MT2009_PLUS_BOT_SESSIONS_V1: a descriptor that goes without Despawn
 	// (which forgets the bot first) is a kick, or the core stopping.
@@ -5713,7 +5772,8 @@ static bool HoldPlayerBotForEquipWindow(LPCHARACTER ch, TPlayerBotAIState& state
 // September), while a bot's full tick only has to come that often.
 static void RunPlayerBotLightTick(LPDESC d, LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 {
-	if (!d->IsPhase(PHASE_GAME) || ch->IsDead())
+	if (d->IsPhase(PHASE_GAME) && ManagePlayerBotDuelFlow(ch, state, dwNow)) return;
+	if (!d->IsPhase(PHASE_GAME) || ch->IsDead() || ch->GetHP() <= 0)
 		return;
 	// An open trade window holds the bot where it stands on this tick too
 	// (playerbot_gift_trade.h): the route below walked it on between two full
@@ -6886,7 +6946,18 @@ WritePlayerBotGuildStatus(dwNow);
 
 		TPlayerBotAIState& state = s_mapPlayerBotAIStates[it->first];
 
+		// A human duel owns both halves of the tick, before errands and PvE targeting.
+		if (d->IsPhase(PHASE_GAME) && ManagePlayerBotDuelFlow(ch, state, dwNow))
+		{
+			PersistPlayerBot(ch, state, dwNow);
+			continue;
+		}
+
 		// Retirement (playerbot_retirement.h): never despawns from inside this loop.
+		// Lethal Stun precedes IsDead(). Hold it before errands, alchemy or
+		// status updates can treat a zero-HP character as alive.
+		if (d->IsPhase(PHASE_GAME) && ch->GetHP() <= 0 && HandleDeath(ch, state, dwNow))
+			continue;
 		if (ManagePlayerBotRetirement(ch, state, dwNow))
 			continue;
 		// Actions are set in many branches that deliberately end the current AI
@@ -9017,6 +9088,7 @@ void CPlayerBotManager::OnPlayerLocalChat(LPCHARACTER ch, const char* szText, BY
 		return;
 	if (bType == CHAT_TYPE_TALKING)
 	{
+		if (HandlePlayerBotDuelReady(ch, szText)) return;
 		// MT2009_PLUS_GUILD_LFG_V1: "szukam ludzi do gildii" on the normal chat.
 		if (HandlePlayerBotGuildLfgCall(ch, szText, "talk"))
 			return;

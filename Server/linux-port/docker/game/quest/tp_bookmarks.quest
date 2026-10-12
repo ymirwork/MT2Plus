@@ -255,9 +255,9 @@ quest tp_bookmarks begin
 			end
 			if tp_bookmarks.blocked_from(cur) then
 				if cur == 110 or cur == 111 then
-					syschat("Nie moesz si teleportowa w trakcie wojny gildii.")
+					syschat("Nie mo¿esz siê teleportowaæ w trakcie wojny gildii.")
 				else
-					syschat("Z tego miejsca nie mona si teleportowa.")
+					syschat("Z tego miejsca nie mo¿na siê teleportowaæ.")
 				end
 				return
 			end

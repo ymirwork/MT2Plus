@@ -1,3 +1,4 @@
+-- MT2009_PLUS_GUILD_WAR_EXIT_V1 (Autor: Krystian): the "Wyjdz z wojny" button leaves the arena whether the war is still on or already decided.
 quest guild_war_join begin
     state start begin
 		when letter with ( pc.get_map_index() != 71 and pc.get_map_index() != 104 and pc.get_map_index() != 72 and  pc.get_map_index() != 73 and pc.get_map_index() != 208) and pc.get_map_index() <= 200 begin

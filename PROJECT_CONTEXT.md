@@ -6,9 +6,9 @@ Dokumentacja techniczna, struktura środowisk i stan projektu Metin2 opartego na
 
 ## 1. Wersjonowanie i Identyfikacja
 
-- **Wersja serwera (`Server/VERSION`):** `2.30.0`
-- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-50`
-- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.60`
+- **Wersja serwera (`Server/VERSION`):** `2.31.0`
+- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-51`
+- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.62`
 - **Baza kodu:** Fork projektu *Metin2 Playerbots Singleplayer* (`mt2009`) autorstwa Tieru, wywodzący się z bazy MartySama r41023 (oraz wczesnych serwerfiles AzzlackSyndicate).
 - **Główni autorzy rozszerzenia SP+:** ZAXEP / SIZOWSKI, Digi Rasta, Vekirion, seban latino, OskarPWA, Iwakura.
 

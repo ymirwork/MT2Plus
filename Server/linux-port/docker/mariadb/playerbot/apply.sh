@@ -2611,15 +2611,15 @@ fi
 db -e "INSERT IGNORE INTO world.item_proto (vnum, name, locale_name, type, subtype, stack, weight, size, antiflag, flag, wearflag, immuneflag, gold, shop_buy_price, refined_vnum, refine_set, magic_pct, specular, socket_pct, addon_type, limittype0, limitvalue0, limittype1, limitvalue1, applytype0, applyvalue0, applytype1, applyvalue1, applytype2, applyvalue2, value0, value1, value2, value3, value4, value5, socket0, socket1, socket2, socket3, socket4, socket5) VALUES (30670, 'Awakening Stone', _cp1250 X'4B616D6965F12050727A656275647A656E6961', 5, 0, 200, 0, 1, 0, 4, 0, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1);
 UPDATE world.item_proto SET flag = flag | 4, stack = 200 WHERE vnum = 30670;
 INSERT INTO world.refine_proto (id, vnum0, count0, vnum1, count1, vnum2, count2, vnum3, count3, vnum4, count4, cost, src_vnum, result_vnum, prob) VALUES
-(7100, 30092, 2, 0, 0, 0, 0, 0, 0, 0, 0, 5000000, 0, 0, 90),
-(7101, 30041, 2, 30358, 1, 0, 0, 0, 0, 0, 0, 8000000, 0, 0, 85),
-(7102, 27992, 3, 0, 0, 0, 0, 0, 0, 0, 0, 12000000, 0, 0, 80),
+(7100, 30092, 2, 0, 0, 0, 0, 0, 0, 0, 0, 5000000, 0, 0, 100),
+(7101, 30041, 2, 30358, 1, 0, 0, 0, 0, 0, 0, 8000000, 0, 0, 90),
+(7102, 27992, 3, 0, 0, 0, 0, 0, 0, 0, 0, 12000000, 0, 0, 85),
 (7103, 27993, 3, 0, 0, 0, 0, 0, 0, 0, 0, 16000000, 0, 0, 75),
-(7104, 27994, 3, 0, 0, 0, 0, 0, 0, 0, 0, 22000000, 0, 0, 70),
-(7105, 27992, 3, 27993, 3, 27994, 3, 0, 0, 0, 0, 30000000, 0, 0, 60),
-(7106, 71123, 1, 71129, 1, 0, 0, 0, 0, 0, 0, 50000000, 0, 0, 50),
-(7107, 71123, 8, 71129, 8, 0, 0, 0, 0, 0, 0, 100000000, 0, 0, 40),
-(7108, 71123, 15, 71129, 15, 0, 0, 0, 0, 0, 0, 200000000, 0, 0, 30),
+(7104, 27994, 3, 0, 0, 0, 0, 0, 0, 0, 0, 22000000, 0, 0, 60),
+(7105, 27992, 3, 27993, 3, 27994, 3, 0, 0, 0, 0, 30000000, 0, 0, 50),
+(7106, 71123, 1, 71129, 1, 0, 0, 0, 0, 0, 0, 50000000, 0, 0, 40),
+(7107, 71123, 8, 71129, 8, 0, 0, 0, 0, 0, 0, 100000000, 0, 0, 35),
+(7108, 71123, 15, 71129, 15, 0, 0, 0, 0, 0, 0, 200000000, 0, 0, 25),
 (7110, 30670, 1, 0, 0, 0, 0, 0, 0, 0, 0, 200000000, 0, 0, 100)
 ON DUPLICATE KEY UPDATE vnum0 = VALUES(vnum0), count0 = VALUES(count0), vnum1 = VALUES(vnum1), count1 = VALUES(count1), vnum2 = VALUES(vnum2), count2 = VALUES(count2), vnum3 = VALUES(vnum3), count3 = VALUES(count3), vnum4 = VALUES(vnum4), count4 = VALUES(count4), cost = VALUES(cost), src_vnum = VALUES(src_vnum), result_vnum = VALUES(result_vnum), prob = VALUES(prob);
 UPDATE world.item_proto SET type = 1, subtype = 0, antiflag = 32, flag = 1, wearflag = 16, gold = 12474000, shop_buy_price = 12474000,
@@ -2722,10 +2722,10 @@ UPDATE world.item_proto SET type = 10, subtype = 0, wearflag = 1, applytype0 = 9
 UPDATE world.item_proto SET type = 10, subtype = 0, wearflag = 1, applytype0 = 19, applyvalue0 = ELT(FLOOR(vnum / 100) - 284, 32, 34, 36, 38, 40), applytype1 = 0, applyvalue1 = 0, value0 = 0, value5 = 30, refined_vnum = 0, refine_set = 0 WHERE vnum IN (28543,28613,28713,28813,28913); -- Przyspieszenia
 DELETE FROM world.refine_proto WHERE id BETWEEN 7200 AND 7203;
 INSERT INTO world.refine_proto (id, vnum0, count0, vnum1, count1, vnum2, count2, vnum3, count3, vnum4, count4, cost, src_vnum, result_vnum, prob) VALUES
-(7204, 30360, 8, 71056, 1, 0, 0, 0, 0, 0, 0, 5000000, 0, 0, 50),
-(7205, 30360, 12, 71056, 1, 0, 0, 0, 0, 0, 0, 10000000, 0, 0, 40),
-(7206, 30360, 18, 71056, 2, 0, 0, 0, 0, 0, 0, 20000000, 0, 0, 35),
-(7207, 30360, 25, 71056, 2, 0, 0, 0, 0, 0, 0, 40000000, 0, 0, 30),
+(7204, 30360, 8, 71056, 1, 0, 0, 0, 0, 0, 0, 5000000, 0, 0, 60),
+(7205, 30360, 12, 71056, 1, 0, 0, 0, 0, 0, 0, 10000000, 0, 0, 50),
+(7206, 30360, 18, 71056, 2, 0, 0, 0, 0, 0, 0, 20000000, 0, 0, 40),
+(7207, 30360, 25, 71056, 2, 0, 0, 0, 0, 0, 0, 40000000, 0, 0, 35),
 (7208, 30360, 35, 71056, 3, 0, 0, 0, 0, 0, 0, 80000000, 0, 0, 25)
 ON DUPLICATE KEY UPDATE vnum0 = VALUES(vnum0), count0 = VALUES(count0), vnum1 = VALUES(vnum1), count1 = VALUES(count1), cost = VALUES(cost), prob = VALUES(prob);" || fail_step "could not write the soul stones +5..+9 and Olejek Niebios" >&2
 # MT2009_PLUS_DIGI_STACK_V1 (Autor: Digi Rasta, nowy-system v0.23, his
@@ -3424,12 +3424,12 @@ INSERT IGNORE INTO world.refine_proto (id, vnum0, count0, vnum1, count1, vnum2, 
 (7320, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1200, 0, 0, 100),
 (7321, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2500, 0, 0, 100),
 (7322, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5000, 0, 0, 100),
-(7323, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10000, 0, 0, 90),
-(7324, 30083, 2, 0, 0, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 80),
-(7325, 30015, 2, 0, 0, 0, 0, 0, 0, 0, 0, 30000, 0, 0, 70),
-(7326, 30016, 2, 27992, 1, 0, 0, 0, 0, 0, 0, 45000, 0, 0, 60),
-(7327, 30089, 2, 27993, 1, 0, 0, 0, 0, 0, 0, 90000, 0, 0, 50),
-(7328, 30019, 2, 27994, 1, 0, 0, 0, 0, 0, 0, 150000, 0, 0, 40);
+(7323, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10000, 0, 0, 75),
+(7324, 30083, 2, 0, 0, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 60),
+(7325, 30015, 2, 0, 0, 0, 0, 0, 0, 0, 0, 30000, 0, 0, 50),
+(7326, 30016, 2, 27992, 1, 0, 0, 0, 0, 0, 0, 45000, 0, 0, 40),
+(7327, 30089, 2, 27993, 1, 0, 0, 0, 0, 0, 0, 90000, 0, 0, 35),
+(7328, 30019, 2, 27994, 1, 0, 0, 0, 0, 0, 0, 150000, 0, 0, 25);
 INSERT IGNORE INTO world.crafting_proto (vnum, item_vnum, count, price, chance, recipe, req_progress, req_level, recipe_vnum) VALUES
 (50635, 50635, 1, 60000, 60, '50615,100,30360,3', 0, 0, 0),
 (50636, 50636, 1, 60000, 60, '50616,100,30360,3', 0, 0, 0),

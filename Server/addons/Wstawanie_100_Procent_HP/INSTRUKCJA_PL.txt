@@ -1,0 +1,31 @@
+===============================================================================
+INSTRUKCJA INSTALACJI: WSTAWANIE ZE 100% HP PO SMIERCI
+===============================================================================
+
+1. PRZEGLĄD MODYFIKACJI:
+   Modyfikacja zmienia zachowanie silnika Metin2 po śmierci postaci.
+   Zamiast ustawiania sztywnej wartości 50 HP (i konieczności czekania na regenerację
+   bądź wypicia kilkudziesięciu mikstur), silnik wylicza pełną różnicę do Max HP:
+   PointChange(POINT_HP, ch->GetMaxHP() - ch->GetHP())
+
+2. INSTALACJA AUTOMATYCZNA (WINDOWS):
+   - Uruchom dwuklikiem plik INSTALUJ_AUTOMATYCZNIE.bat.
+   - Skrypt odnajdzie źródła serwera, naniesie zmiany i zapyta o przebudowę kontenera Docker.
+
+3. INSTALACJA MANUALNA (KROK PO KROKU):
+   Krok 1: Otwórz plik:
+           Server/linux-port/docker/game/src/server/game/src/cmd_general.cpp
+   Krok 2: W funkcji ACMD(do_restart) odszukaj:
+           ch->PointChange(POINT_HP, 50 - ch->GetHP());
+           i zamień na:
+           ch->PointChange(POINT_HP, ch->GetMaxHP() - ch->GetHP());
+           (występuje w case SCMD_RESTART_TOWN oraz case SCMD_RESTART_HERE)
+   Krok 3: W pliku char.cpp w CHARACTER::Disconnect zamień:
+           PointChange(POINT_HP, 50 - GetHP());
+           na:
+           PointChange(POINT_HP, GetMaxHP() - GetHP());
+   Krok 4: Przebuduj obraz kontenera game:
+           docker compose build game
+   Krok 5: Zrestartuj kontener:
+           docker compose restart game
+===============================================================================

@@ -1,0 +1,31 @@
+--- a/game/src/cmd_general.cpp
++++ b/game/src/cmd_general.cpp
+@@ -636,7 +636,7 @@ ACMD(do_restart)
+ 				ch->WarpSet(pos.x, pos.y);
+ 			else
+ 				ch->WarpSet(EMPIRE_START_X(ch->GetEmpire()), EMPIRE_START_Y(ch->GetEmpire()));
+-			ch->PointChange(POINT_HP, 50 - ch->GetHP());
++			ch->PointChange(POINT_HP, ch->GetMaxHP() - ch->GetHP());
+ 			ch->DeathPenalty(1);
+ 			break;
+ 
+@@ -644,7 +644,7 @@ ACMD(do_restart)
+ 			sys_log(0, "do_restart: restart here");
+ 			ch->RestartAtSamePos();
+ 			//ch->Show(ch->GetMapIndex(), ch->GetX(), ch->GetY());
+-			ch->PointChange(POINT_HP, 50 - ch->GetHP());
++			ch->PointChange(POINT_HP, ch->GetMaxHP() - ch->GetHP());
+ 			ch->DeathPenalty(0);
+ 			ch->ReviveInvisible(5);
+ 			break;
+--- a/game/src/char.cpp
++++ b/game/src/char.cpp
+@@ -1461,7 +1461,7 @@ void CHARACTER::Disconnect(const char * c_pszReason)
+ 	if (IsStun() || IsDead())
+ 	{
+ 		DeathPenalty(0);
+-		PointChange(POINT_HP, 50 - GetHP());
++		PointChange(POINT_HP, GetMaxHP() - GetHP());
+ 	}
+ 
+ 	if (!CHARACTER_MANAGER::instance().FlushDelayedSave(this))

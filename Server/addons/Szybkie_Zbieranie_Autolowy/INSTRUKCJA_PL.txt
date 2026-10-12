@@ -1,0 +1,24 @@
+===============================================================================
+INSTRUKCJA INSTALACJI: SZYBKIE ZBIERANIE W AUTOLOWACH + FIX
+===============================================================================
+
+1. PRZEGLĄD MODYFIKACJI:
+   - Szybkie podnoszenie dropu: Autołowy wykonują masowe podnoszenie dropu
+     w zasięgu za pomocą `/pickup_nearby`, respektując filtry ustawione w GUI.
+   - Kompletna naprawa awarii: Naprawiono błąd TypeError przy przetwarzaniu
+     komendy AutoHuntTarget dla celów za przeszkodami (GetActorPosition).
+
+2. INSTALACJA AUTOMATYCZNA (WINDOWS):
+   - Uruchom dwuklikiem plik INSTALUJ_AUTOMATYCZNIE.bat.
+   - Skrypt skopiuje gotowy plik uiautohunt.py do rozpakowanego folderu root
+     i automatycznie skompiluje paczkę za pomocą Compile-ClientPack.ps1.
+
+3. INSTALACJA MANUALNA (KROK PO KROKU):
+   Krok 1: Rozpakuj paczkę root (np. za pomocą PackMakerLite lub Kompiluj-Paczki.bat).
+   Krok 2: Skopiuj plik uiautohunt.py z folderu:
+           klient_pliki/root/uiautohunt.py
+           do:
+           Klient/pack/root/uiautohunt.py (zastąp istniejący plik).
+   Krok 3: Skompiluj paczkę root z powrotem do pack/root.data i pack/root.index.
+   Krok 4: Uruchom ponownie klienta gry.
+===============================================================================

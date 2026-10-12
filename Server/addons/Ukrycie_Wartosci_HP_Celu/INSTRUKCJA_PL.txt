@@ -1,0 +1,23 @@
+===============================================================================
+INSTRUKCJA INSTALACJI: UKRYCIE WARTOSCI LICZBOWEJ HP CELU
+===============================================================================
+
+1. PRZEGLĄD MODYFIKACJI:
+   Wyłącza pokazywanie białego napisu z wartością numeryczną HP nad paskiem
+   celu (np. "100/100"). Pasek HP nadal dynamicznie zmienia swoją szerokość
+   i kolor, zapewniając czytelną informację o stanie życia potwora/gracza.
+
+2. INSTALACJA AUTOMATYCZNA (WINDOWS):
+   - Uruchom dwuklikiem plik INSTALUJ_AUTOMATYCZNIE.bat.
+   - Skrypt skopiuje gotowy plik uitarget.py do rozpakowanego folderu root
+     i automatycznie skompiluje paczkę za pomocą Compile-ClientPack.ps1.
+
+3. INSTALACJA MANUALNA (KROK PO KROKU):
+   Krok 1: Rozpakuj paczkę root (np. za pomocą PackMakerLite lub Kompiluj-Paczki.bat).
+   Krok 2: Skopiuj plik uitarget.py z folderu:
+           klient_pliki/root/uitarget.py
+           do:
+           Klient/pack/root/uitarget.py (zastąp istniejący plik).
+   Krok 3: Skompiluj paczkę root z powrotem do pack/root.data i pack/root.index.
+   Krok 4: Uruchom ponownie klienta gry.
+===============================================================================

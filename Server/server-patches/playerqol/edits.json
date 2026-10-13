@@ -1,0 +1,1052 @@
+[
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_GARBAGE_BATCH_V1",
+  "old": "// \"/garbage\" - the Garbage Bin's chat-command protocol v1 (see\n",
+  "new": "// MT2009_PLUS_GARBAGE_BATCH_V1 (server-patches/playerqol): the bin's stacks\n// many to a command. \"/garbage prepare_many <req> <slot>:<vnum>:<count> ...\"\n// proves every stack exactly as prepare does and keeps the tokens as one\n// batch, answered \"GarbageBinPreparedMany <req> <batch> <n>\" or\n// \"GarbageBinRejectedMany <req> <index> <reason>\"; \"/garbage commit_many <req>\n// <batch>\" destroys them as commit does, answered \"GarbageBinResultMany <req>\n// OK <n>\" or \"GarbageBinResultMany <req> <reason> <done>\". One stack at a\n// time was two round trips and a pause each: half a minute for a full bin\n// (\"sprawdzanie i usuwanie trwa wieki\", the operator, 28 September).\nstatic std::map<DWORD, std::pair<std::string, std::vector<std::string> > > s_mapMt2009PlusGarbageBatches;\n\nstatic void Mt2009PlusGarbageBinBatch(LPCHARACTER ch, bool prepare, const char* args)\n{\n\tchar reqid[16] = \"\";\n\tconst char* rest = one_argument(args, reqid, sizeof(reqid));\n\tif (!reqid[0])\n\t\tstrlcpy(reqid, \"0\", sizeof(reqid));\n\tif (ch->GarbageBinCheckRateLimit())\n\t{\n\t\tif (prepare)\n\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinRejectedMany %s -1 RATE_LIMIT\", reqid);\n\t\telse\n\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinResultMany %s RATE_LIMIT 0\", reqid);\n\t\treturn;\n\t}\n\tconst DWORD pid = ch->GetPlayerID();\n\tif (prepare)\n\t{\n\t\tstd::vector<std::string> tokens;\n\t\tchar entry[64];\n\t\tint index = 0;\n\t\twhile (true)\n\t\t{\n\t\t\trest = one_argument(rest, entry, sizeof(entry));\n\t\t\tif (!entry[0])\n\t\t\t\tbreak;\n\t\t\tunsigned long slot = 0, vnum = 0, count = 0;\n\t\t\tif (sscanf(entry, \"%lu:%lu:%lu\", &slot, &vnum, &count) != 3 || slot > 65535 || vnum == 0 ||\n\t\t\t\t\tvnum > 2147483647 || count == 0 || count > 2147483647 || tokens.size() >= 36)\n\t\t\t{\n\t\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinRejectedMany %s %d INVALID\", reqid, index);\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tchar token[33];\n\t\t\tconst char* reason = ch->GarbageBinPrepare(TItemPos(INVENTORY, (WORD) slot), (DWORD) vnum,\n\t\t\t\t\t(ITEM_COUNT) count, token);\n\t\t\tif (reason)\n\t\t\t{\n\t\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinRejectedMany %s %d %s\", reqid, index, reason);\n\t\t\t\treturn;\n\t\t\t}\n\t\t\ttokens.push_back(token);\n\t\t\t++index;\n\t\t}\n\t\tif (tokens.empty())\n\t\t{\n\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinRejectedMany %s 0 INVALID\", reqid);\n\t\t\treturn;\n\t\t}\n\t\ts_mapMt2009PlusGarbageBatches[pid] = std::make_pair(tokens[0], tokens);\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinPreparedMany %s %s %d\", reqid, tokens[0].c_str(), (int) tokens.size());\n\t\treturn;\n\t}\n\n\tchar batch[64] = \"\";\n\tone_argument(rest, batch, sizeof(batch));\n\tstd::map<DWORD, std::pair<std::string, std::vector<std::string> > >::iterator it =\n\t\t\ts_mapMt2009PlusGarbageBatches.find(pid);\n\tif (!batch[0] || it == s_mapMt2009PlusGarbageBatches.end() || it->second.first != batch)\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinResultMany %s NOT_FOUND 0\", reqid);\n\t\treturn;\n\t}\n\tconst std::vector<std::string> tokens = it->second.second;\n\ts_mapMt2009PlusGarbageBatches.erase(it);\n\tint done = 0;\n\tfor (size_t i = 0; i < tokens.size(); ++i)\n\t{\n\t\tconst char* reason = ch->GarbageBinCommit(tokens[i].c_str());\n\t\tif (reason)\n\t\t{\n\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinResultMany %s %s %d\", reqid, reason, done);\n\t\t\treturn;\n\t\t}\n\t\t++done;\n\t}\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinResultMany %s OK %d\", reqid, done);\n}\n\n// \"/garbage\" - the Garbage Bin's chat-command protocol v1 (see\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_GARBAGE_BATCH_V1 (hello)",
+  "old": "\tif (!strcmp(garbage_verb, \"hello\"))\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinReady 1\");\n\t\treturn;\n\t}\n",
+  "new": "\tif (!strcmp(garbage_verb, \"hello\"))\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinReady 1\");\n\t\t// MT2009_PLUS_GARBAGE_BATCH_V1 (hello): a client that knows the batch\n\t\t// uses it; one that does not ignores the line.\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"GarbageBinBatch 1\");\n\t\treturn;\n\t}\n\n\tif (!strcmp(garbage_verb, \"prepare_many\") || !strcmp(garbage_verb, \"commit_many\"))\n\t{\n\t\tMt2009PlusGarbageBinBatch(ch, !strcmp(garbage_verb, \"prepare_many\"), rest);\n\t\treturn;\n\t}\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1",
+  "old": "int CHARACTER::PickupNearbyItems()\n{",
+  "new": "// MT2009_PLUS_PICKUP_FILTER_V1 (server-patches/playerqol): what the Z key and\n// a loot pet pick up (the operator, 28 September: \"filtrowanie zbieranego\n// dropu, jak w auto lowach\"). The client's window (uipickupfilter.py) sends\n// \"/pickup_filter <on> <kinds>\" after every login and every change, with the\n// auto-hunt's thirteen kinds (cmd_general.cpp, AutoHuntLootKind); a character\n// with no entry takes everything, and yang is always taken.\nstd::map<DWORD, DWORD> g_mapMt2009PlusPickupFilter;\n\nstatic DWORD Mt2009PlusPickupKind(LPITEM item)\n{\n\tswitch (item->GetType())\n\t{\n\t\tcase ITEM_WEAPON:\n\t\t\treturn item->GetSubType() == WEAPON_ARROW ? (1 << 6) : (1 << 0);\n\t\tcase ITEM_ARMOR:\n\t\t\tswitch (item->GetSubType())\n\t\t\t{\n\t\t\t\tcase ARMOR_BODY: return 1 << 1;\n\t\t\t\tcase ARMOR_HEAD: return 1 << 7;\n\t\t\t\tcase ARMOR_SHIELD: return 1 << 8;\n\t\t\t\tcase ARMOR_WRIST: return 1 << 9;\n\t\t\t\tcase ARMOR_FOOTS: return 1 << 10;\n\t\t\t\tcase ARMOR_NECK: return 1 << 11;\n\t\t\t\tcase ARMOR_EAR: return 1 << 12;\n\t\t\t\tdefault: return 1 << 2;\n\t\t\t}\n\t\tcase ITEM_RING:\n\t\tcase ITEM_BELT:\n\t\t\treturn 1 << 2;\n\t\tcase ITEM_USE:\n\t\t\tswitch (item->GetSubType())\n\t\t\t{\n\t\t\t\tcase USE_POTION:\n\t\t\t\tcase USE_POTION_NODELAY:\n\t\t\t\tcase USE_ABILITY_UP:\n\t\t\t\t\treturn 1 << 3;\n\t\t\t\tdefault:\n\t\t\t\t\treturn 1 << 6;\n\t\t\t}\n\t\tcase ITEM_SKILLBOOK:\n\t\tcase ITEM_SKILLFORGET:\n\t\t\treturn 1 << 4;\n\t\tcase ITEM_METIN:\n\t\t\treturn 1 << 5;\n\t\tdefault:\n\t\t\treturn 1 << 6;\n\t}\n}\n\nbool Mt2009PlusPickupFilterAllows(LPCHARACTER ch, LPITEM item)\n{\n\tif (!ch || !item || item->GetType() == ITEM_ELK)\n\t\treturn true;\n\tstd::map<DWORD, DWORD>::const_iterator it = g_mapMt2009PlusPickupFilter.find(ch->GetPlayerID());\n\treturn it == g_mapMt2009PlusPickupFilter.end() || (Mt2009PlusPickupKind(item) & it->second) != 0;\n}\n\nint CHARACTER::PickupNearbyItems()\n{"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1 (collect)",
+  "old": "\t\t\tif (!item->IsOwnership(ch) && !ch->GetParty())\n\t\t\t\treturn;\n\t\t\tfound.push_back(std::make_pair(",
+  "new": "\t\t\tif (!item->IsOwnership(ch) && !ch->GetParty())\n\t\t\t\treturn;\n\t\t\t// MT2009_PLUS_PICKUP_FILTER_V1 (collect): left on the ground.\n\t\t\tif (!Mt2009PlusPickupFilterAllows(ch, item))\n\t\t\t\treturn;\n\t\t\tfound.push_back(std::make_pair("
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1 (commands)",
+  "old": "ACMD(do_pickup_nearby)\n{\n\tch->PickupNearbyItems();\n}",
+  "new": "ACMD(do_pickup_nearby)\n{\n\tch->PickupNearbyItems();\n}\n\n// MT2009_PLUS_PICKUP_FILTER_V1 (commands): \"/pickup_filter <on> <kinds>\" from\n// the client's filter window, and \"/filtr\", which opens it.\nextern std::map<DWORD, DWORD> g_mapMt2009PlusPickupFilter;\n\nACMD(do_pickup_filter)\n{\n\tchar arg1[32], arg2[32];\n\ttwo_arguments(argument, arg1, sizeof(arg1), arg2, sizeof(arg2));\n\tint on = 0;\n\tunsigned long kinds = 0;\n\tstr_to_number(on, arg1);\n\tstr_to_number(kinds, arg2);\n\tif (on)\n\t\tg_mapMt2009PlusPickupFilter[ch->GetPlayerID()] = (DWORD) (kinds & 0x1FFF);\n\telse\n\t\tg_mapMt2009PlusPickupFilter.erase(ch->GetPlayerID());\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"PickupFilterAck %d %lu\", on ? 1 : 0, kinds & 0x1FFF);\n}\n\nACMD(do_pickup_filter_open)\n{\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"OpenPickupFilter\");\n}"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1 (declare)",
+  "old": "ACMD(do_pickup_nearby);\n",
+  "new": "ACMD(do_pickup_nearby);\n// MT2009_PLUS_PICKUP_FILTER_V1 (declare)\nACMD(do_pickup_filter);\nACMD(do_pickup_filter_open);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1 (table)",
+  "old": "\t{ \"pickup_nearby\",\tdo_pickup_nearby,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"pickup_nearby\",\tdo_pickup_nearby,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_PICKUP_FILTER_V1 (table)\n\t{ \"pickup_filter\",\tdo_pickup_filter,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t{ \"filtr\",\tdo_pickup_filter_open,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1 (auto hunt)",
+  "old": "\t\tif (item->GetType() != ITEM_ELK && !(AutoHuntLootKind(item) & m_iKinds))\n\t\t\treturn;\n",
+  "new": "\t\tif (item->GetType() != ITEM_ELK && !(AutoHuntLootKind(item) & m_iKinds))\n\t\t\treturn;\n\t\t// MT2009_PLUS_PICKUP_FILTER_V1 (auto hunt): one pick-up filter for the Z key,\n\t\t// Auto Lowy and the companion (the operator, 30 September: \"filtr dzialal\n\t\t// na wszystko: czyli na nas, na autolowy i na towarzysza jednoczesnie\").\n\t\t// The client asks for the filter's kinds already (uiautohunt.LootMask);\n\t\t// the filter the client last sent (/pickup_filter, char_item.cpp) holds\n\t\t// here too, for a client that asks for more. Yang always passes.\n\t\t{\n\t\t\tbool Mt2009PlusPickupFilterAllows(LPCHARACTER ch, LPITEM item);\n\t\t\tif (!Mt2009PlusPickupFilterAllows(m_ch, item))\n\t\t\t\treturn;\n\t\t}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_ARRANGE_MERGE_V1",
+  "old": "\tif (*arg1)\n\t\tresult.code = playerbot_arrange::RESULT_BAD_REQUEST;\n\telse\n\t\tresult = playerbot_arrange::ArrangeInventory(ch, true);",
+  "new": "\t// MT2009_PLUS_ARRANGE_MERGE_V1 (server-patches/playerqol): \"merge\" pours\n\t// the stacks together and moves nothing else (\"samo laczenie w stacki bez\n\t// sortowania\", the operator, 28 September).\n\tif (!strcmp(arg1, \"merge\"))\n\t\tresult = playerbot_arrange::MergeInventoryStacks(ch, true);\n\telse if (*arg1)\n\t\tresult.code = playerbot_arrange::RESULT_BAD_REQUEST;\n\telse\n\t\tresult = playerbot_arrange::ArrangeInventory(ch, true);"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_SHOP_SEARCH_PLUS_V1",
+  "old": "\tbool CShopManager::RecvShopSearchItemClientPacket(LPCHARACTER ch, DWORD itemVnum, int socket0)\n\t{",
+  "new": "\t// MT2009_PLUS_SHOP_SEARCH_PLUS_V1 (server-patches/playerqol): the search's\n\t// \"MT2009 Plus\" category, one past the package's last (the operator, 28\n\t// September): 0 the Cor Draconis, 1-4 the sashes by grade whatever their\n\t// look, 5-7 the ancient, legendary and mythic alchemy whatever the stone\n\t// and its steps. Built on the first search, from the item table the boot\n\t// has loaded by then - PrepareShopSearchFilters runs before it.\n\ttemplate <class FILTERS>\n\tstatic void Mt2009PlusShopSearchFilters(FILTERS& filters)\n\t{\n\t\ttypedef typename FILTERS::mapped_type::value_type FILTER;\n\t\tconst DWORD base = SHOP_SEARCH_CATEGORY_MAX * SHOP_CATEGORY_MAX_SUB;\n\t\t// The four the operator keeps in the tab (28 September).\n\t\tstatic const DWORD cors[] = { 50255, 50256, 50257, 50258, 50259 };\n\t\tfor (size_t i = 0; i < sizeof(cors) / sizeof(cors[0]); ++i)\n\t\t\tif (ITEM_MANAGER::instance().GetTable(cors[i]))\n\t\t\t{\n\t\t\t\tFILTER f;\n\t\t\t\tf.itemVnum = cors[i];\n\t\t\t\tf.socket0 = 0;\n\t\t\t\tfilters[base + 0].push_back(f);\n\t\t\t}\n\t\tstatic const DWORD sashRanges[][2] = { { 85001, 85024 }, { 85101, 85104 }, { 86061, 86064 } };\n\t\tfor (size_t r = 0; r < sizeof(sashRanges) / sizeof(sashRanges[0]); ++r)\n\t\t\tfor (DWORD vnum = sashRanges[r][0]; vnum <= sashRanges[r][1]; ++vnum)\n\t\t\t{\n\t\t\t\tconst TItemTable* proto = ITEM_MANAGER::instance().GetTable(vnum);\n\t\t\t\tif (!proto || proto->bType != ITEM_COSTUME || proto->alValues[0] < 1 || proto->alValues[0] > 4)\n\t\t\t\t\tcontinue;\n\t\t\t\tFILTER f;\n\t\t\t\tf.itemVnum = vnum;\n\t\t\t\tf.socket0 = 0;\n\t\t\t\tfilters[base + (DWORD) proto->alValues[0]].push_back(f);\n\t\t\t}\n\t\tfor (DWORD kind = 11; kind <= 16; ++kind)\n\t\t\tfor (DWORD grade = 3; grade <= 5; ++grade)\n\t\t\t\tfor (DWORD rest = 0; rest < 1000; ++rest)\n\t\t\t\t{\n\t\t\t\t\tconst DWORD vnum = kind * 10000 + grade * 1000 + rest;\n\t\t\t\t\tconst TItemTable* proto = ITEM_MANAGER::instance().GetTable(vnum);\n\t\t\t\t\tif (!proto || proto->bType != ITEM_DS)\n\t\t\t\t\t\tcontinue;\n\t\t\t\t\tFILTER f;\n\t\t\t\t\tf.itemVnum = vnum;\n\t\t\t\t\tf.socket0 = 0;\n\t\t\t\t\tfilters[base + 5 + (grade - 3)].push_back(f);\n\t\t\t\t}\n\t}\n\n\tbool CShopManager::RecvShopSearchItemClientPacket(LPCHARACTER ch, DWORD itemVnum, int socket0)\n\t{"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_SHOP_SEARCH_PLUS_V1 (bound)",
+  "old": "\t\tif (itemVnum >= SHOP_SEARCH_CATEGORY_MAX * SHOP_CATEGORY_MAX_SUB)\n\t\t\treturn false;\n",
+  "new": "\t\t// MT2009_PLUS_SHOP_SEARCH_PLUS_V1 (bound): one category past the\n\t\t// package's, filled on the first search.\n\t\tif (itemVnum >= (SHOP_SEARCH_CATEGORY_MAX + 1) * SHOP_CATEGORY_MAX_SUB)\n\t\t\treturn false;\n\t\tstatic bool s_bMt2009PlusFilters = false;\n\t\tif (!s_bMt2009PlusFilters)\n\t\t{\n\t\t\ts_bMt2009PlusFilters = true;\n\t\t\tMt2009PlusShopSearchFilters(m_shopSearchFilters);\n\t\t}\n"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_MOUNT_HORSE_SKILLS_V1",
+  "old": "\t\tif (eIsMount == MOUNT_TYPE_MILITARY)\n\t\t{\n\t\t\tswitch(dwSkillVnum)",
+  "new": "\t\t// MT2009_PLUS_MOUNT_HORSE_SKILLS_V1 (server-patches/playerqol): the\n\t\t// horse skills - Ciecie z Siodla and the rest - on a costume mount\n\t\t// that may fight too, not the military horses alone (\"mozliwosc\n\t\t// uzywania ciecia z siodla i innych skilli konnych na mountach\", the\n\t\t// operator, 28 September). CanUseHorseSkill, UseSkill and ComputeSkill\n\t\t// already let them through there; this gate was the one left.\n\t\tbool bHorseSkillMount = eIsMount == MOUNT_TYPE_MILITARY;\n#ifdef ENABLE_MOUNT_COSTUME_SYSTEM\n\t\tif (eIsMount == MOUNT_TYPE_COMBAT && GetWear(WEAR_COSTUME_MOUNT))\n\t\t\tbHorseSkillMount = true;\n#endif\n\t\tif (bHorseSkillMount)\n\t\t{\n\t\t\tswitch(dwSkillVnum)"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_FLEA_FILL_V1",
+  "old": "\t\t//case ikashop::SUBHEADER_CG_SHOP_SEARCH_FILL_REQUEST:\n\t\t//\treturn IkarusShopPacketSearchFillRequest(ch, data, iBufferLeft);\n",
+  "new": "\t\t// MT2009_PLUS_FLEA_FILL_V1 (server-patches/playerqol): the Dom\n\t\t// Towarowy's window asks for its catalogue with this packet\n\t\t// (ikashop.SendRandomSearchFillRequest). Commented out, the server\n\t\t// read its bytes as an unknown header and closed the connection the\n\t\t// moment the window opened (the operator, 28 September).\n\t\tcase ikashop::SUBHEADER_CG_SHOP_SEARCH_FILL_REQUEST:\n\t\t\treturn IkarusShopPacketSearchFillRequest(ch, data, iBufferLeft);\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V1 (hook)",
+  "old": "\t\t\tbreak;\n\t}\n}\n\nbool CItem::IsEquipable() const",
+  "new": "\t\t\tbreak;\n\t}\n\n\t// MT2009_PLUS_COSTUME_HIDE_V1 (hook): with the costumes hidden, the armour\n\t// and the weapon show as they are, whatever this item just did to the parts.\n\t{\n\t\tbool Mt2009PlusCostumeHidden(LPCHARACTER ch);\n\t\tvoid Mt2009PlusApplyCostumeParts(LPCHARACTER ch, LPITEM leaving);\n\t\tif (m_pOwner && Mt2009PlusCostumeHidden(m_pOwner) &&\n\t\t\t\t(m_pProto->bType == ITEM_WEAPON || m_pProto->bType == ITEM_ARMOR || m_pProto->bType == ITEM_COSTUME))\n\t\t\tMt2009PlusApplyCostumeParts(m_pOwner, bAdd ? NULL : this);\n\t}\n}\n\n// MT2009_PLUS_COSTUME_HIDE_V1 (server-patches/playerqol): \"Ukryj kostiumy\"\n// (the operator, 28 September). The costumes stay worn and give their bonuses;\n// the body and the weapon every player sees are the armour and the weapon under\n// them, and the hair the character's own. The client's costume window sends \"/kostiumy_ukryj <0|1>\" after every\n// login and every click.\nstd::map<DWORD, bool> g_mapMt2009PlusCostumeHidden;\n\nbool Mt2009PlusCostumeHidden(LPCHARACTER ch)\n{\n\tif (!ch || !ch->IsPC())\n\t\treturn false;\n\tstd::map<DWORD, bool>::const_iterator it = g_mapMt2009PlusCostumeHidden.find(ch->GetPlayerID());\n\treturn it != g_mapMt2009PlusCostumeHidden.end() && it->second;\n}\n\n// The body and weapon parts from what is worn; `leaving` is an item on its way\n// off, counted as gone already.\nvoid Mt2009PlusApplyCostumeParts(LPCHARACTER ch, LPITEM leaving)\n{\n\tif (!ch || !ch->IsPC() || ch->IsPolymorphed())\n\t\treturn;\n\tconst bool hidden = Mt2009PlusCostumeHidden(ch);\n\tLPITEM body = ch->GetWear(WEAR_BODY);\n\tLPITEM costumeBody = ch->GetWear(WEAR_COSTUME_BODY);\n\tif (body == leaving) body = NULL;\n\tif (costumeBody == leaving) costumeBody = NULL;\n\tch->SetPart(PART_MAIN, (!hidden && costumeBody) ? costumeBody->GetVnum()\n\t\t\t: (body ? body->GetVnum() : ch->GetOriginalPart(PART_MAIN)));\n\tLPITEM weapon = ch->GetWear(WEAR_WEAPON);\n\tif (weapon == leaving) weapon = NULL;\n#ifdef ENABLE_WEAPON_COSTUME_SYSTEM\n\tLPITEM costumeWeapon = ch->GetWear(WEAR_COSTUME_WEAPON);\n\tif (costumeWeapon == leaving) costumeWeapon = NULL;\n\tch->SetPart(PART_WEAPON, (!hidden && costumeWeapon) ? costumeWeapon->GetVnum() : (weapon ? weapon->GetVnum() : 0));\n#else\n\tch->SetPart(PART_WEAPON, weapon ? weapon->GetVnum() : 0);\n#endif\n\t// A hidden hair costume is the character's own hair, as with no costume\n\t// on (the operator: \"zeby pojawiala sie domyslna fryzura\"); without one\n\t// the hair is left as it is, dyed or not.\n\tLPITEM costumeHair = ch->GetWear(WEAR_COSTUME_HAIR);\n\tconst bool hairLeaving = costumeHair && costumeHair == leaving;\n\tif (hairLeaving) costumeHair = NULL;\n\tif (costumeHair)\n\t\tch->SetPart(PART_HAIR, hidden ? 0 : costumeHair->GetValue(3));\n\telse if (hairLeaving)\n\t\tch->SetPart(PART_HAIR, 0); // what the engine does for a hair costume taken off\n\tch->UpdatePacket();\n}\n\nbool CItem::IsEquipable() const"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V1 (command)",
+  "old": "ACMD(do_pickup_filter_open)\n{",
+  "new": "// MT2009_PLUS_COSTUME_HIDE_V1 (command): \"/kostiumy_ukryj <0|1>\" from the\n// costume window (item.cpp, Mt2009PlusApplyCostumeParts).\nextern std::map<DWORD, bool> g_mapMt2009PlusCostumeHidden;\nvoid Mt2009PlusApplyCostumeParts(LPCHARACTER ch, LPITEM leaving);\n\nACMD(do_costume_hide)\n{\n\tchar arg1[32];\n\tone_argument(argument, arg1, sizeof(arg1));\n\tint hide = 0;\n\tstr_to_number(hide, arg1);\n\tif (hide)\n\t\tg_mapMt2009PlusCostumeHidden[ch->GetPlayerID()] = true;\n\telse\n\t\tg_mapMt2009PlusCostumeHidden.erase(ch->GetPlayerID());\n\tMt2009PlusApplyCostumeParts(ch, NULL);\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"CostumeHiddenAck %d\", hide ? 1 : 0);\n}\n\nACMD(do_pickup_filter_open)\n{"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V1 (declare)",
+  "old": "ACMD(do_pickup_filter_open);\n",
+  "new": "ACMD(do_pickup_filter_open);\n// MT2009_PLUS_COSTUME_HIDE_V1 (declare)\nACMD(do_costume_hide);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V1 (table)",
+  "old": "\t{ \"filtr\",\tdo_pickup_filter_open,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"filtr\",\tdo_pickup_filter_open,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_COSTUME_HIDE_V1 (table)\n\t{ \"kostiumy_ukryj\",\tdo_costume_hide,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V2 (mask)",
+  "old": "std::map<DWORD, bool> g_mapMt2009PlusCostumeHidden;\n\nbool Mt2009PlusCostumeHidden(LPCHARACTER ch)\n{\n\tif (!ch || !ch->IsPC())\n\t\treturn false;\n\tstd::map<DWORD, bool>::const_iterator it = g_mapMt2009PlusCostumeHidden.find(ch->GetPlayerID());\n\treturn it != g_mapMt2009PlusCostumeHidden.end() && it->second;\n}",
+  "new": "// MT2009_PLUS_COSTUME_HIDE_V2 (mask): each look hidden on its own (the owner,\n// 6 October: \"nakladka na bron wlaczona, a fryzura i kostium wylaczone\") -\n// 1 the costume, 2 the hair, 4 the weapon skin; 0 is everything shown.\nstd::map<DWORD, BYTE> g_mapMt2009PlusCostumeHidden;\n\nBYTE Mt2009PlusCostumeHiddenMask(LPCHARACTER ch)\n{\n\tif (!ch || !ch->IsPC())\n\t\treturn 0;\n\tstd::map<DWORD, BYTE>::const_iterator it = g_mapMt2009PlusCostumeHidden.find(ch->GetPlayerID());\n\treturn it != g_mapMt2009PlusCostumeHidden.end() ? it->second : 0;\n}\n\nbool Mt2009PlusCostumeHidden(LPCHARACTER ch)\n{\n\treturn Mt2009PlusCostumeHiddenMask(ch) != 0;\n}"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V2 (parts)",
+  "old": "\tconst bool hidden = Mt2009PlusCostumeHidden(ch);\n",
+  "new": "\t// MT2009_PLUS_COSTUME_HIDE_V2 (parts): bit by bit, see the mask above.\n\tconst BYTE hiddenMask = Mt2009PlusCostumeHiddenMask(ch);\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "(!(hiddenMask & 1) && costumeBody)",
+  "old": "(!hidden && costumeBody)",
+  "new": "(!(hiddenMask & 1) && costumeBody)"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "(!(hiddenMask & 4) && costumeWeapon)",
+  "old": "(!hidden && costumeWeapon)",
+  "new": "(!(hiddenMask & 4) && costumeWeapon)"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "(hiddenMask & 2) ? 0 : costumeHair",
+  "old": "hidden ? 0 : costumeHair",
+  "new": "(hiddenMask & 2) ? 0 : costumeHair"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_COSTUME_HIDE_V2 (command)",
+  "old": "extern std::map<DWORD, bool> g_mapMt2009PlusCostumeHidden;\nvoid Mt2009PlusApplyCostumeParts(LPCHARACTER ch, LPITEM leaving);\n\nACMD(do_costume_hide)\n{\n\tchar arg1[32];\n\tone_argument(argument, arg1, sizeof(arg1));\n\tint hide = 0;\n\tstr_to_number(hide, arg1);\n\tif (hide)\n\t\tg_mapMt2009PlusCostumeHidden[ch->GetPlayerID()] = true;\n\telse\n\t\tg_mapMt2009PlusCostumeHidden.erase(ch->GetPlayerID());\n\tMt2009PlusApplyCostumeParts(ch, NULL);\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"CostumeHiddenAck %d\", hide ? 1 : 0);\n}",
+  "new": "// MT2009_PLUS_COSTUME_HIDE_V2 (command): \"/kostiumy_ukryj m <0..7>\" hides each\n// look on its own (1 costume, 2 hair, 4 weapon skin), answered with\n// \"CostumeHiddenAck m <mask>\"; the old \"/kostiumy_ukryj <0|1>\" is all or nothing.\nextern std::map<DWORD, BYTE> g_mapMt2009PlusCostumeHidden;\nvoid Mt2009PlusApplyCostumeParts(LPCHARACTER ch, LPITEM leaving);\n\nACMD(do_costume_hide)\n{\n\tchar arg1[32], arg2[32];\n\ttwo_arguments(argument, arg1, sizeof(arg1), arg2, sizeof(arg2));\n\tconst bool byMask = arg1[0] == 'm' && arg1[1] == '\\0';\n\tint value = 0;\n\tstr_to_number(value, byMask ? arg2 : arg1);\n\tconst BYTE mask = byMask ? (BYTE)(value & 7) : (value ? 7 : 0);\n\tif (mask)\n\t\tg_mapMt2009PlusCostumeHidden[ch->GetPlayerID()] = mask;\n\telse\n\t\tg_mapMt2009PlusCostumeHidden.erase(ch->GetPlayerID());\n\tMt2009PlusApplyCostumeParts(ch, NULL);\n\tif (byMask)\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"CostumeHiddenAck m %d\", mask);\n\telse\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"CostumeHiddenAck %d\", mask ? 1 : 0);\n}"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_MOUNT_ON_EQUIP_V1 (include)",
+  "old": "#include \"char.h\"\n#include \"char_manager.h\"\n",
+  "new": "#include \"char.h\"\n#include \"char_manager.h\"\n// MT2009_PLUS_MOUNT_ON_EQUIP_V1 (include)\n#include \"MountSystem.h\"\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_MOUNT_ON_EQUIP_V1 (ride)",
+  "old": "\tif (HasPlayerData())\n\t\tplayerData->m_lastItemEquipTime = get_dword_time();\n\n\treturn true;\n}\n\nLPITEM CHARACTER::FindSpecifyItem",
+  "new": "\tif (HasPlayerData())\n\t\tplayerData->m_lastItemEquipTime = get_dword_time();\n\n#ifdef ENABLE_MOUNT_COSTUME_SYSTEM\n\t// MT2009_PLUS_MOUNT_ON_EQUIP_V1 (ride): a seal a player puts on (a click in\n\t// the bag or a drag onto the slot) is ridden at once, as Ctrl+G with the\n\t// seal in the bag already does (do_ride) - the operator, 28 September:\n\t// \"po kliknieciu na wierzchowiec od razu na niego wchodzil\", instead of\n\t// the seal, the summoned mount beside, and Ctrl+G a second time. Only a\n\t// player's own action: a login puts the worn seal on through EquipTo, and\n\t// a bot (no descriptor) keeps getting on and off by its own rules.\n\tif (GetDesc() && item->IsNewMountItem() && item->IsEquipped() && !IsDead() && !IsStun() &&\n\t\t\t!IsBusyAction() && !IsPolymorphed() && !GetMountVnum())\n\t{\n\t\tCMountSystem* mountSystem = GetMountSystem();\n\t\tconst DWORD mobVnum = item->GetValue(1);\n\t\tif (mountSystem && mobVnum && mountSystem->CountSummoned() == 1)\n\t\t\tmountSystem->Mount(mobVnum, item);\n\t}\n#endif\n\n\treturn true;\n}\n\nLPITEM CHARACTER::FindSpecifyItem"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_DRAGON_ROAR_EFFECT_V1",
+  "old": "\tif (!bCanUseHorseSkill && pkSk->dwType == SKILL_TYPE_HORSE)\n\t\treturn BATTLE_NONE;\n\n\tif (IS_SET(pkSk->dwFlag, SKILL_FLAG_SELFONLY))\n\t\tpkVictim = GetSelfOnlySkillVictim(this, dwVnum, pkVictim);\n",
+  "new": "\tif (!bCanUseHorseSkill && pkSk->dwType == SKILL_TYPE_HORSE)\n\t\treturn BATTLE_NONE;\n\n\tif (IS_SET(pkSk->dwFlag, SKILL_FLAG_SELFONLY))\n\t\tpkVictim = GetSelfOnlySkillVictim(this, dwVnum, pkVictim);\n\n\t// MT2009_PLUS_DRAGON_ROAR_EFFECT_V1 (server-patches/playerqol): Smoczy\n\t// Skowyt cast at a target shows its burst there too - the client plays the\n\t// skill's motion, and its effect, on the Shaman alone (\"efekt w zlym\n\t// miejscu\", the operator, 28 September). The skill's own effect file for\n\t// its grade (pc_2: paeryong.mse, _2 master, _3 grand, _4 perfect), once a\n\t// second per caster.\n\tif (dwVnum == SKILL_DRAGON_ROAR && pkVictim && pkVictim != this)\n\t{\n\t\tstatic std::map<DWORD, DWORD> s_mapRoarEffectAt;\n\t\tDWORD& shownAt = s_mapRoarEffectAt[GetVID()];\n\t\tconst DWORD now = get_dword_time();\n\t\tif (now - shownAt >= 1000)\n\t\t{\n\t\t\tshownAt = now;\n\t\t\tstatic const char* const s_aszRoarEffect[] = {\n\t\t\t\t\"d:/ymir work/pc/shaman/effect/paeryong.mse\",\n\t\t\t\t\"d:/ymir work/pc/shaman/effect/paeryong_2.mse\",\n\t\t\t\t\"d:/ymir work/pc/shaman/effect/paeryong_3.mse\",\n\t\t\t\t\"d:/ymir work/pc/shaman/effect/paeryong_4.mse\",\n\t\t\t};\n\t\t\tconst int grade = std::max(0, std::min(3, GetSkillMasterType(dwVnum)));\n\t\t\tchar szEffect[MAX_EFFECT_FILE_NAME] = {};\n\t\t\tstrlcpy(szEffect, s_aszRoarEffect[grade], sizeof(szEffect));\n\t\t\tpkVictim->SpecificEffectPacket(szEffect);\n\t\t}\n\t}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_EVENT_CALENDAR_V1 (command)",
+  "old": "ACMD(do_towarzysz)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tCPlayerBotManager::instance().OnSidekickCommand(ch, argument);\n}\n",
+  "new": "ACMD(do_towarzysz)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tCPlayerBotManager::instance().OnSidekickCommand(ch, argument);\n}\n\n// MT2009_PLUS_EVENT_CALENDAR_V1 (command): \"/kalendarz\" from the event\n// calendar (client uieventcalendar.py, F11) - the panels' schedule as this\n// core read it (playerbot_manager.cpp, SendEventCalendar). Once a second.\nACMD(do_event_calendar)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tstatic std::map<DWORD, DWORD> s_mapCalendarAskedAt;\n\tDWORD& asked = s_mapCalendarAskedAt[ch->GetPlayerID()];\n\tconst DWORD now = get_dword_time();\n\tif (asked != 0 && now - asked < 1000)\n\t\treturn;\n\tasked = now;\n\tCPlayerBotManager::instance().SendEventCalendar(ch);\n}\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_EVENT_CALENDAR_V1 (declare)",
+  "old": "ACMD(do_towarzysz);\n",
+  "new": "ACMD(do_towarzysz);\n// MT2009_PLUS_EVENT_CALENDAR_V1 (declare)\nACMD(do_event_calendar);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_EVENT_CALENDAR_V1 (table)",
+  "old": "\t{ \"towarzysz\",\tdo_towarzysz,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"towarzysz\",\tdo_towarzysz,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_EVENT_CALENDAR_V1 (table)\n\t{ \"kalendarz\",\tdo_event_calendar,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_COSTUME_SET_V1 (hook)",
+  "old": "\t\t\tMt2009PlusApplyCostumeParts(m_pOwner, bAdd ? NULL : this);\n\t}\n}\n",
+  "new": "\t\t\tMt2009PlusApplyCostumeParts(m_pOwner, bAdd ? NULL : this);\n\t}\n\n\t// MT2009_PLUS_COSTUME_SET_V1 (hook): a costume body or hair put on or\n\t// taken off decides the set bonus again (Mt2009PlusCheckCostumeSet).\n\t{\n\t\tvoid Mt2009PlusCheckCostumeSet(LPCHARACTER ch, LPITEM leaving);\n\t\tif (m_pOwner && m_pProto->bType == ITEM_COSTUME &&\n\t\t\t\t(GetSubType() == COSTUME_BODY || GetSubType() == COSTUME_HAIR))\n\t\t\tMt2009PlusCheckCostumeSet(m_pOwner, bAdd ? NULL : this);\n\t}\n}\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_COSTUME_SET_V1 (sets)",
+  "old": "\tch->UpdatePacket();\n}\n\nbool CItem::IsEquipable() const",
+  "new": "\tch->UpdatePacket();\n}\n\n// MT2009_PLUS_COSTUME_SET_V1 (sets): costume sets (the operator, 28\n// September: \"zeby zestaw dzialal musi byc zalozony kostium i fryzura z\n// jednego kompletu ... 800 HP i 15 wartosci ataku\"). The sets are\n// <locale>/costume_sets.txt, read once at the first look: a line is\n// \"name<TAB>bodies<TAB>hairs\", the vnums comma-separated. A body and a hair\n// worn from one line give the bonus, as affect 545, which is not saved - it\n// is judged again at every equip, the login's included. The client's tooltip\n// reads the same lists (costume_sets.py). A hidden costume still counts.\nstatic const DWORD MT2009_PLUS_AFFECT_COSTUME_SET = 545;\nstatic const long MT2009_PLUS_COSTUME_SET_HP = 800;\nstatic const long MT2009_PLUS_COSTUME_SET_ATT = 15;\n\nstruct TMt2009PlusCostumeSets\n{\n\tbool loaded;\n\tstd::map<DWORD, std::vector<int> > bodies;\n\tstd::map<DWORD, std::vector<int> > hairs;\n\tTMt2009PlusCostumeSets() : loaded(false) {}\n};\n\nstatic void Mt2009PlusReadVnums(const std::string& field, int set, std::map<DWORD, std::vector<int> >& into)\n{\n\tstd::string number;\n\tfor (size_t i = 0; i <= field.size(); ++i)\n\t{\n\t\tconst char c = i < field.size() ? field[i] : ',';\n\t\tif (c >= '0' && c <= '9')\n\t\t\tnumber += c;\n\t\telse if (!number.empty())\n\t\t{\n\t\t\tinto[(DWORD)strtoul(number.c_str(), NULL, 10)].push_back(set);\n\t\t\tnumber.clear();\n\t\t}\n\t}\n}\n\nstatic const TMt2009PlusCostumeSets& Mt2009PlusCostumeSets()\n{\n\tstatic TMt2009PlusCostumeSets s;\n\tif (s.loaded)\n\t\treturn s;\n\ts.loaded = true;\n\tconst std::string path = LocaleService_GetBasePath() + \"/costume_sets.txt\";\n\tFILE* fp = fopen(path.c_str(), \"rb\");\n\tif (!fp)\n\t{\n\t\tsys_err(\"COSTUME_SET: no %s - no sets\", path.c_str());\n\t\treturn s;\n\t}\n\tchar line[8192];\n\tint sets = 0;\n\twhile (fgets(line, sizeof(line), fp))\n\t{\n\t\tif (line[0] == '#' || line[0] == '\\r' || line[0] == '\\n')\n\t\t\tcontinue;\n\t\tconst std::string text(line);\n\t\tconst size_t tab1 = text.find('\\t');\n\t\tconst size_t tab2 = tab1 == std::string::npos ? std::string::npos : text.find('\\t', tab1 + 1);\n\t\tif (tab2 == std::string::npos)\n\t\t\tcontinue;\n\t\tMt2009PlusReadVnums(text.substr(tab1 + 1, tab2 - tab1 - 1), sets, s.bodies);\n\t\tMt2009PlusReadVnums(text.substr(tab2 + 1), sets, s.hairs);\n\t\t++sets;\n\t}\n\tfclose(fp);\n\tsys_log(0, \"COSTUME_SET: %d sets, %u bodies, %u hairs from %s\", sets,\n\t\t\t(unsigned int)s.bodies.size(), (unsigned int)s.hairs.size(), path.c_str());\n\treturn s;\n}\n\nvoid Mt2009PlusCheckCostumeSet(LPCHARACTER ch, LPITEM leaving)\n{\n\tif (!ch || !ch->IsPC())\n\t\treturn;\n\t// Adding or removing the bonus recomputes the points, and ComputePoints\n\t// runs every worn item's ModifyPoints again - this function among them,\n\t// with the costume on its way off still in its slot. Answering that inner\n\t// call put the bonus straight back, the removal loop took it again, for\n\t// ever, until the core ran out of memory (28 September, taking a costume\n\t// off). The outer call decides; the inner ones stand aside.\n\tstatic bool s_bDeciding = false;\n\tif (s_bDeciding)\n\t\treturn;\n\tstruct TDeciding\n\t{\n\t\tTDeciding() { s_bDeciding = true; }\n\t\t~TDeciding() { s_bDeciding = false; }\n\t} deciding;\n\tconst TMt2009PlusCostumeSets& sets = Mt2009PlusCostumeSets();\n\tLPITEM body = ch->GetWear(WEAR_COSTUME_BODY);\n\tLPITEM hair = ch->GetWear(WEAR_COSTUME_HAIR);\n\tif (body == leaving) body = NULL;\n\tif (hair == leaving) hair = NULL;\n\tbool matched = false;\n\tif (body && hair)\n\t{\n\t\tstd::map<DWORD, std::vector<int> >::const_iterator b = sets.bodies.find(body->GetVnum());\n\t\tstd::map<DWORD, std::vector<int> >::const_iterator h = sets.hairs.find(hair->GetVnum());\n\t\tif (b != sets.bodies.end() && h != sets.hairs.end())\n\t\t\tfor (size_t i = 0; i < b->second.size() && !matched; ++i)\n\t\t\t\tmatched = std::find(h->second.begin(), h->second.end(), b->second[i]) != h->second.end();\n\t}\n\tconst bool has = ch->FindAffect(MT2009_PLUS_AFFECT_COSTUME_SET) != NULL;\n\tif (matched && !has)\n\t{\n\t\t// The set's aura: the unused affect flag AFF_FIRE_RAGE (bit 44 in the\n\t\t// client), which the client draws as the special armour's glow.\n\t\tch->AddAffect(MT2009_PLUS_AFFECT_COSTUME_SET, POINT_MAX_HP, MT2009_PLUS_COSTUME_SET_HP, AFF_FIRE_RAGE,\n\t\t\t\tINFINITE_AFFECT_DURATION, 0, false);\n\t\tch->AddAffect(MT2009_PLUS_AFFECT_COSTUME_SET, POINT_ATT_GRADE_BONUS, MT2009_PLUS_COSTUME_SET_ATT, AFF_NONE,\n\t\t\t\tINFINITE_AFFECT_DURATION, 0, false);\n\t\tif (ch->GetSectree())\n\t\t\tch->ChatPacket(CHAT_TYPE_INFO, \"Zestaw kostiumow: +%ld PZ i +%ld wartosci ataku.\",\n\t\t\t\t\tMT2009_PLUS_COSTUME_SET_HP, MT2009_PLUS_COSTUME_SET_ATT);\n\t}\n\telse if (!matched && has)\n\t{\n\t\tch->RemoveAffect(MT2009_PLUS_AFFECT_COSTUME_SET);\n\t\tif (ch->GetSectree())\n\t\t\tch->ChatPacket(CHAT_TYPE_INFO, \"Zestaw kostiumow niepelny - bonus zestawu zniknal.\");\n\t}\n\telse\n\t\treturn;\n\t// RemoveAffect recomputed the points, and ComputePoints put every worn\n\t// item's look back on - the costume on its way off among them, still in\n\t// its slot: its hair or body stayed on the character after it came off\n\t// (28 September). The looks again, from what stays worn.\n\tvoid Mt2009PlusApplyCostumeParts(LPCHARACTER ch, LPITEM leaving);\n\tMt2009PlusApplyCostumeParts(ch, leaving);\n}\n\nbool CItem::IsEquipable() const"
+ },
+ {
+  "file": "char_affect.cpp",
+  "marker": "MT2009_PLUS_COSTUME_SET_V1 (no save)",
+  "old": "(type) == AFFECT_PREMIUM_SUBSCRIPTION || (type) == AFFECT_TEMPLE_CURSE)",
+  "new": "(type) == AFFECT_PREMIUM_SUBSCRIPTION || (type) == AFFECT_TEMPLE_CURSE || (type) == 545 /* MT2009_PLUS_COSTUME_SET_V1 (no save): judged at every equip */)"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (kill)",
+  "old": "\t\tquest::CQuestManager::instance().Kill(pkQuestKiller->GetPlayerID(), GetRaceNum());\n\t\tCHARACTER_MANAGER::instance().KillLog(GetRaceNum());\n",
+  "new": "\t\tquest::CQuestManager::instance().Kill(pkQuestKiller->GetPlayerID(), GetRaceNum());\n\t\t// MT2009_PLUS_BATTLE_PASS_V1 (kill): the kill for the Battle Pass, the\n\t\t// companion's for its owner as for the quests (playerbot_battlepass.h).\n\t\t{\n\t\t\tvoid BattlePassOnKill(LPCHARACTER killer, LPCHARACTER victim);\n\t\t\tBattlePassOnKill(pkQuestKiller, this);\n\t\t}\n\t\tCHARACTER_MANAGER::instance().KillLog(GetRaceNum());\n"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (stat)",
+  "old": "void CHARACTER::AddPlayerStat(DWORD dwStatType, long long val)\n{\n\tSetPlayerStat(dwStatType, GetSpecialFlag(dwStatType) + val);\n}\n",
+  "new": "void CHARACTER::AddPlayerStat(DWORD dwStatType, long long val)\n{\n\tSetPlayerStat(dwStatType, GetSpecialFlag(dwStatType) + val);\n\t// MT2009_PLUS_BATTLE_PASS_V1 (stat): fish, refines, yang, chests, herbs,\n\t// ore, dungeons and mission books for the Battle Pass.\n\tvoid BattlePassOnStat(LPCHARACTER ch, DWORD stat, long long value);\n\tBattlePassOnStat(this, dwStatType, val);\n}\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (use)",
+  "old": "\t\t\tLogManager::instance().ItemLog(this, vid, vnum, \"USE_ITEM\", hint);\n\t\t}\n\t\treturn (ret);\n\t}\n\telse\n\t\treturn UseItemEx(item, DestCell);\n}\n",
+  "new": "\t\t\tLogManager::instance().ItemLog(this, vid, vnum, \"USE_ITEM\", hint);\n\t\t}\n\t\t// MT2009_PLUS_BATTLE_PASS_V1 (use): an item used, for the Battle Pass.\n\t\tif (ret)\n\t\t{\n\t\t\tvoid BattlePassOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tBattlePassOnUse(this, vnum);\n\t\t}\n\t\treturn (ret);\n\t}\n\telse\n\t{\n\t\tconst DWORD usedVnum = item->GetVnum();\n\t\tconst bool usedOk = UseItemEx(item, DestCell);\n\t\tif (usedOk)\n\t\t{\n\t\t\tvoid BattlePassOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tBattlePassOnUse(this, usedVnum);\n\t\t}\n\t\treturn usedOk;\n\t}\n}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (command)",
+  "old": "// MT2009_PLUS_EVENT_CALENDAR_V1 (command): \"/kalendarz\" from the event",
+  "new": "// MT2009_PLUS_BATTLE_PASS_V1 (command): the Battle Pass window's\n// \"/battlepass [odbierz <id> | nagroda]\" (playerbot_battlepass.h).\nACMD(do_battlepass)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tvoid BattlePassCommand(LPCHARACTER ch, const char* argument);\n\tBattlePassCommand(ch, argument);\n}\n\n// MT2009_PLUS_EVENT_CALENDAR_V1 (command): \"/kalendarz\" from the event"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (declare)",
+  "old": "// MT2009_PLUS_EVENT_CALENDAR_V1 (declare)\nACMD(do_event_calendar);\n",
+  "new": "// MT2009_PLUS_EVENT_CALENDAR_V1 (declare)\nACMD(do_event_calendar);\n// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (table)",
+  "old": "\t// MT2009_PLUS_EVENT_CALENDAR_V1 (table)\n\t{ \"kalendarz\",\tdo_event_calendar,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t// MT2009_PLUS_EVENT_CALENDAR_V1 (table)\n\t{ \"kalendarz\",\tdo_event_calendar,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_BATTLE_PASS_V1 (table)\n\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (refine try)",
+  "old": "\tif (prob <= prt->prob)\n\t{\n\t\tLPITEM pkNewItem",
+  "new": "\t// MT2009_PLUS_BATTLE_PASS_V1 (refine try): every refine attempt at a\n\t// smith, won or lost, for the Battle Pass.\n\t{\n\t\tvoid BattlePassOnRefine(LPCHARACTER ch);\n\t\tBattlePassOnRefine(this);\n\t}\n\tif (prob <= prt->prob)\n\t{\n\t\tLPITEM pkNewItem"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (refine try scroll)",
+  "old": "\tif (prob <= success_prob) // success\n",
+  "new": "\t// MT2009_PLUS_BATTLE_PASS_V1 (refine try scroll): every refine attempt\n\t// with a scroll, won or lost, for the Battle Pass.\n\t{\n\t\tvoid BattlePassOnRefine(LPCHARACTER ch);\n\t\tBattlePassOnRefine(this);\n\t}\n\tif (prob <= success_prob) // success\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_WHEEL_V1 (command)",
+  "old": "// MT2009_PLUS_BATTLE_PASS_V1 (command): the Battle Pass window's",
+  "new": "// MT2009_PLUS_WHEEL_V1 (command): the Kolo Fortuny window's\n// \"/kolo [krec | odbierz <id>]\" (playerbot_wheel.h).\nACMD(do_wheel)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tvoid WheelCommand(LPCHARACTER ch, const char* argument);\n\tWheelCommand(ch, argument);\n}\n\n// MT2009_PLUS_BATTLE_PASS_V1 (command): the Battle Pass window's"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_WHEEL_V1 (declare)",
+  "old": "// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n",
+  "new": "// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n// MT2009_PLUS_WHEEL_V1 (declare)\nACMD(do_wheel);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_WHEEL_V1 (table)",
+  "old": "\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_WHEEL_V1 (table)\n\t{ \"kolo\",\tdo_wheel,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_LOOT_EVENTS_V1",
+  "old": "\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n",
+  "new": "\t// MT2009_PLUS_LOOT_EVENTS_V1: the double-loot events (playerbot_events.h):\n\t// while one runs, every item a boss or a Metin stone dropped so far is\n\t// dropped once more - a fresh item of the same vnum and count. Quest drops\n\t// below are left single.\n\t{\n\t\tbool Mt2009PlusDoubleLoot(LPCHARACTER victim);\n\t\tif (Mt2009PlusDoubleLoot(pkChr))\n\t\t{\n\t\t\tconst size_t dropped = vec_item.size();\n\t\t\tfor (size_t i = 0; i < dropped; ++i)\n\t\t\t{\n\t\t\t\tLPITEM twin = CreateItem(vec_item[i]->GetVnum(), vec_item[i]->GetCount(), 0, true);\n\t\t\t\tif (twin)\n\t\t\t\t\tvec_item.emplace_back(twin);\n\t\t\t}\n\t\t}\n\t}\n\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_NEW_PET_V1 (use)",
+  "old": "\t\t\t\tcase PET_ATTR_CHANGE: //11\n\t\t\t\tcase PET_PRIMIUM_FEEDSTUFF: //13\n\t\t\t\t\tbreak;\n",
+  "new": "\t\t\t\tcase PET_ATTR_CHANGE: //11\n\t\t\t\tcase PET_PRIMIUM_FEEDSTUFF: //13\n\t\t\t\t{\n\t\t\t\t\t// MT2009_PLUS_NEW_PET_V1 (use): the New Pet System's eggs, food,\n\t\t\t\t\t// elixirs and books (playerbot_newpet.h); the ItemShop seals\n\t\t\t\t\t// (PET_UPBRINGING, PET_PAY) stay above.\n\t\t\t\t\tbool NewPetUseItem(LPCHARACTER ch, LPITEM item);\n\t\t\t\t\treturn NewPetUseItem(this, item);\n\t\t\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_NEW_PET_V1 (exp given)",
+  "old": "\t// set\n\tto->PointChange(POINT_EXP, iExp, true);\n\tfrom->CreateFly(FLY_EXP, to);\n\t// marriage\n",
+  "new": "\t// set\n\tto->PointChange(POINT_EXP, iExp, true);\n\tfrom->CreateFly(FLY_EXP, to);\n\t// MT2009_PLUS_NEW_PET_V1 (exp given): the kill's experience for the owner's\n\t// New Pet System pet too, and its items' drops (playerbot_newpet.h). In\n\t// the ENABLE_NEWEXP_CALCULATION GiveExp - the one this engine builds (the\n\t// first hook sat in the #else twin and never ran).\n\t{\n\t\tvoid NewPetOnExp(LPCHARACTER victim, LPCHARACTER to, int exp);\n\t\tNewPetOnExp(from, to, iExp);\n\t}\n\t// marriage\n"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_NEW_PET_V1 (points)",
+  "old": "\t\tif (pPetSystem)\n\t\t\tpPetSystem->RefreshBuff();\n",
+  "new": "\t\tif (pPetSystem)\n\t\t\tpPetSystem->RefreshBuff();\n\t\t// MT2009_PLUS_NEW_PET_V1 (points): the New Pet System pet's bonuses\n\t\t// while it is out (playerbot_newpet.h).\n\t\t{\n\t\t\tvoid NewPetApplyPoints(LPCHARACTER ch);\n\t\t\tNewPetApplyPoints(this);\n\t\t}\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_NEW_PET_V1 (declare)",
+  "old": "// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n",
+  "new": "// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n// MT2009_PLUS_NEW_PET_V1 (declare): defined in playerbot_newpet.h\nACMD(do_newpet);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_NEW_PET_V1 (table)",
+  "old": "\t// MT2009_PLUS_BATTLE_PASS_V1 (table)\n\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t// MT2009_PLUS_BATTLE_PASS_V1 (table)\n\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_NEW_PET_V1 (table)\n\t{ \"newpet\",\tdo_newpet,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_GUILD_DUTY_V1 (command)",
+  "old": "\tvoid BattlePassCommand(LPCHARACTER ch, const char* argument);\n\tBattlePassCommand(ch, argument);\n}\n",
+  "new": "\tvoid BattlePassCommand(LPCHARACTER ch, const char* argument);\n\tBattlePassCommand(ch, argument);\n}\n\n// MT2009_PLUS_GUILD_DUTY_V1 (command): the guild leader's panel\n// \"/gildia_obowiazki [zrzutka <yang> <h> | zrzutka_anuluj | misja <vnum> <n> |\n// misja_anuluj | wyplac <vnum> <n> | dt [n] | dt_anuluj]\" (playerbot_guildduty.h).\nACMD(do_guild_duty)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tvoid GuildDutyCommand(LPCHARACTER ch, const char* argument);\n\tGuildDutyCommand(ch, argument);\n}\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_GUILD_DUTY_V1 (declare)",
+  "old": "// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n",
+  "new": "// MT2009_PLUS_BATTLE_PASS_V1 (declare)\nACMD(do_battlepass);\n// MT2009_PLUS_GUILD_DUTY_V1 (declare)\nACMD(do_guild_duty);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_GUILD_DUTY_V1 (table)",
+  "old": "\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"battlepass\",\tdo_battlepass,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_GUILD_DUTY_V1 (table)\n\t{ \"gildia_obowiazki\",\tdo_guild_duty,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (shout)",
+  "old": "\t\tif (pinfo->type == CHAT_TYPE_SHOUT)\n\t\t{\n\t\t\tSendShout(chatbuf, ch->GetEmpire());\n",
+  "new": "\t\tif (pinfo->type == CHAT_TYPE_SHOUT)\n\t\t{\n\t\t\tSendShout(chatbuf, ch->GetEmpire());\n\n\t\t\t// MT2009_PLUS_BATTLE_PASS_V1 (shout): every message let out on the\n\t\t\t// shout channel, whatever it says, for the Battle Pass\n\t\t\t// (playerbot_battlepass.h).\n\t\t\t{\n\t\t\t\tvoid BattlePassOnShout(LPCHARACTER ch);\n\t\t\t\tBattlePassOnShout(ch);\n\t\t\t}\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (declare)",
+  "old": "// MT2009_PLUS_WHEEL_V1 (declare)\nACMD(do_wheel);\n",
+  "new": "// MT2009_PLUS_WHEEL_V1 (declare)\nACMD(do_wheel);\n// MT2009_PLUS_GOBLIN_V1 (declare)\nACMD(do_goblin);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (table)",
+  "old": "\t// MT2009_PLUS_WHEEL_V1 (table)\n\t{ \"kolo\",\tdo_wheel,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t// MT2009_PLUS_WHEEL_V1 (table)\n\t{ \"kolo\",\tdo_wheel,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_GOBLIN_V1 (table)\n\t{ \"goblin\",\tdo_goblin,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (command)",
+  "old": "// MT2009_PLUS_WHEEL_V1 (command): the Kolo Fortuny window's\n// \"/kolo [krec | odbierz <id>]\" (playerbot_wheel.h).\nACMD(do_wheel)\n",
+  "new": "// MT2009_PLUS_GOBLIN_V1 (command): the Treasure Hunt's window and island,\n// \"/goblin [info|odkryj|szukaj|reset|tury|tura|ranking|wyjdz]\" (playerbot_goblin.h).\nACMD(do_goblin)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tvoid GoblinCommand(LPCHARACTER ch, const char* argument);\n\tGoblinCommand(ch, argument);\n}\n\n// MT2009_PLUS_WHEEL_V1 (command): the Kolo Fortuny window's\n// \"/kolo [krec | odbierz <id>]\" (playerbot_wheel.h).\nACMD(do_wheel)\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (use)",
+  "old": "bool CHARACTER::UseItemEx(LPITEM item, TItemPos DestCell)\n{\n\tint iLimitRealtimeStartFirstUseFlagIndex = -1;\n",
+  "new": "bool CHARACTER::UseItemEx(LPITEM item, TItemPos DestCell)\n{\n\t// MT2009_PLUS_GOBLIN_V1 (use): the Treasure Ticket, the Goblin Key and its\n\t// box (playerbot_goblin.h), before the item's own limits and type.\n\t{\n\t\tbool GoblinUseItem(LPCHARACTER ch, LPITEM item);\n\t\tif (GoblinUseItem(this, item))\n\t\t\treturn true;\n\t}\n\tint iLimitRealtimeStartFirstUseFlagIndex = -1;\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (used)",
+  "old": "\t\t// MT2009_PLUS_BATTLE_PASS_V1 (use): an item used, for the Battle Pass.\n\t\tif (ret)\n\t\t{\n\t\t\tvoid BattlePassOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tBattlePassOnUse(this, vnum);\n\t\t}\n\t\treturn (ret);\n",
+  "new": "\t\t// MT2009_PLUS_BATTLE_PASS_V1 (use): an item used, for the Battle Pass.\n\t\tif (ret)\n\t\t{\n\t\t\tvoid BattlePassOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tBattlePassOnUse(this, vnum);\n\t\t\t// MT2009_PLUS_GOBLIN_V1 (used): a chest opened may give a Treasure Ticket.\n\t\t\tvoid GoblinOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tGoblinOnUse(this, vnum);\n\t\t}\n\t\treturn (ret);\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (used ex)",
+  "old": "\t\tif (usedOk)\n\t\t{\n\t\t\tvoid BattlePassOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tBattlePassOnUse(this, usedVnum);\n\t\t}\n\t\treturn usedOk;\n",
+  "new": "\t\tif (usedOk)\n\t\t{\n\t\t\tvoid BattlePassOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tBattlePassOnUse(this, usedVnum);\n\t\t\t// MT2009_PLUS_GOBLIN_V1 (used ex): a chest opened may give a Treasure Ticket.\n\t\t\tvoid GoblinOnUse(LPCHARACTER ch, DWORD vnum);\n\t\t\tGoblinOnUse(this, usedVnum);\n\t\t}\n\t\treturn usedOk;\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (refine free)",
+  "old": "\tif (!(bMoneyOnly))\n\t{\n\t\tfor (int i = 0; i < prt->material_count; ++i)\n\t\t{\n\t\t\tif (CountSpecifyItem(prt->materials[i].vnum) < prt->materials[i].count)\n",
+  "new": "\t// MT2009_PLUS_GOBLIN_V1 (refine free): the Treasure Hunt's blessing - the\n\t// next refine takes no materials, and the blessing is spent.\n\tbool GoblinRefineFree(LPCHARACTER ch, bool consume);\n\tif (!(bMoneyOnly) && !GoblinRefineFree(this, true))\n\t{\n\t\tfor (int i = 0; i < prt->material_count; ++i)\n\t\t{\n\t\t\tif (CountSpecifyItem(prt->materials[i].vnum) < prt->materials[i].count)\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (refine pct)",
+  "old": "\tint prob = number(1, 100);\n\n\tif (IsRefineThroughGuild())\n\t\tprob -= 10;\n",
+  "new": "\tint prob = number(1, 100);\n\n\tif (IsRefineThroughGuild())\n\t\tprob -= 10;\n\n\t// MT2009_PLUS_GOBLIN_V1 (refine pct): the Treasure Hunt's blessing, +10 %\n\t// on this refine (spent).\n\t{\n\t\tint GoblinRefineBonus(LPCHARACTER ch, bool consume);\n\t\tprob -= GoblinRefineBonus(this, true);\n\t}\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (refine scroll)",
+  "old": "\tsuccess_prob += pkItemScroll->GetValue(1);\n\n\tif (bCheckMaterials)\n",
+  "new": "\tsuccess_prob += pkItemScroll->GetValue(1);\n\n\t// MT2009_PLUS_GOBLIN_V1 (refine scroll): the Treasure Hunt's blessings on a\n\t// scroll's refine - +10 %, no materials (each spent).\n\t{\n\t\tint GoblinRefineBonus(LPCHARACTER ch, bool consume);\n\t\tbool GoblinRefineFree(LPCHARACTER ch, bool consume);\n\t\tsuccess_prob += GoblinRefineBonus(this, true);\n\t\tif (bCheckMaterials && GoblinRefineFree(this, true))\n\t\t\tbCheckMaterials = false;\n\t}\n\n\tif (bCheckMaterials)\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (refine info)",
+  "old": "\tp.prob = MINMAX(0, iRefineChance, 100);\n\n\tif (bType == REFINE_TYPE_MONEY_ONLY || IsRefineBonus(itemScroll, TUNING_FLAG_NO_ITEM))\n",
+  "new": "\t// MT2009_PLUS_GOBLIN_V1 (refine info): the chance and the materials shown\n\t// with the Treasure Hunt's blessings (not spent here).\n\tint GoblinRefineBonus(LPCHARACTER ch, bool consume);\n\tbool GoblinRefineFree(LPCHARACTER ch, bool consume);\n\tiRefineChance += GoblinRefineBonus(this, false);\n\tp.prob = MINMAX(0, iRefineChance, 100);\n\n\tif (bType == REFINE_TYPE_MONEY_ONLY || IsRefineBonus(itemScroll, TUNING_FLAG_NO_ITEM) ||\n\t\t\t(bType != REFINE_TYPE_MONEY_ONLY && GoblinRefineFree(this, false)))\n"
+ },
+ {
+  "file": "pvp.cpp",
+  "marker": "MT2009_PLUS_GOBLIN_V1 (attack)",
+  "old": "bool CPVPManager::CanAttack(LPCHARACTER pkChr, LPCHARACTER pkVictim)\n{\n\tif (!pkChr || !pkVictim)\n\t\treturn false;\n\n\tswitch (pkVictim->GetCharType())\n",
+  "new": "bool CPVPManager::CanAttack(LPCHARACTER pkChr, LPCHARACTER pkVictim)\n{\n\tif (!pkChr || !pkVictim)\n\t\treturn false;\n\n\t// MT2009_PLUS_GOBLIN_V1 (attack): the Treasure Hunt's wave monsters strike\n\t// the Treasure Goblin, a NPC (playerbot_goblin.h).\n\t{\n\t\tbool GoblinAttackable(LPCHARACTER attacker, LPCHARACTER victim);\n\t\tif (GoblinAttackable(pkChr, pkVictim))\n\t\t\treturn true;\n\t}\n\n\tswitch (pkVictim->GetCharType())\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_PICKUP_FILTER_V1 (party)",
+  "old": "\t\tLPCHARACTER owner = funcFindOwnership.owner;\n\t\t// @fixme115\n\t\tif (!owner)\n\t\t\treturn false;\n",
+  "new": "\t\tLPCHARACTER owner = funcFindOwnership.owner;\n\t\t// @fixme115\n\t\tif (!owner)\n\t\t\treturn false;\n\n\t\t// MT2009_PLUS_PICKUP_FILTER_V1 (party): a party member - the companion,\n\t\t// a bot of the party - does not pick up for a member what that member\n\t\t// has filtered out (Ctrl+Z, uipickupfilter.py): it stays on the ground.\n\t\t{\n\t\t\tbool Mt2009PlusPickupFilterAllows(LPCHARACTER ch, LPITEM item);\n\t\t\tif (owner != this && !Mt2009PlusPickupFilterAllows(owner, item))\n\t\t\t\treturn false;\n\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_BATTLE_PASS_V1 (kill share)",
+  "old": "\t\t\tBattlePassOnKill(pkQuestKiller, this);\n\t\t}\n",
+  "new": "\t\t\tBattlePassOnKill(pkQuestKiller, this);\n\t\t}\n\t\t// MT2009_PLUS_BATTLE_PASS_V1 (kill share): a Metin or a boss counts for\n\t\t// everyone who hurt it and the killer's party near it (playerbot_battlepass.h).\n\t\tif (IsStone() || GetMobRank() >= MOB_RANK_BOSS)\n\t\t{\n\t\t\tstd::vector<LPCHARACTER> hurt;\n\t\t\tfor (TDamageMap::iterator it = m_map_kDamage.begin(); it != m_map_kDamage.end(); ++it)\n\t\t\t{\n\t\t\t\tLPCHARACTER attacker = CHARACTER_MANAGER::instance().Find(it->first);\n\t\t\t\tif (attacker && attacker != pkQuestKiller)\n\t\t\t\t\thurt.push_back(attacker);\n\t\t\t}\n\t\t\tvoid BattlePassOnKillShared(LPCHARACTER killer, LPCHARACTER victim, const std::vector<LPCHARACTER>& hurt);\n\t\t\tBattlePassOnKillShared(pkQuestKiller, this, hurt);\n\t\t}\n"
+ },
+ {
+  "file": "regen.cpp",
+  "marker": "MT2009_PLUS_EASTER_METIN_CAP_V1",
+  "old": "bool regen_load_in_file(const char* filename, long lMapIndex, int base_x, int base_y)\n{\n",
+  "new": "// MT2009_PLUS_EASTER_METIN_CAP_V1 (server-patches/playerqol): the Easter\n// metins (map/easter/metin_regen_level*.txt, put down one at a time by the\n// event quest's regen_in_map on a map of the killer's kingdom and level) never\n// had a ceiling. Every kill of one put one or more new ones down - a killer 15\n// levels above it always did - and the package compiled three generations of\n// the event (event_easter, _2012, _2013; the Dockerfile now drops the two old\n// ones) that all answered the same kill, so with bots farming them the\n// population only grew: \"Metin na Metinie\" on every map, worse with the\n// panel's faster Metin respawn (a player, 29 September). Now a map holds at\n// most EASTER_METINS_PER_MAP of them alive, times the panel's Metin setting as\n// the map regens feel it: the count multiplier (m2_boss_count, 100-400%) and\n// the respawn time (fastBossSpawn<map>, else fastBossSpawn: 65 = every 65% of\n// the time = 100/65 as many), 4x at most. The fraction goes to a fixed share\n// of the maps (65%: 3 * 1.54 = 4.6 - 4 on some maps, 5 on six in ten), so the\n// world holds that many times the Easter metins. Nothing is put down once the\n// event is off, where a kill used to go on spawning them for ever.\nstatic const int EASTER_METINS_PER_MAP = 3;\n\nstatic int EasterMetinCap(long lMapIndex)\n{\n\tquest::CQuestManager& q = quest::CQuestManager::instance();\n\tconst int count = MINMAX(100, q.GetEventFlag(\"m2_boss_count\"), 400);\n\tint delay = MINMAX(0, q.GetEventFlag((\"fastBossSpawn\" + std::to_string(lMapIndex)).c_str()), 100);\n\tif (delay == 0)\n\t\tdelay = MINMAX(0, q.GetEventFlag(\"fastBossSpawn\"), 100);\n\tif (delay < 10)\n\t\tdelay = 100; // 0 = untouched; the panels go down to 10\n\t// the multiplier in percent: count% * (100 / delay%), 100..400\n\tconst int mult = MINMAX(100, count * 100 / delay, 400);\n\tconst int capX100 = EASTER_METINS_PER_MAP * mult;\n\treturn capX100 / 100 + ((lMapIndex * 37 + 11) % 100 < capX100 % 100 ? 1 : 0);\n}\n\nstatic bool EasterRegenMaySpawn(LPREGEN regen)\n{\n\tif (quest::CQuestManager::instance().GetEventFlag(\"easter_drop\") <= 0)\n\t\treturn false;\n\t// The character manager keeps a list by race only for the races it was\n\t// told to (the NPCs); the Easter metins join it before the first is put\n\t// down, so every one of them is on it.\n\tstatic bool s_bRegistered = false;\n\tif (!s_bRegistered)\n\t{\n\t\tfor (DWORD dwVnum = 8041; dwVnum <= 8050; ++dwVnum)\n\t\t\tCHARACTER_MANAGER::instance().RegisterRaceNum(dwVnum);\n\t\ts_bRegistered = true;\n\t}\n\tconst int cap = EasterMetinCap(regen->lMapIndex);\n\tint alive = 0;\n\tfor (DWORD dwVnum = 8041; dwVnum <= 8050; ++dwVnum)\n\t{\n\t\tCharacterVectorInteractor i;\n\t\tif (CHARACTER_MANAGER::instance().GetCharactersByRaceNum(dwVnum, i))\n\t\t\tfor (CharacterVectorInteractor::iterator it = i.begin(); it != i.end(); ++it)\n\t\t\t\tif (*it && (*it)->GetMapIndex() == regen->lMapIndex && !(*it)->IsDead())\n\t\t\t\t\t++alive;\n\t}\n\tif (alive >= cap)\n\t{\n\t\tsys_log(0, \"EASTER_METIN_CAP: map %ld vnum %u alive %d cap %d - not spawned\", regen->lMapIndex, regen->vnum, alive, cap);\n\t\treturn false;\n\t}\n\tregen->max_count = MIN(MAX(1, regen->max_count), cap - alive);\n\tsys_log(0, \"EASTER_METIN_CAP: map %ld vnum %u alive %d cap %d - spawning %d\", regen->lMapIndex, regen->vnum, alive, cap, regen->max_count);\n\treturn true;\n}\n\nbool regen_load_in_file(const char* filename, long lMapIndex, int base_x, int base_y)\n{\n\t// MT2009_PLUS_EASTER_METIN_CAP_V1: see EasterRegenMaySpawn above.\n\tconst bool bEasterMetins = filename && strstr(filename, \"/map/easter/\") != NULL;\n"
+ },
+ {
+  "file": "regen.cpp",
+  "marker": "MT2009_PLUS_EASTER_METIN_CAP_V1 (spawn)",
+  "old": "\t\t\tregen_spawn(regen, true);\n\t\t}\n\t}\n\n\tfclose(fp);\n\treturn true;\n}\n\nEVENTFUNC(regen_event)",
+  "new": "\t\t\t// MT2009_PLUS_EASTER_METIN_CAP_V1 (spawn)\n\t\t\tif (bEasterMetins && !EasterRegenMaySpawn(regen))\n\t\t\t\tcontinue;\n\n\t\t\tregen_spawn(regen, true);\n\t\t}\n\t}\n\n\tfclose(fp);\n\treturn true;\n}\n\nEVENTFUNC(regen_event)"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_SKILL_DURATION_V1",
+  "old": "int CHARACTER::ComputeSkillAtPosition(DWORD dwVnum, const PIXEL_POSITION& posTarget, BYTE bSkillLevel)\n{\n",
+  "new": "// MT2009_PLUS_SKILL_DURATION_V1 (server-patches/playerqol): the timed skills\n// last half as long again from the first Grand Master grade up (skill level\n// 30 = G1, SetSkillLevel's grades; G1-G10 and Perfect): \"Skille czasowe (Aura\n// Miecza, Silne Cialo, Czarowane Ostrze, Czarowana Zbroja i wszystkie inne\n// skille czasowe) +50% do czasu trwania od G1 w gore\" (the operator, 29\n// September). Timed are a job skill's affects that are not an attack's -\n// warrior Berserk, Aura Miecza, Silne Cialo; ninja Kamuflaz, Lekki Krok;\n// sura Czarowane Ostrze, Strach, Czarowana Zbroja, Mroczna Ochrona; shaman\n// Blogoslawienstwo, Odbicie, Pomoc Smoka, Szybkosc, Atak+ and the Cure's\n// shield - with Duch Plomieni's aura and the caster's own third affect of an\n// attack (THIRD_POINT_SELFONLY: Ognista Strzala, Smoczy Skowyt). A poison, a\n// fire, a slow or a stun an attack leaves on its victims keeps its time.\n// The grade is the caster's; the bonus is on the formula's time, before the\n// items' skill duration. The client's tooltip does the same (uitooltip.py).\nstatic void ApplyGrandMasterSkillDuration(LPCHARACTER ch, const CSkillProto* pkSk, int& iDur, int& iDur2, int& iDur3)\n{\n\tif (!ch || !pkSk || !ch->IsPC() || pkSk->dwType < 1 || pkSk->dwType > 4)\n\t\treturn;\n\tif (ch->GetSkillMasterType(pkSk->dwVnum) < SKILL_GRAND_MASTER)\n\t\treturn;\n\tconst bool bBuff = !IS_SET(pkSk->dwFlag, SKILL_FLAG_ATTACK);\n\tif (iDur > 0 && (bBuff || pkSk->dwVnum == SKILL_FLAME_SPIRIT))\n\t\tiDur += iDur / 2;\n\tif (iDur2 > 0 && bBuff)\n\t\tiDur2 += iDur2 / 2;\n\tif (iDur3 > 0 && (bBuff || IS_SET(pkSk->dwFlag, SKILL_FLAG_THIRD_POINT_SELFONLY)))\n\t\tiDur3 += iDur3 / 2;\n\tif (test_server)\n\t\tsys_log(0, \"SKILL_DURATION_GM: %s skill %u grade %d dur %d %d %d\", ch->GetName(), pkSk->dwVnum, ch->GetSkillMasterType(pkSk->dwVnum), iDur, iDur2, iDur3);\n}\n\nint CHARACTER::ComputeSkillAtPosition(DWORD dwVnum, const PIXEL_POSITION& posTarget, BYTE bSkillLevel)\n{\n"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_SKILL_DURATION_V1 (at position)",
+  "old": "\tint iDur3 = (int)pkSk->kDurationPoly3.Eval();\n\tif (canDurationBeExtended)\n",
+  "new": "\tint iDur3 = (int)pkSk->kDurationPoly3.Eval();\n\t// MT2009_PLUS_SKILL_DURATION_V1 (at position)\n\tApplyGrandMasterSkillDuration(this, pkSk, iDur, iDur2, iDur3);\n\tif (canDurationBeExtended)\n"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_SKILL_DURATION_V1 (compute)",
+  "old": "\tint iDur3 = (int)pkSk->kDurationPoly3.Eval();\n\n\tbool canDurationBeExtended",
+  "new": "\tint iDur3 = (int)pkSk->kDurationPoly3.Eval();\n\t// MT2009_PLUS_SKILL_DURATION_V1 (compute)\n\tApplyGrandMasterSkillDuration(this, pkSk, iDur, iDur2, iDur3);\n\n\tbool canDurationBeExtended"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_DROP_V1 (boss)",
+  "old": "bool ITEM_MANAGER::CreateDropItem(LPCHARACTER pkChr, LPCHARACTER pkKiller, std::vector<LPITEM> & vec_item)\n{\n\tint iDeltaPercent, iRandRange;\n",
+  "new": "// MT2009_PLUS_DUNGEON_DROP_V1 (boss): the Razador (351) and Nemere (352) dungeons (the owner,\n// 29 September). Their bosses, Razador (6091) and Nemere (6191), drop only yang\n// (RewardGold, char_battle.cpp) - the loot is the 2-5 chests per player the dungeon\n// quests hand out. Their monsters, Metins and mini-bosses (6001-6199, 8057, 8058)\n// and whatever else dies on those maps or their instances keep their own tables but\n// get none of the world's extras: no skill-book top-up, Moonlight chest, Dragon Coin\n// voucher, Cor Draconis, sash, Blessing Scroll, horse book nor the double-loot event.\nstatic bool Mt2009PlusDungeonMob(DWORD race)\n{\n\treturn (race >= 6001 && race <= 6199) || race == 8057 || race == 8058;\n}\n\nstatic bool Mt2009PlusDungeonPlainDrop(LPCHARACTER victim)\n{\n\tconst long mapIndex = victim->GetMapIndex();\n\tconst long base = mapIndex >= 10000 ? mapIndex / 10000 : mapIndex;\n\treturn base == 351 || base == 352 || Mt2009PlusDungeonMob(victim->GetRaceNum());\n}\n\nbool ITEM_MANAGER::CreateDropItem(LPCHARACTER pkChr, LPCHARACTER pkKiller, std::vector<LPITEM> & vec_item)\n{\n\tint iDeltaPercent, iRandRange;\n\tif (pkChr->GetRaceNum() == 6091 || pkChr->GetRaceNum() == 6191)\n\t\treturn false;\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_DROP_V1 (specials)",
+  "old": "\t// One skill book from every Metin stone, whatever its table rolled - the\n",
+  "new": "\t// MT2009_PLUS_DUNGEON_DROP_V1 (specials): nothing of the world's extras below in the Razador and\n\t// Nemere dungeons (Mt2009PlusDungeonPlainDrop above); the block closes before the\n\t// quest drops.\n\tif (!Mt2009PlusDungeonPlainDrop(pkChr))\n\t{\n\t// One skill book from every Metin stone, whatever its table rolled - the\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_DROP_V1 (specials end)",
+  "old": "\t\t}\n\t}\n\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n",
+  "new": "\t\t}\n\t}\n\t} // MT2009_PLUS_DUNGEON_DROP_V1 (specials end)\n\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_DROP_V1 (preview book)",
+  "old": "\t\t\tif (viewer->GetLevel() <= mob->GetLevel() + PLAYERBOT_METIN_BOOK_LEVEL_DELTA)\n",
+  "new": "\t\t\t// MT2009_PLUS_DUNGEON_DROP_V1 (preview book): no book top-up from the dungeons' Metins.\n\t\t\tif (viewer->GetLevel() <= mob->GetLevel() + PLAYERBOT_METIN_BOOK_LEVEL_DELTA && !Mt2009PlusDungeonMob(race))\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_DROP_V1 (preview)",
+  "old": "\t\tif ((mob->IsStone() ? g_iMoonlightChestStonePermille : g_iMoonlightChestPermille) > 0)\n\t\t\tAddMobPreviewItem(lines, 50011, 1);\n\t\tif ((mob->IsStone() ? g_iDragonCoinStonePermille\n\t\t\t\t: (mob->GetMobRank() >= MOB_RANK_BOSS ? g_iDragonCoinBossPermille : 0)) > 0)\n\t\t\tAddMobPreviewItem(lines, 80017, 1);\n\t\t// MT2009_PLUS_PREVIEW_RARE_V1: the Cor Draconis and the sash of a Metin\n\t\t// or a boss at most 15 levels under the viewer, while the world has\n\t\t// them on (CreateDropItem above; server-patches/botraredrop, rarelevel,\n\t\t// raretoggle). The engine counts the Metin stones as bosses too.\n\t\tif (mob->GetMobRank() >= MOB_RANK_BOSS && viewer->GetLevel() <= mob->GetLevel() + 15)\n\t\t{\n\t\t\tif (quest::CQuestManager::instance().GetEventFlag(\"m2_alchemy_off\") == 0)\n\t\t\t\tAddMobPreviewItem(lines, 50255, 1);\n\t\t\tif (quest::CQuestManager::instance().GetEventFlag(\"m2_sash_off\") == 0)\n\t\t\t{\n\t\t\t\tstatic const DWORD s_aPreviewSash[] = { 85001, 85005, 85011, 85015, 85021 };\n\t\t\t\tfor (DWORD sash : s_aPreviewSash)\n\t\t\t\t\tAddMobPreviewItem(lines, sash, 1);\n\t\t\t}\n\t\t}\n",
+  "new": "\t\t// MT2009_PLUS_DUNGEON_DROP_V1 (preview): none of the world's extras for the Razador and Nemere\n\t\t// dungeons' own monsters (CreateDropItem above).\n\t\tif (!Mt2009PlusDungeonMob(race))\n\t\t{\n\t\tif ((mob->IsStone() ? g_iMoonlightChestStonePermille : g_iMoonlightChestPermille) > 0)\n\t\t\tAddMobPreviewItem(lines, 50011, 1);\n\t\tif ((mob->IsStone() ? g_iDragonCoinStonePermille\n\t\t\t\t: (mob->GetMobRank() >= MOB_RANK_BOSS ? g_iDragonCoinBossPermille : 0)) > 0)\n\t\t\tAddMobPreviewItem(lines, 80017, 1);\n\t\t// MT2009_PLUS_PREVIEW_RARE_V1: the Cor Draconis and the sash of a Metin\n\t\t// or a boss at most 15 levels under the viewer, while the world has\n\t\t// them on (CreateDropItem above; server-patches/botraredrop, rarelevel,\n\t\t// raretoggle). The engine counts the Metin stones as bosses too.\n\t\tif (mob->GetMobRank() >= MOB_RANK_BOSS && viewer->GetLevel() <= mob->GetLevel() + 15)\n\t\t{\n\t\t\tif (quest::CQuestManager::instance().GetEventFlag(\"m2_alchemy_off\") == 0)\n\t\t\t\tAddMobPreviewItem(lines, 50255, 1);\n\t\t\tif (quest::CQuestManager::instance().GetEventFlag(\"m2_sash_off\") == 0)\n\t\t\t{\n\t\t\t\tstatic const DWORD s_aPreviewSash[] = { 85001, 85005, 85011, 85015, 85021 };\n\t\t\t\tfor (DWORD sash : s_aPreviewSash)\n\t\t\t\t\tAddMobPreviewItem(lines, sash, 1);\n\t\t\t}\n\t\t}\n\t\t}\n"
+ },
+ {
+  "file": "packet.h",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (header)",
+  "old": "\tHEADER_GG_HANDSHAKE_VALIDATION = 36,\n};\n",
+  "new": "\tHEADER_GG_HANDSHAKE_VALIDATION = 36,\n\n\t// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (header): d.new_jump_pids asks the core that hosts a map for a new instance.\n\tHEADER_GG_DUNGEON_NEW_JUMP = 37,\n};\n"
+ },
+ {
+  "file": "packet.h",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (packet)",
+  "old": "} TPacketGGDungeonFind;\n",
+  "new": "} TPacketGGDungeonFind;\n\n// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (packet): a new instance of lMapIndex on the core of iChannel that hosts it,\n// and the warp of these players into it at lX, lY (world units); adwPID[0] leads.\nenum { MT2009_DUNGEON_NEW_JUMP_MAX_PID = 8 };\ntypedef struct SPacketGGDungeonNewJump\n{\n\tBYTE bHeader;\n\tlong lMapIndex;\n\tlong lX;\n\tlong lY;\n\tint iChannel;\n\tBYTE bCount;\n\tDWORD adwPID[MT2009_DUNGEON_NEW_JUMP_MAX_PID];\n} TPacketGGDungeonNewJump;\n"
+ },
+ {
+  "file": "packet_info.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (info)",
+  "old": "\tSet(HEADER_GG_FIND_DUNGEON, sizeof(TPacketGGDungeonFind), \"DungeonFind\", false);\n",
+  "new": "\tSet(HEADER_GG_FIND_DUNGEON, sizeof(TPacketGGDungeonFind), \"DungeonFind\", false);\n\t// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (info)\n\tSet(HEADER_GG_DUNGEON_NEW_JUMP, sizeof(TPacketGGDungeonNewJump), \"DungeonNewJump\", false);\n"
+ },
+ {
+  "file": "input_p2p.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (decl)",
+  "old": "void CInputP2P::DungeonFind(const char* c_pData)\n{\n",
+  "new": "// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (decl): questlua_dungeon.cpp, d.new_jump_pids.\nnamespace quest { void Mt2009PlusDungeonNewJumpRecv(const char* c_pData); }\n\nvoid CInputP2P::DungeonFind(const char* c_pData)\n{\n"
+ },
+ {
+  "file": "input_p2p.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (case)",
+  "old": "\t\tcase HEADER_GG_FIND_DUNGEON:\n\t\t\tDungeonFind(c_pData);\n\t\t\tbreak;\n",
+  "new": "\t\tcase HEADER_GG_FIND_DUNGEON:\n\t\t\tDungeonFind(c_pData);\n\t\t\tbreak;\n\n\t\t// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (case)\n\t\tcase HEADER_GG_DUNGEON_NEW_JUMP:\n\t\t\tquest::Mt2009PlusDungeonNewJumpRecv(c_pData);\n\t\t\tbreak;\n"
+ },
+ {
+  "file": "input_p2p.cpp",
+  "marker": "MT2009_PLUS_SHOUTERS_V1 (p2p)",
+  "old": "\tTPacketGGShout * p = (TPacketGGShout *) c_pData;\n\tif (p->bChatType == CHAT_TYPE_SHOUT)\n\t\tSendShout(p->szText, p->bEmpire);\n",
+  "new": "\tTPacketGGShout * p = (TPacketGGShout *) c_pData;\n\tif (p->bChatType == CHAT_TYPE_SHOUT)\n\t{\n\t\tSendShout(p->szText, p->bEmpire);\n\t\t// MT2009_PLUS_SHOUTERS_V1 (p2p): another core's line of the shout channel, counted for\n\t\t// the shouters of the first villages (playerbot_shouters.h).\n\t\tCPlayerBotManager::instance().OnPeerShout(p->bEmpire);\n\t}\n"
+ },
+ {
+  "file": "questlua_dungeon.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (lua)",
+  "old": "\tvoid RegisterDungeonFunctionTable()\n",
+  "new": "\t// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (lua): d.new_jump_pids(map_index, x, y, {pid, ...}) makes\n\t// a new instance of map_index and warps the listed players (x, y in world units, as\n\t// d.new_jump) straight into it - one loading screen even when another core of this\n\t// channel hosts map_index: that core makes the instance (HEADER_GG_DUNGEON_NEW_JUMP)\n\t// and sends each player his warp with HEADER_GG_WARP_CHARACTER, the way d.find brings a\n\t// player back into an instance of another core. The first pid leads (dungeon flag\n\t// \"leader\"). Returns the instance's map index when this core made it, 0 when the\n\t// request went to another core, -1 when nothing was done. An instance nobody reached\n\t// goes away after DUNGEON_INSTANCE_LIFETIME seconds (a quest marks a used one with the\n\t// dungeon flag \"entered\"); the quest sets the instance up when its players log in.\n\tEVENTINFO(mt2009_dungeon_orphan_info)\n\t{\n\t\tlong lMapIndex;\n\t\tmt2009_dungeon_orphan_info() : lMapIndex(0) {}\n\t};\n\n\tEVENTFUNC(mt2009_dungeon_orphan_event)\n\t{\n\t\tmt2009_dungeon_orphan_info* info = dynamic_cast<mt2009_dungeon_orphan_info*>(event->info);\n\t\tif (!info)\n\t\t\treturn 0;\n\t\tLPDUNGEON pDungeon = CDungeonManager::instance().FindByMapIndex(info->lMapIndex);\n\t\tif (!pDungeon || pDungeon->GetFlag(\"entered\") != 0)\n\t\t\treturn 0;\n\t\tconst DESC_MANAGER::DESC_SET& descs = DESC_MANAGER::instance().GetClientSet();\n\t\tfor (DESC_MANAGER::DESC_SET::const_iterator it = descs.begin(); it != descs.end(); ++it)\n\t\t{\n\t\t\tLPCHARACTER ch = (*it)->GetCharacter();\n\t\t\tif (ch && ch->GetMapIndex() == info->lMapIndex)\n\t\t\t\treturn 0;\n\t\t}\n\t\tsys_log(0, \"MT2009_PLUS_DUNGEON_ONE_WARP: nobody reached instance %ld, destroyed\", info->lMapIndex);\n\t\tCDungeonManager::instance().Destroy(pDungeon->GetId());\n\t\treturn 0;\n\t}\n\n\tstatic void Mt2009PlusWarpPidToDungeon(DWORD dwPID, long x, long y, long lMapIndex)\n\t{\n\t\tLPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(dwPID);\n\t\tif (ch && ch->GetDesc())\n\t\t{\n\t\t\tch->WarpSet(x, y, lMapIndex);\n\t\t\treturn;\n\t\t}\n\t\tTPacketGGWarpCharacter p;\n\t\tp.header = HEADER_GG_WARP_CHARACTER;\n\t\tp.pid = dwPID;\n\t\tp.x = x;\n\t\tp.y = y;\n\t\tp.mapIndex = lMapIndex;\n\t\tp.iTargetChannel = g_bChannel;\n\t\tP2P_MANAGER::instance().Send(&p, sizeof(TPacketGGWarpCharacter));\n\t}\n\n\tstatic long Mt2009PlusDungeonNewJumpHere(const TPacketGGDungeonNewJump& p)\n\t{\n\t\tLPDUNGEON pDungeon = CDungeonManager::instance().Create(p.lMapIndex);\n\t\tif (!pDungeon)\n\t\t{\n\t\t\tsys_err(\"d.new_jump_pids: cannot create dungeon %ld\", p.lMapIndex);\n\t\t\treturn 0;\n\t\t}\n\t\tconst long lIndex = pDungeon->GetMapIndex();\n\t\tpDungeon->SetFlag(\"leader\", (int)p.adwPID[0]);\n\t\tmt2009_dungeon_orphan_info* info = AllocEventInfo<mt2009_dungeon_orphan_info>();\n\t\tinfo->lMapIndex = lIndex;\n\t\tevent_create(mt2009_dungeon_orphan_event, info, PASSES_PER_SEC(DUNGEON_INSTANCE_LIFETIME));\n\t\tconst int n = MIN((int)p.bCount, (int)MT2009_DUNGEON_NEW_JUMP_MAX_PID);\n\t\tfor (int i = 0; i < n; ++i)\n\t\t\tMt2009PlusWarpPidToDungeon(p.adwPID[i], p.lX, p.lY, lIndex);\n\t\tsys_log(0, \"MT2009_PLUS_DUNGEON_ONE_WARP: instance %ld of map %ld for %d player(s), leader %u\", lIndex, p.lMapIndex, n, p.adwPID[0]);\n\t\treturn lIndex;\n\t}\n\n\tvoid Mt2009PlusDungeonNewJumpRecv(const char* c_pData)\n\t{\n\t\tconst TPacketGGDungeonNewJump* p = (const TPacketGGDungeonNewJump*)c_pData;\n\t\tif (p->iChannel != g_bChannel || !map_allow_find(p->lMapIndex) || p->bCount == 0)\n\t\t\treturn;\n\t\tMt2009PlusDungeonNewJumpHere(*p);\n\t}\n\n\tALUA(dungeon_new_jump_pids)\n\t{\n\t\tif (lua_gettop(L) < 4 || !lua_isnumber(L, 1) || !lua_isnumber(L, 2) || !lua_isnumber(L, 3) || !lua_istable(L, 4))\n\t\t{\n\t\t\tsys_err(\"d.new_jump_pids: wrong argument\");\n\t\t\tlua_pushnumber(L, -1);\n\t\t\treturn 1;\n\t\t}\n\t\tTPacketGGDungeonNewJump p;\n\t\tmemset(&p, 0, sizeof(p));\n\t\tp.bHeader = HEADER_GG_DUNGEON_NEW_JUMP;\n\t\tp.lMapIndex = (long)lua_tonumber(L, 1);\n\t\tp.lX = (long)lua_tonumber(L, 2);\n\t\tp.lY = (long)lua_tonumber(L, 3);\n\t\tp.iChannel = g_bChannel;\n\t\tconst int n = luaL_getn(L, 4);\n\t\tfor (int i = 1; i <= n && p.bCount < MT2009_DUNGEON_NEW_JUMP_MAX_PID; ++i)\n\t\t{\n\t\t\tlua_rawgeti(L, 4, i);\n\t\t\tif (lua_isnumber(L, -1))\n\t\t\t{\n\t\t\t\tconst DWORD dwPID = (DWORD)lua_tonumber(L, -1);\n\t\t\t\tif (dwPID)\n\t\t\t\t\tp.adwPID[p.bCount++] = dwPID;\n\t\t\t}\n\t\t\tlua_pop(L, 1);\n\t\t}\n\t\tif (p.bCount == 0 || p.lMapIndex <= 0 || p.lMapIndex >= 10000)\n\t\t{\n\t\t\tlua_pushnumber(L, -1);\n\t\t\treturn 1;\n\t\t}\n\t\tif (map_allow_find(p.lMapIndex))\n\t\t{\n\t\t\tconst long lIndex = Mt2009PlusDungeonNewJumpHere(p);\n\t\t\tlua_pushnumber(L, lIndex > 0 ? lIndex : -1);\n\t\t\treturn 1;\n\t\t}\n\t\tP2P_MANAGER::instance().Send(&p, sizeof(TPacketGGDungeonNewJump));\n\t\tlua_pushnumber(L, 0);\n\t\treturn 1;\n\t}\n\n\tvoid RegisterDungeonFunctionTable()\n"
+ },
+ {
+  "file": "questlua_dungeon.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_ONE_WARP_V1 (table)",
+  "old": "\t\t\t{ \"find\",\t\t\tdungeon_find\t\t},\n",
+  "new": "\t\t\t{ \"find\",\t\t\tdungeon_find\t\t},\n\t\t\t// MT2009_PLUS_DUNGEON_ONE_WARP_V1 (table)\n\t\t\t{ \"new_jump_pids\",\tdungeon_new_jump_pids\t},\n"
+ },
+ {
+  "file": "dungeon.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_RETURN_V1",
+  "old": "\tpDungeon->deadEvent = NULL;\n\n\tCDungeonManager::instance().Destroy(info->dungeon_id);\n",
+  "new": "\t// MT2009_PLUS_DUNGEON_RETURN_V1 (server-patches/playerqol): an instance whose quest set the\n\t// dungeon flag \"mt2009_keep_until\" (a unix time) outlives its players until then, not only\n\t// DUNGEON_INSTANCE_LIFETIME - the Razador and Nemere expeditions last an hour and their\n\t// guards' \"Wroc do lochu\" (d.find) found nothing five minutes after a disconnect. The quest\n\t// zeroes the flag when the expedition ends; checked again at least once a minute.\n\t{\n\t\tconst long keepUntil = (long)pDungeon->GetFlag(\"mt2009_keep_until\");\n\t\tconst long now = (long)get_global_time();\n\t\tif (keepUntil > now)\n\t\t\treturn PASSES_PER_SEC(MIN(keepUntil - now, 60L));\n\t}\n\n\tpDungeon->deadEvent = NULL;\n\n\tCDungeonManager::instance().Destroy(info->dungeon_id);\n"
+ },
+ {
+  "file": "cmd_gm.cpp",
+  "marker": "MT2009_PLUS_FLEA_SALES_V1",
+  "old": "\tconst bool withRange = version >= 2;\n\tif (requestID != 0 && window == FLEA_PRICE_OWN_SHOP_WINDOW)\n\t{\n\t\tCPlayerBotManager::instance().SendFleaMarketShopItemPriceQuote(ch, cell, requestID, withRange);\n\t\treturn;\n\t}\n\tif (requestID == 0 || window != INVENTORY || cell >= INVENTORY_AND_EQUIP_SLOT_MAX)\n\t\treturn;\n\n\tCPlayerBotManager::instance().SendFleaMarketPriceQuote(ch, INVENTORY, (WORD)cell, requestID, withRange);\n",
+  "new": "\tconst bool withRange = version >= 2;\n\t// MT2009_PLUS_FLEA_SALES_V1 (server-patches/playerqol): version 3 - the\n\t// client's \"Ceny\" window - also asks for the bots' last sale and median,\n\t// sent as \"FleaPriceSales\" before the quote. Version 2 as before.\n\tconst bool withSales = version >= 3;\n\tif (requestID != 0 && window == FLEA_PRICE_OWN_SHOP_WINDOW)\n\t{\n\t\tCPlayerBotManager::instance().SendFleaMarketShopItemPriceQuote(ch, cell, requestID, withRange, withSales);\n\t\treturn;\n\t}\n\tif (requestID == 0 || window != INVENTORY || cell >= INVENTORY_AND_EQUIP_SLOT_MAX)\n\t\treturn;\n\n\tCPlayerBotManager::instance().SendFleaMarketPriceQuote(ch, INVENTORY, (WORD)cell, requestID, withRange, withSales);\n"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_SALE_ONCE_V1",
+  "old": "\t\tplayerbot_offline::NoteSold(ownerid, itemid, shopItem->GetVnum(), shopItem->GetInfo().count, shopItem->GetPrice().GetTotalYangAmount());\n",
+  "new": "\t\t// MT2009_PLUS_SALE_ONCE_V1 (server-patches/playerqol): the sale is the\n\t\t// owner's on the core the owner is on, and counted by vnum on every\n\t\t// core. Every core recorded it for the owner, and a bot that changed\n\t\t// channel drained the same sale again where it arrived.\n\t\tplayerbot_offline::NoteSold(ownerCh ? ownerid : 0, itemid, shopItem->GetVnum(), shopItem->GetInfo().count, shopItem->GetPrice().GetTotalYangAmount());\n"
+ },
+ {
+  "file": "../../db/src/ClientManagerIkarusShop.cpp",
+  "marker": "MT2009_PLUS_SHOP_LOCK_OWNER_V1 (map)",
+  "old": "bool CClientManager::RecvIkarusShopLockBuyItem(CPeer* peer, const char* data)\n{",
+  "new": "// MT2009_PLUS_SHOP_LOCK_OWNER_V1 (map), server-patches/playerqol: whose purchase\n// placed the lock on a line, by (owner, item). Only that purchase may settle\n// the sale or release the lock (RecvIkarusShopBuyItemPacket): the core paid\n// the seller before it asked whether the line was locked at all.\nstatic std::map<std::pair<DWORD, DWORD>, DWORD>& Mt2009PlusShopLockGuests()\n{\n\tstatic std::map<std::pair<DWORD, DWORD>, DWORD> guests;\n\treturn guests;\n}\n\nbool CClientManager::RecvIkarusShopLockBuyItem(CPeer* peer, const char* data)\n{"
+ },
+ {
+  "file": "../../db/src/ClientManagerIkarusShop.cpp",
+  "marker": "MT2009_PLUS_SHOP_LOCK_OWNER_V1 (lock)",
+  "old": "\tif (m_offlineshopShopCache.LockSellItem(subpack.ownerid, subpack.itemid, subpack.seenprice)){\n",
+  "new": "\tif (m_offlineshopShopCache.LockSellItem(subpack.ownerid, subpack.itemid, subpack.seenprice)){\n\t\t// MT2009_PLUS_SHOP_LOCK_OWNER_V1 (lock): the lock remembers its buyer.\n\t\tMt2009PlusShopLockGuests()[std::make_pair(subpack.ownerid, subpack.itemid)] = subpack.guestid;\n"
+ },
+ {
+  "file": "../../db/src/ClientManagerIkarusShop.cpp",
+  "marker": "MT2009_PLUS_SHOP_LOCK_OWNER_V1 (settle)",
+  "old": "\t// unlocking locked item\n\tif(!success){\n\t\tm_offlineshopShopCache.UnlockSellItem(dwOwner, dwItem);\n\t\treturn true;\n\t}\n",
+  "new": "\t// MT2009_PLUS_SHOP_LOCK_OWNER_V1 (settle): only the purchase that placed\n\t// the lock settles the sale or releases it, and before any yang moves.\n\t{\n\t\tauto& guests = Mt2009PlusShopLockGuests();\n\t\tauto lockGuest = guests.find(std::make_pair(dwOwner, dwItem));\n\t\tif (!it->second->lock || lockGuest == guests.end() || lockGuest->second != subpack.guestid)\n\t\t{\n\t\t\tsys_err(\"MT2009_PLUS_SHOP_LOCK_OWNER_V1: %s of item %u (owner %u) by %u refused: %s\",\n\t\t\t\tsuccess ? \"settlement\" : \"release\", dwItem, dwOwner, subpack.guestid,\n\t\t\t\t!it->second->lock ? \"not locked\" : lockGuest == guests.end() ? \"lock of no purchase\" : \"another purchase's lock\");\n\t\t\treturn false;\n\t\t}\n\t\tguests.erase(lockGuest);\n\t}\n\n\t// unlocking locked item\n\tif(!success){\n\t\tm_offlineshopShopCache.UnlockSellItem(dwOwner, dwItem);\n\t\treturn true;\n\t}\n"
+ },
+ {
+  "file": "../../common/CommonDefines.h",
+  "marker": "MT2009_PLUS_MAP_ALLOW_48_V1",
+  "old": "enum eCommonDefines {\n\tMAP_ALLOW_LIMIT = 32, // 32 default\n};\n",
+  "new": "enum eCommonDefines {\n\t// MT2009_PLUS_MAP_ALLOW_48_V1: game1 of the unified layout hosts 33 maps\n\t// once the Temple of Ochao (209) sits beside the bots (m2-render-config);\n\t// every core and the db core are built from this one tree.\n\tMAP_ALLOW_LIMIT = 48, // 32 default\n};\n"
+ },
+ {
+  "file": "char.h",
+  "marker": "MT2009_PLUS_DUNGEON_PANEL_V1 (damage)",
+  "old": "\t\tbool\t\t\t\tDamage(LPCHARACTER pAttacker, int dam, EDamageType type = DAMAGE_TYPE_NORMAL, DWORD dwUsedSkill = 0, bool IsPenetrate = false);\n",
+  "new": "\t\tbool\t\t\t\tDamage(LPCHARACTER pAttacker, int dam, EDamageType type = DAMAGE_TYPE_NORMAL, DWORD dwUsedSkill = 0, bool IsPenetrate = false);\n\t\t// MT2009_PLUS_DUNGEON_PANEL_V1 (damage): who hurt this character and how much, for the dungeon\n\t\t// panel's ranking (d.update_ranking in a boss's kill handler, playerbot_dungeon_panel.h).\n\t\tconst TDamageMap&\tMt2009PlusGetDamageMap() const\t{ return m_map_kDamage; }\n"
+ },
+ {
+  "file": "questlua_dungeon.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_PANEL_V1 (lua)",
+  "old": "\tALUA(dungeon_new_jump_pids)\n",
+  "new": "\t// MT2009_PLUS_DUNGEON_PANEL_V1 (lua): d.update_ranking(key [, seconds]) in a boss's kill handler -\n\t// the dungeon panel's results (finished, best time, most damage) of everyone in the instance, or\n\t// on an open map of everyone who hurt the boss (playerbot_dungeon_panel.h, dungeon_info.txt).\n\tALUA(dungeon_update_ranking)\n\t{\n\t\tif (!lua_isstring(L, 1))\n\t\t\treturn 0;\n\t\tconst int seconds = lua_isnumber(L, 2) ? (int) lua_tonumber(L, 2) : 0;\n\t\tCQuestManager& q = CQuestManager::instance();\n\t\tvoid DungeonPanelUpdateRanking(LPCHARACTER pc, LPCHARACTER npc, const char* key, int seconds);\n\t\tDungeonPanelUpdateRanking(q.GetCurrentCharacterPtr(), q.GetCurrentNPCCharacterPtr(), lua_tostring(L, 1), seconds);\n\t\treturn 0;\n\t}\n\n\tALUA(dungeon_new_jump_pids)\n"
+ },
+ {
+  "file": "questlua_dungeon.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_PANEL_V1 (table)",
+  "old": "\t\t\t{ \"new_jump_pids\",\tdungeon_new_jump_pids\t},\n",
+  "new": "\t\t\t{ \"new_jump_pids\",\tdungeon_new_jump_pids\t},\n\t\t\t// MT2009_PLUS_DUNGEON_PANEL_V1 (table)\n\t\t\t{ \"update_ranking\",\tdungeon_update_ranking\t},\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_PANEL_V1 (declare)",
+  "old": "ACMD(do_goblin);\n",
+  "new": "ACMD(do_goblin);\n// MT2009_PLUS_DUNGEON_PANEL_V1 (declare)\nACMD(do_dungeon_panel);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_PANEL_V1 (table)",
+  "old": "\t{ \"goblin\",\tdo_goblin,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"goblin\",\tdo_goblin,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_DUNGEON_PANEL_V1 (table)\n\t{ \"lochy\",\tdo_dungeon_panel,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_DUNGEON_PANEL_V1 (command)",
+  "old": "// MT2009_PLUS_GOBLIN_V1 (command): the Treasure Hunt's window and island,\n",
+  "new": "// MT2009_PLUS_DUNGEON_PANEL_V1 (command): the dungeon panel,\n// \"/lochy [open|warp <i>|rank <i> <type>|reload]\" (playerbot_dungeon_panel.h).\nACMD(do_dungeon_panel)\n{\n\tif (!ch || !ch->GetDesc())\n\t\treturn;\n\tvoid DungeonPanelCommand(LPCHARACTER ch, const char* argument);\n\tDungeonPanelCommand(ch, argument);\n}\n\n// MT2009_PLUS_GOBLIN_V1 (command): the Treasure Hunt's window and island,\n"
+ },
+ {
+  "file": "char.h",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (decl)",
+  "old": "\t\tint\t\t\t\t\tGetShootMaxTargetCount(DWORD dwType = 0);\n",
+  "new": "\t\tint\t\t\t\t\tGetShootMaxTargetCount(DWORD dwType = 0);\n\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (decl): a normal shot's extra targets\n\t\t// go to the clients with its fly target, before the arrow leaves; a\n\t\t// shoot skill's cast is remembered until its shot (char_battle.cpp).\n\t\tvoid\t\t\t\tAnnounceShootTargets(DWORD dwTargetVID);\n\t\tvoid\t\t\t\tNoteShootSkillUsed();\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (pending)",
+  "old": "class CFuncShoot\n{\n",
+  "new": "// MT2009_PLUS_ARCHER_MULTISHOT_V1 (pending): when a player last cast a shoot\n// skill (UseSkill -> NoteShootSkillUsed), by VID, until the skill's own shot\n// comes (Shoot) or MT2009_PLUS_SKILL_SHOT_WAIT has passed. A fly target sent\n// meanwhile is the skill's, and a normal shot's extra arrows told with it\n// would be drawn with a Fire Arrow that never strikes them.\nstatic std::map<DWORD, DWORD> s_mapMt2009PlusShootSkillAt;\nstatic const DWORD MT2009_PLUS_SKILL_SHOT_WAIT = 3000;\n\nclass CFuncShoot\n{\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (flag)",
+  "old": "\tDWORD\t\tm_dVictimCount;\n\n\tCFuncShoot(LPCHARACTER ch, BYTE bType, DWORD dVictimCount = 1) : m_me(ch), m_bType(bType), m_bSucceed(FALSE), m_dVictimCount(dVictimCount)\n\t{\n\t}\n",
+  "new": "\tDWORD\t\tm_dVictimCount;\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (flag): this arrow is one of the shot's\n\t// extra ones. It was a mark on the monster itself (the engine's\n\t// SetAdditionalShootingTarget), shared by every archer and left on it\n\t// whenever an extra arrow did not land (out of range, a refused hit, a\n\t// skill that took no extras): a later Fire or Poison Arrow aimed at that\n\t// monster was then thrown away as an \"extra\" one - a miss, with the\n\t// mana and the cooldown gone. The shot knows its extras now; the mark is\n\t// neither read nor set.\n\tbool\t\tm_bAdditional;\n\n\tCFuncShoot(LPCHARACTER ch, BYTE bType, DWORD dVictimCount = 1) : m_me(ch), m_bType(bType), m_bSucceed(FALSE), m_dVictimCount(dVictimCount), m_bAdditional(false)\n\t{\n\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (skill extra)",
+  "old": "\t\t\t\tm_bType != SKILL_REPETITIVE_SHOT && m_bType != SKILL_ARROW_SHOWER && m_bType != SKILL_HORSE_WILDATTACK_RANGE &&\n\t\t\t\tpkVictim->IsAdditionalShootingTarget())\n\t\t\t{\n\t\t\t\tpkVictim->SetAdditionalShootingTarget(false);\n\t\t\t\treturn;\n\t\t\t}\n",
+  "new": "\t\t\t\tm_bType != SKILL_REPETITIVE_SHOT && m_bType != SKILL_ARROW_SHOWER && m_bType != SKILL_HORSE_WILDATTACK_RANGE &&\n\t\t\t\tm_bAdditional)\n\t\t\t{\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (skill extra): a one-target\n\t\t\t\t// skill strikes its own target alone.\n\t\t\t\treturn;\n\t\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (normal arrow)",
+  "old": "\t\t\t\tif (!pkVictim->IsAdditionalShootingTarget())\n\t\t\t\t\tm_me->UseArrow(pkArrow, 1);\n\t\t\t\telse\n\t\t\t\t\tpkVictim->SetAdditionalShootingTarget(false);\n",
+  "new": "\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (normal arrow): the extra arrows\n\t\t\t\t// of a shot cost nothing, only the main one does.\n\t\t\t\tif (!m_bAdditional)\n\t\t\t\t\tm_me->UseArrow(pkArrow, 1);\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (repetitive arrow)",
+  "old": "\t\t\t\tif (pkVictim->IsAdditionalShootingTarget())\n\t\t\t\t{\n\t\t\t\t\tif (m_me->HasPlayerData() && m_me->playerData->m_dwRemainingShootCount == 1)\n\t\t\t\t\t\tpkVictim->SetAdditionalShootingTarget(false);\n\t\t\t\t}\n\t\t\t\telse if (m_me->HasPlayerData() && m_me->playerData->m_dwRemainingShootCount == GetMaxAttackCountForSkill(SKILL_REPETITIVE_SHOT, m_me->GetSkillPower(SKILL_REPETITIVE_SHOT)))\n",
+  "new": "\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (repetitive arrow): one arrow for\n\t\t\t\t// the whole skill, at its first shot at the main target.\n\t\t\t\tif (!m_bAdditional && m_me->HasPlayerData() && m_me->playerData->m_dwRemainingShootCount == GetMaxAttackCountForSkill(SKILL_REPETITIVE_SHOT, m_me->GetSkillPower(SKILL_REPETITIVE_SHOT)))\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (shower arrow)",
+  "old": "\t\t\t\tsys_log(0, \"%s kwankeyok %s\", m_me->GetName(), pkVictim->GetName());\n\t\t\t\tm_me->ComputeSkill(m_bType, pkVictim);\n\n\t\t\t\tif (!pkVictim->IsAdditionalShootingTarget())\n",
+  "new": "\t\t\t\tsys_log(0, \"%s kwankeyok %s\", m_me->GetName(), pkVictim->GetName());\n\t\t\t\tm_me->ComputeSkill(m_bType, pkVictim);\n\n\t\t\t\tif (!m_bAdditional) // MT2009_PLUS_ARCHER_MULTISHOT_V1 (shower arrow)\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (horse arrow)",
+  "old": "\t\t\t\tsys_log(0, \"%s horse_wildattack %s\", m_me->GetName(), pkVictim->GetName());\n\t\t\t\tm_me->ComputeSkill(m_bType, pkVictim);\n\t\t\t\tif (!pkVictim->IsAdditionalShootingTarget())\n",
+  "new": "\t\t\t\tsys_log(0, \"%s horse_wildattack %s\", m_me->GetName(), pkVictim->GetName());\n\t\t\t\tm_me->ComputeSkill(m_bType, pkVictim);\n\t\t\t\tif (!m_bAdditional) // MT2009_PLUS_ARCHER_MULTISHOT_V1 (horse arrow)\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (mark)",
+  "old": "\t\tvictimNeighbor->SetAdditionalShootingTarget(true);\n\t\tm_attacker->AddFlyTarget(victimNeighbor, m_bType);\n",
+  "new": "\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (mark): no mark on the monster, see\n\t\t// CFuncShoot::m_bAdditional.\n\t\tm_attacker->AddFlyTarget(victimNeighbor, m_bType);\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (shoot skill)",
+  "old": "\tbool isPlayer = HasPlayerData();\n\n\tif (isPlayer && bType > 0 && IsSkillCooldown(",
+  "new": "\tbool isPlayer = HasPlayerData();\n\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (shoot skill): the cast's shot has come;\n\t// the next fly target is a normal shot's again (AnnounceShootTargets).\n\tif (isPlayer && bType > 0)\n\t\ts_mapMt2009PlusShootSkillAt.erase(GetVID());\n\n\tif (isPlayer && bType > 0 && IsSkillCooldown("
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (shoot)",
+  "old": "\tCFuncShoot f(this, bType);\n\tOnShootSkill(bType);\n\n\tif (isPlayer)\n\t{\n\t\tif (m_dwFlyTargetID != 0)\n\t\t{\n\t\t\tLPCHARACTER victim = CHARACTER_MANAGER::instance().Find(m_dwFlyTargetID);\n\t\t\tif (victim && m_vec_dwFlyTargets.size() == 0) {\n",
+  "new": "\tCFuncShoot f(this, bType);\n\tOnShootSkill(bType);\n\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (shoot): the main target, never struck\n\t// again by one of the same shot's extra arrows.\n\tconst DWORD dwMainVID = m_dwFlyTargetID;\n\n\tif (isPlayer)\n\t{\n\t\tif (m_dwFlyTargetID != 0)\n\t\t{\n\t\t\tLPCHARACTER victim = CHARACTER_MANAGER::instance().Find(m_dwFlyTargetID);\n\t\t\t// A normal shot's extra targets were found with its fly target and\n\t\t\t// sent to the clients then (AnnounceShootTargets). Found here, their\n\t\t\t// arrows reached the clients after the client had let this one go,\n\t\t\t// and were drawn with the next shot - arrows that did nothing. The\n\t\t\t// skills that shoot at several still find theirs here.\n\t\t\tif (victim && m_vec_dwFlyTargets.size() == 0 && bType != 0) {\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (shoot extras)",
+  "old": "\tif (isPlayer)\n\t{\n\t\tf.m_dVictimCount = m_vec_dwFlyTargets.size() + 1;\n\t\tf = std::for_each(m_vec_dwFlyTargets.begin(), m_vec_dwFlyTargets.end(), f);\n\t\tif (playerData->m_dwRemainingShootCount == 0)\n\t\t\tm_vec_dwFlyTargets.clear();\n\t}\n",
+  "new": "\tif (isPlayer)\n\t{\n\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (shoot extras): the extra arrows,\n\t\t// marked as such (no arrow spent, no one-target skill), from a copy -\n\t\t// an invisible target met on the way resets the fly targets\n\t\t// (ResetFlyTarget) under a loop that walked the vector itself.\n\t\tconst std::vector<DWORD> vecExtra(m_vec_dwFlyTargets);\n\t\tf.m_dVictimCount = vecExtra.size() + 1;\n\t\tf.m_bAdditional = true;\n\t\tfor (size_t i = 0; i < vecExtra.size(); ++i)\n\t\t\tif (vecExtra[i] != dwMainVID)\n\t\t\t\tf(vecExtra[i]);\n\t\tif (playerData->m_dwRemainingShootCount == 0)\n\t\t\tm_vec_dwFlyTargets.clear();\n\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (announce)",
+  "old": "\treturn 3 + m_bComboIndex;\n}\n",
+  "new": "\treturn 3 + m_bComboIndex;\n}\n\n// MT2009_PLUS_ARCHER_MULTISHOT_V1 (announce): a player's normal shot strikes\n// its target and up to two more - three and four with Sztuka Combo on\n// (GetShootMaxTargetCount) - of the monsters already attacking the archer, at\n// most 10 m from the target (CFuncFindShootTargetsAround). The client sends\n// the fly target as the bow is drawn and the shot as the arrow leaves; the\n// extra targets were looked for at the shot, so their arrows\n// (HEADER_GC_ADD_FLY_SHOOT_TARGETING) reached the clients after it and were\n// drawn with the next shot. They are found here, at the fly target\n// (CInputMain::FlyTarget), told while the bow is still drawn and struck by\n// the shot that follows (Shoot). What an earlier fly target told and no\n// shot used is taken back first, from the clients too, as UseSkill does for\n// a skill. Not while a shoot skill's shot is due (NoteShootSkillUsed), nor\n// between the arrows of one draw (two from the saddle, a Repetitive Shot).\nvoid CHARACTER::AnnounceShootTargets(DWORD dwTargetVID)\n{\n\tif (!IsPC() || !GetDesc() || GetDesc()->IsBot() || !HasPlayerData() || !GetSectree())\n\t\treturn;\n\n\tif (GetJob() != JOB_ASSASSIN || GetSkillGroup() != NINJA_ARCHER)\n\t\treturn;\n\n\tstd::map<DWORD, DWORD>::iterator it = s_mapMt2009PlusShootSkillAt.find(GetVID());\n\tif (it != s_mapMt2009PlusShootSkillAt.end())\n\t{\n\t\tif (get_dword_time() - it->second < MT2009_PLUS_SKILL_SHOT_WAIT)\n\t\t\treturn;\n\t\ts_mapMt2009PlusShootSkillAt.erase(it);\n\t}\n\n\tif (playerData->m_dwRemainingShootCount != 0)\n\t\treturn;\n\n\tif (!m_vec_dwFlyTargets.empty())\n\t{\n\t\tm_vec_dwFlyTargets.clear();\n\t\tTPacketGCFlyClearTargeting pack;\n\t\tpack.bHeader = HEADER_GC_CLEAR_FLY_SHOOT_TARGETING;\n\t\tpack.dwShooterVID = GetVID();\n\t\tPacketAround(&pack, sizeof(TPacketGCFlyClearTargeting), NULL);\n\t}\n\n\t// The target MainFlyTarget took (not an invisible one, not the ground).\n\tLPITEM pkBow, pkArrow;\n\tif (dwTargetVID == 0 || dwTargetVID != m_dwFlyTargetID || GetArrowAndBow(&pkBow, &pkArrow, 1) != 1)\n\t\treturn;\n\n\tLPCHARACTER victim = CHARACTER_MANAGER::instance().Find(dwTargetVID);\n\tif (!victim || victim->IsDead())\n\t\treturn;\n\n\tCFuncFindShootTargetsAround f(victim, this, 0);\n\tGetSectree()->ForEachAround(f);\n}\n\nvoid CHARACTER::NoteShootSkillUsed()\n{\n\tif (IsPC() && GetDesc() && !GetDesc()->IsBot())\n\t\ts_mapMt2009PlusShootSkillAt[GetVID()] = get_dword_time();\n}\n"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (skill shot)",
+  "old": "\tm_dwLastSkillTime = get_dword_time();\n\n\treturn true;\n}\n\nint CHARACTER::GetUsedSkillMasterType(DWORD dwVnum)\n",
+  "new": "\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (skill shot): the fly target that comes\n\t// before this skill's shot is the skill's (CHARACTER::AnnounceShootTargets).\n\tif (IsShootSkill(dwVnum))\n\t\tNoteShootSkillUsed();\n\n\tm_dwLastSkillTime = get_dword_time();\n\n\treturn true;\n}\n\nint CHARACTER::GetUsedSkillMasterType(DWORD dwVnum)\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (fly)",
+  "old": "\tTPacketCGFlyTargeting * p = (TPacketCGFlyTargeting *) pcData;\n\tch->MainFlyTarget(p->dwTargetVID, p->x, p->y);\n}\n",
+  "new": "\tTPacketCGFlyTargeting * p = (TPacketCGFlyTargeting *) pcData;\n\tch->MainFlyTarget(p->dwTargetVID, p->x, p->y);\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (fly): a normal shot's extra arrows leave\n\t// the bow with the main one (char_battle.cpp).\n\tch->AnnounceShootTargets(p->dwTargetVID);\n}\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag)",
+  "old": "bool IS_SPEED_HACK(LPCHARACTER ch, LPCHARACTER victim, DWORD current_time, bool isBow, DWORD victimCount, DWORD dwSkillVnum)\n{\n\tif (!ch->HasPlayerData())\n\t\treturn false;\n\n\tif (isBow)\n\t{\n\t\tauto lastTargetTime = ch->playerData->m_LastShootTargetTime;\n\t\tauto deltaTime = get_dword_time() - lastTargetTime;\n",
+  "new": "// MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag): how long the input being read now may\n// have waited for it (main.cpp, idle). The bow's checks below measure the\n// time between a player's packets by when they are read: a round the bots'\n// AI held up let the fly target and the shot - or two shots - pile up in the\n// socket and be read together, a few microseconds apart, and the shot was\n// thrown away as too fast (\"target swap faster than attackSpeed\", \"attack\n// hack\") after the client had drawn it - or, read after the round, as too\n// late for its move packet (\"where is move packet?\"). Up to a second of\n// that wait counts for the player; a normal round is some 40 ms.\nextern DWORD g_dwMt2009PlusInputLag;\n\nbool IS_SPEED_HACK(LPCHARACTER ch, LPCHARACTER victim, DWORD current_time, bool isBow, DWORD victimCount, DWORD dwSkillVnum)\n{\n\tif (!ch->HasPlayerData())\n\t\treturn false;\n\n\tconst DWORD dwLagCredit = isBow ? MIN(g_dwMt2009PlusInputLag, (DWORD)1000) : 0;\n\n\tif (isBow)\n\t{\n\t\tauto lastTargetTime = ch->playerData->m_LastShootTargetTime;\n\t\tauto deltaTime = get_dword_time() - lastTargetTime + dwLagCredit;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag move)",
+  "old": "\t\tif (movePacketLastAttackTimeDelta > movePacketTimeLimit)\n",
+  "new": "\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag move): the other way round - the\n\t\t// attack's move packet read before a held-up round, its shot after it.\n\t\tif (movePacketLastAttackTimeDelta > movePacketTimeLimit + dwLagCredit)\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag hits)",
+  "old": "\tif (isBow && dwSkillVnum != SKILL_REPETITIVE_SHOT && victimCount == 1 &&\n\t\tdeltaTime < attackSpeed)\n",
+  "new": "\tif (isBow && dwSkillVnum != SKILL_REPETITIVE_SHOT && victimCount == 1 &&\n\t\tdeltaTime + dwLagCredit < attackSpeed) // MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag hits)\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag target)",
+  "old": "\t\tDWORD target_attack_delta_time = current_time - attackLog.last_attack_time;\n",
+  "new": "\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (lag target): see dwLagCredit.\n\t\tDWORD target_attack_delta_time = current_time - attackLog.last_attack_time + dwLagCredit;\n"
+ },
+ {
+  "file": "main.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (input lag)",
+  "old": "LPFDWATCH\tmain_fdw = NULL;\n",
+  "new": "LPFDWATCH\tmain_fdw = NULL;\n\n// MT2009_PLUS_ARCHER_MULTISHOT_V1 (input lag): the time since the last round\n// of reading the clients (idle, before io_loop) - as long as a packet read in\n// this round may have waited in its socket. A round the bots' AI held up\n// reads packets sent far apart as if they had come together; the bow's\n// speed checks allow for it (IS_SPEED_HACK, battle.cpp).\nDWORD\t\tg_dwMt2009PlusInputLag = 0;\n"
+ },
+ {
+  "file": "main.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V1 (input lag poll)",
+  "old": "\tt = get_dword_time();\n\tif (!io_loop(main_fdw)) return 0;\n",
+  "new": "\tt = get_dword_time();\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V1 (input lag poll): see g_dwMt2009PlusInputLag.\n\t{\n\t\tstatic DWORD s_dwLastInputRound = 0;\n\t\tg_dwMt2009PlusInputLag = s_dwLastInputRound ? t - s_dwLastInputRound : 0;\n\t\ts_dwLastInputRound = t;\n\t}\n\tif (!io_loop(main_fdw)) return 0;\n"
+ },
+ {
+  "file": "char.h",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (decl)",
+  "old": "\t\tvoid\t\t\t\tNoteShootSkillUsed();\n",
+  "new": "\t\tvoid\t\t\t\tNoteShootSkillUsed();\n\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (decl): one syslog line for an arrow\n\t\t// the server refused, with the check that refused it (rate-limited).\n\t\tvoid\t\t\t\tLogShootReject(DWORD dwTargetVID, BYTE bType, bool bExtra, const char* c_pszReason, const char* c_pszFormat = NULL, ...);\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why)",
+  "old": "extern DWORD g_dwMt2009PlusInputLag;\n",
+  "new": "extern DWORD g_dwMt2009PlusInputLag;\n\n// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why): which of the checks below refused\n// the hit, for the shot's syslog line (CHARACTER::LogShootReject).\nchar g_szMt2009PlusSpeedHackWhy[128] = \"\";\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why swap)",
+  "old": "\t\t\tch->ChatDebug(\"target swap faster than attackSpeed (%d < %d)\", deltaTime, attackSpeed);\n\t\t\treturn true;\n",
+  "new": "\t\t\tch->ChatDebug(\"target swap faster than attackSpeed (%d < %d)\", deltaTime, attackSpeed);\n\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why swap)\n\t\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"draw_too_fast %u < %u ms (lag credit %u)\", (unsigned)deltaTime, (unsigned)attackSpeed, (unsigned)dwLagCredit);\n\t\t\treturn true;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why move)",
+  "old": "\t\t\tch->ChatDebug(\"where is move packet? (%d > %d)\", movePacketLastAttackTimeDelta, movePacketTimeLimit);\n\t\t\treturn true;\n",
+  "new": "\t\t\tch->ChatDebug(\"where is move packet? (%d > %d)\", movePacketLastAttackTimeDelta, movePacketTimeLimit);\n\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why move)\n\t\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"no_attack_move %u > %u ms (lag credit %u)\", (unsigned)movePacketLastAttackTimeDelta, (unsigned)movePacketTimeLimit, (unsigned)dwLagCredit);\n\t\t\treturn true;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why victims)",
+  "old": "\t\t\tch->ChatDebug(\"SPEED_HACK: single attack had more than %d victims (%d).\", ATTACK_MAX_VICTIM, ch->playerData->victimCount);\n\t\t\treturn true;\n",
+  "new": "\t\t\tch->ChatDebug(\"SPEED_HACK: single attack had more than %d victims (%d).\", ATTACK_MAX_VICTIM, ch->playerData->victimCount);\n\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why victims)\n\t\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"too_many_victims %d > %d\", (int)ch->playerData->victimCount, (int)ATTACK_MAX_VICTIM);\n\t\t\treturn true;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why interval)",
+  "old": "\t\t\t\tch->m_speed_hack_count);\n\n\t\t}\n\n\t\treturn true;\n",
+  "new": "\t\t\t\tch->m_speed_hack_count);\n\n\t\t}\n\n\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why interval)\n\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"attack_interval %u < %u ms (lag credit %u)\", (unsigned)deltaTime, (unsigned)attackSpeed, (unsigned)dwLagCredit);\n\t\treturn true;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why target min)",
+  "old": "\t\t\tch->ChatDebug(\"SPEED_HACK: target_attack_delta_time < REAL_ATTACK_SPEED_MIN (%d < %d)\", target_attack_delta_time, min_attack_speed);\n\t\t\treturn true;\n",
+  "new": "\t\t\tch->ChatDebug(\"SPEED_HACK: target_attack_delta_time < REAL_ATTACK_SPEED_MIN (%d < %d)\", target_attack_delta_time, min_attack_speed);\n\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why target min)\n\t\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"target_min_interval %u < %d ms\", (unsigned)target_attack_delta_time, min_attack_speed);\n\t\t\treturn true;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why hits)",
+  "old": "\t\t\t\tch->ChatDebug(\"TOO MANY HITS DETECTED!!! (cur %d max %d)\", attackLog.combo_count, average_attack_count_per_2_sec);\n\t\t\t\treturn true;\n",
+  "new": "\t\t\t\tch->ChatDebug(\"TOO MANY HITS DETECTED!!! (cur %d max %d)\", attackLog.combo_count, average_attack_count_per_2_sec);\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why hits)\n\t\t\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"too_many_hits_2s %d > %d\", (int)attackLog.combo_count, (int)average_attack_count_per_2_sec);\n\t\t\t\treturn true;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why target)",
+  "old": "\t\t\tch->ChatDebug(\"SPEED_HACK: delta_time %d real_speed_attack %d\", target_attack_delta_time, player_attack_speed);\n\t\t\treturn true;\n",
+  "new": "\t\t\tch->ChatDebug(\"SPEED_HACK: delta_time %d real_speed_attack %d\", target_attack_delta_time, player_attack_speed);\n\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why target)\n\t\t\tsnprintf(g_szMt2009PlusSpeedHackWhy, sizeof(g_szMt2009PlusSpeedHackWhy), \"target_interval %u < %u ms (lag credit %u)\", (unsigned)target_attack_delta_time, (unsigned)player_attack_speed, (unsigned)dwLagCredit);\n\t\t\treturn true;\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (skill refused)",
+  "old": "\t\tif (false == ch->CanUseSkill(type->type))\n\t\t{\n\t\t\treturn;\n\t\t}\n",
+  "new": "\t\tif (false == ch->CanUseSkill(type->type))\n\t\t{\n\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (skill refused): a shot of a skill\n\t\t\t// that cannot be used is no silent miss either.\n\t\t\tif (HEADER_CG_SHOOT == header)\n\t\t\t\tch->LogShootReject(0, type->type, false, \"skill_unusable\");\n\t\t\treturn;\n\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (log)",
+  "old": "static const DWORD MT2009_PLUS_SKILL_SHOT_WAIT = 3000;\n",
+  "new": "static const DWORD MT2009_PLUS_SKILL_SHOT_WAIT = 3000;\n\n// MT2009_PLUS_ARCHER_MULTISHOT_V2 (log): an arrow the server refuses is no\n// silent miss any more - one syslog line \"ARCHER_SHOT_REJECT\" with the check\n// that refused it (IS_SPEED_HACK says which of its own in\n// g_szMt2009PlusSpeedHackWhy). Players only, no bots; at most\n// MT2009_PLUS_SHOT_LOG_LINES lines in MT2009_PLUS_SHOT_LOG_WINDOW ms a\n// player, the rest counted. s_mapMt2009PlusLastShootType: the skill (0 = a\n// normal shot) of a player's last shot, by VID (AnnounceShootTargets).\nextern char g_szMt2009PlusSpeedHackWhy[128];\nstatic std::map<DWORD, BYTE> s_mapMt2009PlusLastShootType;\nstatic const DWORD MT2009_PLUS_SHOT_LOG_WINDOW = 2000;\nstatic const DWORD MT2009_PLUS_SHOT_LOG_LINES = 6;\n\nvoid CHARACTER::LogShootReject(DWORD dwTargetVID, BYTE bType, bool bExtra, const char* c_pszReason, const char* c_pszFormat, ...)\n{\n\tif (!IsPC() || !GetDesc() || GetDesc()->IsBot())\n\t\treturn;\n\n\tstruct SWindow { DWORD dwStart; DWORD dwLines; DWORD dwDropped; };\n\tstatic std::map<DWORD, SWindow> s_mapWindow;\n\n\tconst DWORD dwNow = get_dword_time();\n\tstd::map<DWORD, SWindow>::iterator it = s_mapWindow.find(GetPlayerID());\n\tif (it == s_mapWindow.end())\n\t{\n\t\tSWindow kNew = { dwNow, 0, 0 };\n\t\tit = s_mapWindow.insert(std::make_pair(GetPlayerID(), kNew)).first;\n\t}\n\tSWindow& rkWin = it->second;\n\tif (dwNow - rkWin.dwStart >= MT2009_PLUS_SHOT_LOG_WINDOW)\n\t{\n\t\tif (rkWin.dwDropped)\n\t\t\tsys_log(0, \"ARCHER_SHOT_REJECT %s (pid %u): %u more refused arrow(s) not logged\", GetName(), GetPlayerID(), rkWin.dwDropped);\n\t\trkWin.dwStart = dwNow;\n\t\trkWin.dwLines = 0;\n\t\trkWin.dwDropped = 0;\n\t}\n\tif (rkWin.dwLines >= MT2009_PLUS_SHOT_LOG_LINES)\n\t{\n\t\t++rkWin.dwDropped;\n\t\treturn;\n\t}\n\t++rkWin.dwLines;\n\n\tchar szDetail[192] = \"\";\n\tif (c_pszFormat)\n\t{\n\t\tva_list args;\n\t\tva_start(args, c_pszFormat);\n\t\tvsnprintf(szDetail, sizeof(szDetail), c_pszFormat, args);\n\t\tva_end(args);\n\t}\n\n\tLPCHARACTER pkTarget = dwTargetVID ? CHARACTER_MANAGER::instance().Find(dwTargetVID) : NULL;\n\tsys_log(0, \"ARCHER_SHOT_REJECT %s (pid %u) %s arrow, skill %u, target %u %s: %s%s%s\",\n\t\tGetName(), GetPlayerID(), bExtra ? \"extra\" : \"main\", (unsigned)bType, dwTargetVID,\n\t\tpkTarget ? pkTarget->GetName() : \"-\", c_pszReason, szDetail[0] ? \" - \" : \"\", szDetail);\n}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why skill off)",
+  "old": "\t\t\tif (g_bSkillDisable)\n\t\t\t\treturn;\n\t\t\tm_me->m_SkillUseInfo[m_bType].SetMainTargetVID(dwTargetVID);\n",
+  "new": "\t\t\tif (g_bSkillDisable)\n\t\t\t{\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why skill off)\n\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"skills_disabled\");\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tm_me->m_SkillUseInfo[m_bType].SetMainTargetVID(dwTargetVID);\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why target)",
+  "old": "\t\tLPCHARACTER pkVictim = CHARACTER_MANAGER::instance().Find(dwTargetVID);\n\t\tif (!pkVictim)\n\t\t\treturn;\n\n\t\tif (!battle_is_attackable(m_me, pkVictim))\n\t\t\treturn;\n\n\t\tif (m_me->GetMapIndex() != pkVictim->GetMapIndex())\n\t\t\treturn;\n",
+  "new": "\t\tLPCHARACTER pkVictim = CHARACTER_MANAGER::instance().Find(dwTargetVID);\n\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why target): every refusal below is\n\t\t// logged (CHARACTER::LogShootReject - players only).\n\t\tif (!pkVictim)\n\t\t{\n\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"target_gone\");\n\t\t\treturn;\n\t\t}\n\n\t\tif (!battle_is_attackable(m_me, pkVictim))\n\t\t{\n\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"not_attackable\", pkVictim->IsDead() ? \"dead\" : NULL);\n\t\t\treturn;\n\t\t}\n\n\t\tif (m_me->GetMapIndex() != pkVictim->GetMapIndex())\n\t\t{\n\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"other_map\");\n\t\t\treturn;\n\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why distance)",
+  "old": "\t\t\t\tm_me->ChatDebug(\"[HACK PROFILER] : Attack range bow packet... failed distance %d maxDistance %d\", distance, maxRadius);\n\t\t\t\treturn;\n",
+  "new": "\t\t\t\tm_me->ChatDebug(\"[HACK PROFILER] : Attack range bow packet... failed distance %d maxDistance %d\", distance, maxRadius);\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why distance)\n\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"distance\", \"%d > %d\", distance, maxRadius);\n\t\t\t\treturn;\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why skill extra)",
+  "old": "\t\t\t\t// skill strikes its own target alone.\n\t\t\t\treturn;\n",
+  "new": "\t\t\t\t// skill strikes its own target alone.\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why skill extra)\n\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, true, \"skill_takes_no_extra\");\n\t\t\t\treturn;\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why speed)",
+  "old": "\t\t\tif (IS_SPEED_HACK(m_me, pkVictim, get_dword_time(), true, m_dVictimCount, m_bType))\n\t\t\t{\n\t\t\t\treturn;\n",
+  "new": "\t\t\tif (IS_SPEED_HACK(m_me, pkVictim, get_dword_time(), true, m_dVictimCount, m_bType))\n\t\t\t{\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why speed)\n\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"speed_check\", \"%s\", g_szMt2009PlusSpeedHackWhy);\n\t\t\t\treturn;\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why bow)",
+  "old": "\t\t\t\tif (m_me->GetJob() != JOB_ASSASSIN)\n\t\t\t\t\treturn;\n\n\t\t\t\tif (0 == m_me->GetArrowAndBow(&pkBow, &pkArrow))\n\t\t\t\t\treturn;\n\n\t\t\t\tif (m_me->GetSkillGroup() != 0)\n\t\t\t\t\tif (!m_me->IsNPC() && m_me->GetSkillGroup() != 2)\n\t\t\t\t\t{\n\t\t\t\t\t\tif (m_me->GetSP() < 5)\n\t\t\t\t\t\t\treturn;\n",
+  "new": "\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why bow)\n\t\t\t\tif (m_me->GetJob() != JOB_ASSASSIN)\n\t\t\t\t{\n\t\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"not_assassin\");\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tif (0 == m_me->GetArrowAndBow(&pkBow, &pkArrow))\n\t\t\t\t{\n\t\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"no_bow_or_arrow\");\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tif (m_me->GetSkillGroup() != 0)\n\t\t\t\t\tif (!m_me->IsNPC() && m_me->GetSkillGroup() != 2)\n\t\t\t\t\t{\n\t\t\t\t\t\tif (m_me->GetSP() < 5)\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"no_sp\");\n\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why magic)",
+  "old": "\t\t\tif (m_me->IsPC())\n\t\t\t\treturn;\n\n\t\t\tiDam = CalcMagicDamage(m_me, pkVictim);\n",
+  "new": "\t\t\tif (m_me->IsPC())\n\t\t\t{\n\t\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (why magic)\n\t\t\t\tm_me->LogShootReject(dwTargetVID, m_bType, m_bAdditional, \"magic_shot_from_player\");\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tiDam = CalcMagicDamage(m_me, pkVictim);\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (clear)",
+  "old": "bool CHARACTER::Shoot(BYTE bType)\n{\n\tif (!CanMove() || IsPC() && IsPolymorphed())\n\t{\n\t\tResetFlyTarget();\n\t\treturn false;\n\t}\n",
+  "new": "bool CHARACTER::Shoot(BYTE bType)\n{\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (clear): the arrow has left the bow (the\n\t// client sends the shot as it lets it go). The extra arrows it took along\n\t// are the ones the server told at the fly target (AnnounceShootTargets);\n\t// any told after that - its answer late behind a held-up round - would\n\t// wait in the shooter's client and fly with the NEXT shot, arrows that\n\t// do nothing. So the shooter's list of extra targets is cleared at every\n\t// shot; packets keep their order, so this never takes the next draw's.\n\tconst bool bMt2009PlusShooter = IsPC() && GetDesc() && !GetDesc()->IsBot() && GetJob() == JOB_ASSASSIN;\n\tif (bMt2009PlusShooter)\n\t{\n\t\tTPacketGCFlyClearTargeting packClear;\n\t\tpackClear.bHeader = HEADER_GC_CLEAR_FLY_SHOOT_TARGETING;\n\t\tpackClear.dwShooterVID = GetVID();\n\t\tGetDesc()->Packet(&packClear, sizeof(TPacketGCFlyClearTargeting));\n\t\ts_mapMt2009PlusLastShootType[GetVID()] = bType;\n\t}\n\n\tif (!CanMove() || IsPC() && IsPolymorphed())\n\t{\n\t\tLogShootReject(m_dwFlyTargetID, bType, false, CanMove() ? \"polymorphed\" : \"cannot_move\");\n\t\tResetFlyTarget();\n\t\treturn false;\n\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why cooldown)",
+  "old": "\t\tChatDebug(\"Shoot: skill on cooldown\");\n\t\treturn false;\n",
+  "new": "\t\tChatDebug(\"Shoot: skill on cooldown\");\n\t\tLogShootReject(m_dwFlyTargetID, bType, false, \"skill_cooldown\"); // MT2009_PLUS_ARCHER_MULTISHOT_V2 (why cooldown)\n\t\treturn false;\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (main hit)",
+  "old": "\tconst DWORD dwMainVID = m_dwFlyTargetID;\n",
+  "new": "\tconst DWORD dwMainVID = m_dwFlyTargetID;\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (main hit): the extra arrows land only\n\t// with a main arrow that did - a refused one takes them down with it.\n\tbool bMt2009PlusMainHit = false;\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (skill search)",
+  "old": "\t\t\tif (victim && m_vec_dwFlyTargets.size() == 0 && bType != 0) {\n",
+  "new": "\t\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (skill search): only the skills that\n\t\t\t// strike extras; the others refused them (\"skill extra\") and the\n\t\t\t// arrows told for them waited in the clients for the next shot.\n\t\t\tif (victim && m_vec_dwFlyTargets.size() == 0 &&\n\t\t\t\t(bType == SKILL_REPETITIVE_SHOT || bType == SKILL_ARROW_SHOWER || bType == SKILL_HORSE_WILDATTACK_RANGE)) {\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (main result)",
+  "old": "\t\t\tf.m_dVictimCount = m_vec_dwFlyTargets.size() + 1;\n\t\t\tf(m_dwFlyTargetID);\n",
+  "new": "\t\t\tf.m_dVictimCount = m_vec_dwFlyTargets.size() + 1;\n\t\t\tf(m_dwFlyTargetID);\n\t\t\tbMt2009PlusMainHit = f.m_bSucceed; // MT2009_PLUS_ARCHER_MULTISHOT_V2 (main result)\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (why no target)",
+  "old": "\t\telse\n\t\t{\n\t\t\tplayerData->m_dwRemainingShootCount = 0;\n\t\t}\n",
+  "new": "\t\telse\n\t\t{\n\t\t\tLogShootReject(0, bType, false, \"no_fly_target\"); // MT2009_PLUS_ARCHER_MULTISHOT_V2 (why no target)\n\t\t\tplayerData->m_dwRemainingShootCount = 0;\n\t\t}\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (extras gate)",
+  "old": "\t\tfor (size_t i = 0; i < vecExtra.size(); ++i)\n\t\t\tif (vecExtra[i] != dwMainVID)\n\t\t\t\tf(vecExtra[i]);\n",
+  "new": "\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (extras gate): not without the main.\n\t\tfor (size_t i = 0; bMt2009PlusMainHit && i < vecExtra.size(); ++i)\n\t\t\tif (vecExtra[i] != dwMainVID)\n\t\t\t\tf(vecExtra[i]);\n\t\tif (!bMt2009PlusMainHit && !vecExtra.empty())\n\t\t\tLogShootReject(dwMainVID, bType, true, \"main_arrow_refused\", \"%u extra arrow(s) dropped\", (unsigned)vecExtra.size());\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (draw)",
+  "old": "\tstd::map<DWORD, DWORD>::iterator it = s_mapMt2009PlusShootSkillAt.find(GetVID());\n\tif (it != s_mapMt2009PlusShootSkillAt.end())\n\t{\n\t\tif (get_dword_time() - it->second < MT2009_PLUS_SKILL_SHOT_WAIT)\n\t\t\treturn;\n\t\ts_mapMt2009PlusShootSkillAt.erase(it);\n\t}\n\n\tif (playerData->m_dwRemainingShootCount != 0)\n\t\treturn;\n\n\tif (!m_vec_dwFlyTargets.empty())\n\t{\n\t\tm_vec_dwFlyTargets.clear();\n",
+  "new": "\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (draw): a fly target starts a new draw\n\t// (the client sends it once, as the motion begins). Its extra targets are\n\t// picked now and only now - Shoot looks for none for a normal shot - and\n\t// whatever an earlier draw left is taken back first, from every client,\n\t// always (V1 did so only when the server still held some; Shoot had\n\t// emptied that list while late ones still sat in the clients). The\n\t// arrows still owed by a normal draw that never came (the second from\n\t// the saddle) are forgotten: they kept the new draw from picking extras\n\t// and made its shot strike the old ones - extras of the NEXT shot.\n\tbool bSkillDraw = false;\n\tstd::map<DWORD, DWORD>::iterator it = s_mapMt2009PlusShootSkillAt.find(GetVID());\n\tif (it != s_mapMt2009PlusShootSkillAt.end())\n\t{\n\t\tif (get_dword_time() - it->second < MT2009_PLUS_SKILL_SHOT_WAIT)\n\t\t\tbSkillDraw = true;\n\t\telse\n\t\t\ts_mapMt2009PlusShootSkillAt.erase(it);\n\t}\n\n\tif (playerData->m_dwRemainingShootCount != 0)\n\t{\n\t\t// A skill's arrows still due (Repetitive Shot) - left as they are.\n\t\tstd::map<DWORD, BYTE>::const_iterator itType = s_mapMt2009PlusLastShootType.find(GetVID());\n\t\tif (bSkillDraw || itType == s_mapMt2009PlusLastShootType.end() || itType->second != 0)\n\t\t\treturn;\n\t\tplayerData->m_dwRemainingShootCount = 0;\n\t\t// and its target, unless MainFlyTarget just took it again.\n\t\tif (m_dwFlyTargetID != dwTargetVID)\n\t\t\tm_dwFlyTargetID = 0;\n\t}\n\n\t{\n\t\tm_vec_dwFlyTargets.clear();\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V2 (draw skill)",
+  "old": "\t\tPacketAround(&pack, sizeof(TPacketGCFlyClearTargeting), NULL);\n\t}\n\n\t// The target MainFlyTarget took (not an invisible one, not the ground).\n",
+  "new": "\t\tPacketAround(&pack, sizeof(TPacketGCFlyClearTargeting), NULL);\n\t}\n\n\t// MT2009_PLUS_ARCHER_MULTISHOT_V2 (draw skill): a skill's draw finds its\n\t// own at its shot (Shoot), or none.\n\tif (bSkillDraw)\n\t\treturn;\n\n\t// The target MainFlyTarget took (not an invisible one, not the ground).\n"
+ },
+ {
+  "file": "char.h",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V3 (decl)",
+  "old": "\t\tbool\t\t\tIsStoneSpawed() const { return m_pkChrStone != nullptr; }\n",
+  "new": "\t\tbool\t\t\tIsStoneSpawed() const { return m_pkChrStone != nullptr; }\n\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V3 (decl): the Metin that summoned this\n\t\t// monster, or NULL (an Archer's extra arrows, char_battle.cpp).\n\t\tLPCHARACTER\t\tGetSpawnerStone() const { return m_pkChrStone; }\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V3 (who)",
+  "old": "class CFuncFindShootTargetsAround\n{\n",
+  "new": "// MT2009_PLUS_ARCHER_MULTISHOT_V3 (who): whom a normal shot's extra arrows\n// may go to besides its target. A monster attacking the archer, as before;\n// now also one attacking somebody of the archer's party, or the archer's\n// Companion (a playerbot whose kills the archer is credited with,\n// GetSidekickKillCredit), and one the Metin the archer is fighting summoned\n// (the shot's target is that Metin, or another of its summons). How many\n// extra arrows fly does not change (GetShootMaxTargetCount).\nstatic bool Mt2009PlusIsShootExtraFoe(LPCHARACTER archer, LPCHARACTER target, LPCHARACTER monster)\n{\n\tif (!archer || !target || !monster)\n\t\treturn false;\n\tif (monster->m_kVIDVictim == archer->GetVID())\n\t\treturn true;\n\tLPCHARACTER hit = monster->GetVictim();\n\tif (hit && hit != monster && hit != archer && hit->IsPC() && !hit->IsDead())\n\t{\n\t\tif (archer->GetParty() && hit->GetParty() == archer->GetParty())\n\t\t\treturn true;\n\t\tif (CPlayerBotManager::instance().GetSidekickKillCredit(hit, monster) == archer)\n\t\t\treturn true;\n\t}\n\tLPCHARACTER stone = monster->GetSpawnerStone();\n\tif (stone && !stone->IsDead() && (stone == target || stone == target->GetSpawnerStone()))\n\t\treturn true;\n\treturn false;\n}\n\nclass CFuncFindShootTargetsAround\n{\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_ARCHER_MULTISHOT_V3 (filter)",
+  "old": "\t\tif (!bIsArrowShower && victimNeighbor->m_kVIDVictim != m_attacker->GetVID())\n\t\t\treturn;\n",
+  "new": "\t\t// MT2009_PLUS_ARCHER_MULTISHOT_V3 (filter): the archer's foes, its\n\t\t// party's and its Companion's, and its Metin's summons.\n\t\tif (!bIsArrowShower && !Mt2009PlusIsShootExtraFoe(m_attacker, m_victim, victimNeighbor))\n\t\t\treturn;\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_AUTO_TARGET_V2 (declare)",
+  "old": "ACMD(do_garbage);\n",
+  "new": "ACMD(do_garbage);\n// MT2009_PLUS_AUTO_TARGET_V2 (declare)\nACMD(do_autotarget_aggro);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_AUTO_TARGET_V2 (table)",
+  "old": "\t{ \"garbage\",\tdo_garbage,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"garbage\",\tdo_garbage,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_AUTO_TARGET_V2 (table)\n\t{ \"autotarget_aggro\",\tdo_autotarget_aggro,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTO_TARGET_V2 (command)",
+  "old": "ACMD(do_garbage)\n{\n",
+  "new": "// MT2009_PLUS_AUTO_TARGET_V2 (command): the client's next target after a\n// kill (root/autotarget.py) may be a monster attacking the player that the\n// player has not struck yet - which only the server knows. \"/autotarget_aggro\n// 0\" is the probe, answered \"AutoTargetAggroReady 1\"; \"/autotarget_aggro <req>\"\n// (req > 0, the client's tag of one kill) is answered \"AutoTargetAggro <req>\n// <vid,vid,...>\" (or \"0\") with the living monsters near the player whose\n// victim is the player, nearest first, at most MT2009_PLUS_AGGRO_MAX. At most\n// one answer a MT2009_PLUS_AGGRO_GAP_MS a player; the client asks once a kill.\nstatic const DWORD MT2009_PLUS_AGGRO_GAP_MS = 300;\nstatic const size_t MT2009_PLUS_AGGRO_MAX = 16;\nstatic const int MT2009_PLUS_AGGRO_RANGE = 2000;\nstatic std::map<DWORD, DWORD> s_mapMt2009PlusAggroAskedAt;\n\nstruct FMt2009PlusFindAggressors\n{\n\tLPCHARACTER m_me;\n\tstd::vector<std::pair<int, DWORD> > m_found;\n\n\tFMt2009PlusFindAggressors(LPCHARACTER me) : m_me(me) {}\n\n\tvoid operator () (LPENTITY ent)\n\t{\n\t\tif (!ent || !ent->IsType(ENTITY_CHARACTER))\n\t\t\treturn;\n\t\tLPCHARACTER mob = (LPCHARACTER) ent;\n\t\tif (mob == m_me || !mob->IsMonster() || mob->IsDead() || mob->m_kVIDVictim != m_me->GetVID())\n\t\t\treturn;\n\t\tconst int distance = DISTANCE_APPROX(mob->GetX() - m_me->GetX(), mob->GetY() - m_me->GetY());\n\t\tif (distance > MT2009_PLUS_AGGRO_RANGE)\n\t\t\treturn;\n\t\tm_found.push_back(std::make_pair(distance, (DWORD) mob->GetVID()));\n\t}\n};\n\nACMD(do_autotarget_aggro)\n{\n\tif (!ch || !ch->GetDesc() || !ch->GetSectree())\n\t\treturn;\n\n\tchar arg1[32];\n\tone_argument(argument, arg1, sizeof(arg1));\n\tlong request = 0;\n\tif (*arg1)\n\t\trequest = strtol(arg1, NULL, 10);\n\tif (request <= 0)\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoTargetAggroReady 1\");\n\t\treturn;\n\t}\n\n\tconst DWORD now = get_dword_time();\n\tstd::map<DWORD, DWORD>::iterator asked = s_mapMt2009PlusAggroAskedAt.find(ch->GetPlayerID());\n\tif (asked != s_mapMt2009PlusAggroAskedAt.end() && now - asked->second < MT2009_PLUS_AGGRO_GAP_MS)\n\t\treturn;\n\ts_mapMt2009PlusAggroAskedAt[ch->GetPlayerID()] = now;\n\tif (s_mapMt2009PlusAggroAskedAt.size() > 4096)\n\t\ts_mapMt2009PlusAggroAskedAt.clear();\n\n\tFMt2009PlusFindAggressors f(ch);\n\tch->GetSectree()->ForEachAround(f);\n\tstd::sort(f.m_found.begin(), f.m_found.end());\n\n\tstd::string vids;\n\tfor (size_t i = 0; i < f.m_found.size() && i < MT2009_PLUS_AGGRO_MAX; ++i)\n\t{\n\t\tif (!vids.empty())\n\t\t\tvids += \",\";\n\t\tvids += std::to_string(f.m_found[i].second);\n\t}\n\tif (vids.empty())\n\t\tvids = \"0\";\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoTargetAggro %ld %s\", request, vids.c_str());\n}\n\nACMD(do_garbage)\n{\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_BOT_HAIR_V1 (sets query)",
+  "old": "void Mt2009PlusCheckCostumeSet(LPCHARACTER ch, LPITEM leaving)\n{\n\tif (!ch || !ch->IsPC())\n\t\treturn;\n",
+  "new": "// MT2009_PLUS_BOT_HAIR_V1 (sets query): the playerbots ask the same lists -\n// a bot buys and wears only a hairstyle of a costume set\n// (playerbot_itemshop.h), and prefers the one of its costume's set.\nbool Mt2009PlusIsCostumeSetHair(DWORD hairVnum)\n{\n\tconst TMt2009PlusCostumeSets& sets = Mt2009PlusCostumeSets();\n\treturn sets.hairs.find(hairVnum) != sets.hairs.end();\n}\n\nbool Mt2009PlusIsCostumeSetPair(DWORD bodyVnum, DWORD hairVnum)\n{\n\tconst TMt2009PlusCostumeSets& sets = Mt2009PlusCostumeSets();\n\tstd::map<DWORD, std::vector<int> >::const_iterator b = sets.bodies.find(bodyVnum);\n\tstd::map<DWORD, std::vector<int> >::const_iterator h = sets.hairs.find(hairVnum);\n\tif (b == sets.bodies.end() || h == sets.hairs.end())\n\t\treturn false;\n\tfor (size_t i = 0; i < b->second.size(); ++i)\n\t\tif (std::find(h->second.begin(), h->second.end(), b->second[i]) != h->second.end())\n\t\t\treturn true;\n\treturn false;\n}\n\nvoid Mt2009PlusCheckCostumeSet(LPCHARACTER ch, LPITEM leaving)\n{\n\tif (!ch || !ch->IsPC())\n\t\treturn;\n"
+ },
+ {
+  "file": "regen.cpp",
+  "marker": "MT2009_PLUS_REGEN_COUNT_NO_DUNGEON_V1",
+  "old": "\tif (bOnce)\n\t\treturn regen->max_count;\n\tconst int percent = quest::CQuestManager::instance().GetEventFlag(regen->is_boss_or_stone ? \"m2_boss_count\" : \"m2_mob_count\");\n",
+  "new": "\tif (bOnce)\n\t\treturn regen->max_count;\n\t// MT2009_PLUS_REGEN_COUNT_NO_DUNGEON_V1: the panel's x2-x4 for Metins,\n\t// bosses and monsters stays out of the dungeons - an instance (its index\n\t// 10000 and up) or a map a dungeon runs on keeps its lines as written.\n\tif (regen->lMapIndex >= 10000 || CDungeonManager::instance().FindByMapIndex(regen->lMapIndex))\n\t\treturn regen->max_count;\n\tconst int percent = quest::CQuestManager::instance().GetEventFlag(regen->is_boss_or_stone ? \"m2_boss_count\" : \"m2_mob_count\");\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_PICKUP_BONUS_FILTER_V1",
+  "old": "std::map<DWORD, DWORD> g_mapMt2009PlusPickupFilter;\n\nstatic DWORD Mt2009PlusPickupKind(LPITEM item)\n",
+  "new": "std::map<DWORD, DWORD> g_mapMt2009PlusPickupFilter;\n\n// MT2009_PLUS_PICKUP_BONUS_FILTER_V1 (server-patches/playerqol): \"Bonus\", the\n// third choice of an equipment kind in the filter (the owner, 3 October:\n// \"podnos tylko z bonusem dla kategorii eq\"). Such a kind's item is taken\n// only with at least the asked number of its five bonuses\n// (CItem::GetAttributeCount); fewer, and it stays on the ground for the Z\n// key, a loot pet, Auto Lowy and the companion alike. Kept per character as\n// (min << 16) | kinds; only the equipment kinds - weapons, armour, helmets,\n// shields, bracelets, shoes, necklaces, earrings - can have it.\nstd::map<DWORD, DWORD> g_mapMt2009PlusPickupBonus;\nstatic const DWORD MT2009_PLUS_PICKUP_BONUS_KINDS =\n\t(1 << 0) | (1 << 1) | (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);\n\nstatic DWORD Mt2009PlusPickupKind(LPITEM item)\n"
+ },
+ {
+  "file": "char_item.cpp",
+  "marker": "MT2009_PLUS_PICKUP_BONUS_FILTER_V1 (allows)",
+  "old": "\tstd::map<DWORD, DWORD>::const_iterator it = g_mapMt2009PlusPickupFilter.find(ch->GetPlayerID());\n\treturn it == g_mapMt2009PlusPickupFilter.end() || (Mt2009PlusPickupKind(item) & it->second) != 0;\n}\n",
+  "new": "\tstd::map<DWORD, DWORD>::const_iterator it = g_mapMt2009PlusPickupFilter.find(ch->GetPlayerID());\n\tif (it == g_mapMt2009PlusPickupFilter.end())\n\t\treturn true;\n\tconst DWORD kind = Mt2009PlusPickupKind(item);\n\tif ((kind & it->second) == 0)\n\t\treturn false;\n\t// MT2009_PLUS_PICKUP_BONUS_FILTER_V1 (allows): a \"Bonus\" kind's item with\n\t// fewer bonuses than asked is left.\n\tstd::map<DWORD, DWORD>::const_iterator bonus = g_mapMt2009PlusPickupBonus.find(ch->GetPlayerID());\n\tif (bonus != g_mapMt2009PlusPickupBonus.end() && (kind & bonus->second & 0xFFFF) != 0)\n\t\treturn item->GetAttributeCount() >= (int) (bonus->second >> 16);\n\treturn true;\n}\n\n// \"/pickup_filter <on> <kinds> <bonus kinds> <min bonuses>\" (cmd_general.cpp):\n// no equipment kind among them clears the character's entry. Returns the\n// kinds kept and puts the number used into minCount.\nDWORD Mt2009PlusSetPickupBonus(DWORD pid, DWORD kinds, int& minCount)\n{\n\tminCount = MINMAX(1, minCount, (int) ITEM_ATTRIBUTE_NORM_NUM);\n\tkinds &= MT2009_PLUS_PICKUP_BONUS_KINDS;\n\tif (!kinds)\n\t\tg_mapMt2009PlusPickupBonus.erase(pid);\n\telse\n\t\tg_mapMt2009PlusPickupBonus[pid] = ((DWORD) minCount << 16) | kinds;\n\treturn kinds;\n}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_PICKUP_BONUS_FILTER_V1 (command)",
+  "old": "ACMD(do_pickup_filter)\n{\n\tchar arg1[32], arg2[32];\n\ttwo_arguments(argument, arg1, sizeof(arg1), arg2, sizeof(arg2));\n\tint on = 0;\n\tunsigned long kinds = 0;\n\tstr_to_number(on, arg1);\n\tstr_to_number(kinds, arg2);\n\tif (on)\n\t\tg_mapMt2009PlusPickupFilter[ch->GetPlayerID()] = (DWORD) (kinds & 0x1FFF);\n\telse\n\t\tg_mapMt2009PlusPickupFilter.erase(ch->GetPlayerID());\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"PickupFilterAck %d %lu\", on ? 1 : 0, kinds & 0x1FFF);\n}",
+  "new": "// MT2009_PLUS_PICKUP_BONUS_FILTER_V1 (command): \"/pickup_filter <on> <kinds>\n// [<bonus kinds> <min bonuses>]\" - the kinds picked up only with bonuses, and\n// how many (1-5, char_item.cpp). A client that sends two numbers has no\n// \"Bonus\" kind; the answer carries both numbers too, which a client that\n// reads two ignores.\nDWORD Mt2009PlusSetPickupBonus(DWORD pid, DWORD kinds, int& minCount);\n\nACMD(do_pickup_filter)\n{\n\tchar arg1[32], arg2[32], arg3[32], arg4[32];\n\tconst char* rest = two_arguments(argument, arg1, sizeof(arg1), arg2, sizeof(arg2));\n\ttwo_arguments(rest, arg3, sizeof(arg3), arg4, sizeof(arg4));\n\tint on = 0;\n\tunsigned long kinds = 0;\n\tunsigned long bonusKinds = 0;\n\tint bonusMin = 1;\n\tstr_to_number(on, arg1);\n\tstr_to_number(kinds, arg2);\n\tif (*arg3)\n\t\tstr_to_number(bonusKinds, arg3);\n\tif (*arg4)\n\t\tstr_to_number(bonusMin, arg4);\n\tif (on)\n\t\tg_mapMt2009PlusPickupFilter[ch->GetPlayerID()] = (DWORD) (kinds & 0x1FFF);\n\telse\n\t\tg_mapMt2009PlusPickupFilter.erase(ch->GetPlayerID());\n\tconst DWORD bonus = Mt2009PlusSetPickupBonus(ch->GetPlayerID(), on ? (DWORD) (bonusKinds & kinds) : 0, bonusMin);\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"PickupFilterAck %d %lu %u %d\", on ? 1 : 0, kinds & 0x1FFF, (unsigned int) bonus, bonusMin);\n}"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_BOT_CHAT_V2 (trade chat)",
+  "old": "\t\telse\n\t\t{\n\t\t\tSendTrade(chatbuf);\n\t\t}\n",
+  "new": "\t\telse\n\t\t{\n\t\t\tSendTrade(chatbuf);\n\n\t\t\t// MT2009_PLUS_BOT_CHAT_V2 (trade chat): a person's '@' line reaches the playerbots too -\n\t\t\t// \"K> ...\" or \"S> ...\" is answered by whisper by the bot best placed to (playerbot_chat_world.h).\n\t\t\tif (ch->GetDesc() && !ch->GetDesc()->IsBot())\n\t\t\t\tCPlayerBotManager::instance().OnPlayerTradeChat(ch, buf);\n\t\t}\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_BOT_DUNGEON_LFG_V1 (local chat)",
+  "old": "\t\tdefault:\n\t\t\tsys_err(\"Unknown chat type %d\", pinfo->type);\n\t\t\tbreak;\n\t}\n\n\treturn (iExtraLen);\n}\n",
+  "new": "\t\tdefault:\n\t\t\tsys_err(\"Unknown chat type %d\", pinfo->type);\n\t\t\tbreak;\n\t}\n\n\t// MT2009_PLUS_BOT_DUNGEON_LFG_V1 (local chat): a person's normal and guild chat line reaches the\n\t// playerbots too - \"ktos na biblioteke?\" is answered by whisper by bots of the dungeon's level\n\t// (playerbot_dungeon_lfg.h). The shout and the '@' trade line reach them above.\n\tif ((pinfo->type == CHAT_TYPE_TALKING || pinfo->type == CHAT_TYPE_GUILD) && ch->GetDesc() && !ch->GetDesc()->IsBot())\n\t\tCPlayerBotManager::instance().OnPlayerLocalChat(ch, buf, pinfo->type);\n\n\treturn (iExtraLen);\n}\n"
+ },
+ {
+  "file": "exchange.h",
+  "marker": "MT2009_PLUS_BOT_CHAT_V2 (exchange gold)",
+  "old": "\t\tbool\t\tGetAcceptStatus() { return m_bAccept; }\n",
+  "new": "\t\tbool\t\tGetAcceptStatus() { return m_bAccept; }\n\t\t// MT2009_PLUS_BOT_CHAT_V2 (exchange gold): the yang this side put in, for a playerbot that sells\n\t\t// by hand and must see the price before it accepts (playerbot_chat_deals.h).\n\t\tYANG\t\tMt2009PlusGetGold() const { return m_lGold; }\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_GM_DUNGEON_RESET_V1 (declare)",
+  "old": "ACMD(do_dungeon_panel);\n",
+  "new": "ACMD(do_dungeon_panel);\n// MT2009_PLUS_GM_DUNGEON_RESET_V1 (declare)\nACMD(do_gm_dungeon_reset);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_GM_DUNGEON_RESET_V1 (table)",
+  "old": "\t{ \"lochy\",\tdo_dungeon_panel,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"lochy\",\tdo_dungeon_panel,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_GM_DUNGEON_RESET_V1 (table): a character's daily dungeon limit, reset by a GM\n\t{ \"dungeon_reset\",\tdo_gm_dungeon_reset,\t0,\tPOS_DEAD,\tGM_HIGH_WIZARD\t},\n\t{ \"resetdungi\",\tdo_gm_dungeon_reset,\t0,\tPOS_DEAD,\tGM_HIGH_WIZARD\t},\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_GM_DUNGEON_RESET_V1 (command)",
+  "old": "ACMD(do_dungeon_panel)\n{\n",
+  "new": "// MT2009_PLUS_GM_DUNGEON_RESET_V1 (command): \"/dungeon_reset <name> [dungeon|all]\" (\"/resetdungi\") - a GM zeroes a\n// character's day count of dungeon expeditions, online on any core or offline (playerbot_dungeon_reset.h).\nACMD(do_gm_dungeon_reset)\n{\n\tif (!ch)\n\t\treturn;\n\tvoid GmDungeonResetCommand(LPCHARACTER ch, const char* argument);\n\tGmDungeonResetCommand(ch, argument);\n}\n\nACMD(do_dungeon_panel)\n{\n"
+ },
+ {
+  "file": "cmd_gm.cpp",
+  "marker": "MT2009_PLUS_GM_SM_EVENT_V1 (notice)",
+  "old": "ACMD(do_notice)\n{\n\tBroadcastNotice(argument);\n}\n",
+  "new": "ACMD(do_notice)\n{\n\tBroadcastNotice(argument);\n\t// MT2009_PLUS_GM_SM_EVENT_V1 (notice): the bots read a GM's notice - \"!SM\" starts their SM race\n\t// on the shout (playerbot_gm_notice.h).\n\tCPlayerBotManager::instance().OnGMNotice(ch, argument, CHAT_TYPE_NOTICE);\n}\n"
+ },
+ {
+  "file": "cmd_gm.cpp",
+  "marker": "MT2009_PLUS_GM_SM_EVENT_V1 (gm_notice)",
+  "old": "\tBroadcastNotice(fullMessage.c_str(), CHAT_TYPE_GAMEMASTER_NOTICE);\n}\n",
+  "new": "\tBroadcastNotice(fullMessage.c_str(), CHAT_TYPE_GAMEMASTER_NOTICE);\n\t// MT2009_PLUS_GM_SM_EVENT_V1 (gm_notice): the bots read a GM's notice - \"!SM\" starts their SM race\n\t// on the shout (playerbot_gm_notice.h).\n\tCPlayerBotManager::instance().OnGMNotice(ch, argument, CHAT_TYPE_GAMEMASTER_NOTICE);\n}\n"
+ },
+ {
+  "file": "cmd_gm.cpp",
+  "marker": "MT2009_PLUS_GM_SM_EVENT_V1 (big_notice)",
+  "old": "ACMD(do_big_notice)\n{\n#ifdef ENABLE_FULL_NOTICE\n\tBroadcastNotice(argument, CHAT_TYPE_BIG_NOTICE);\n#else\n\tch->ChatPacket(CHAT_TYPE_BIG_NOTICE, \"%s\", argument);\n#endif\n}\n",
+  "new": "ACMD(do_big_notice)\n{\n#ifdef ENABLE_FULL_NOTICE\n\tBroadcastNotice(argument, CHAT_TYPE_BIG_NOTICE);\n#else\n\tch->ChatPacket(CHAT_TYPE_BIG_NOTICE, \"%s\", argument);\n#endif\n\t// MT2009_PLUS_GM_SM_EVENT_V1 (big_notice): the bots read a GM's notice - \"!SM\" starts their SM race\n\t// on the shout (playerbot_gm_notice.h).\n\tCPlayerBotManager::instance().OnGMNotice(ch, argument, CHAT_TYPE_BIG_NOTICE);\n}\n"
+ },
+ {
+  "file": "input_p2p.cpp",
+  "marker": "MT2009_PLUS_GM_SM_EVENT_V1 (p2p)",
+  "old": "\tSendNotice(szBuf, p->bChatType);\n#else\n\tSendNotice(szBuf);\n#endif\n\treturn (p->lSize);\n",
+  "new": "\tSendNotice(szBuf, p->bChatType);\n\t// MT2009_PLUS_GM_SM_EVENT_V1 (p2p): another core's notice for this core's bots - a GM's \"!SM\"\n\t// starts their SM race on the shout (playerbot_gm_notice.h).\n\tCPlayerBotManager::instance().OnPeerNotice(szBuf, p->bChatType);\n#else\n\tSendNotice(szBuf);\n#endif\n\treturn (p->lSize);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_VOUCHER_CODES_V1 (declare)",
+  "old": "ACMD(do_gm_dungeon_reset);\n",
+  "new": "ACMD(do_gm_dungeon_reset);\n// MT2009_PLUS_VOUCHER_CODES_V1 (declare): \"/kod\", the promo codes (playerbot_voucher.h in the overlay defines it).\nACMD(do_voucher);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_VOUCHER_CODES_V1 (table)",
+  "old": "\t{ \"resetdungi\",\tdo_gm_dungeon_reset,\t0,\tPOS_DEAD,\tGM_HIGH_WIZARD\t},\n",
+  "new": "\t{ \"resetdungi\",\tdo_gm_dungeon_reset,\t0,\tPOS_DEAD,\tGM_HIGH_WIZARD\t},\n\t// MT2009_PLUS_VOUCHER_CODES_V1 (table): a promo code, once per account\n\t{ \"kod\",\tdo_voucher,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t{ \"voucher\",\tdo_voucher,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ },
+ {
+  "file": "itemshop_manager.cpp",
+  "marker": "MT2009_PLUS_VOUCHER_CODES_V1 (itemshop)",
+  "old": "\tchar szCode[CODE_VOUCHER_MAX_LEN * 2 + 1];\n\tDBManager::instance().EscapeString(szCode, sizeof(szCode), code, std::strlen(code));\n",
+  "new": "\t// MT2009_PLUS_VOUCHER_CODES_V1 (itemshop): the \"Wykorzystaj voucher\" tab tries our item\n\t// codes first (playerbot_voucher.h, the same as \"/kod\"); one of them is answered here,\n\t// with the code's hash prefix for the voucher log - any other code goes on to the db\n\t// core's cash vouchers below.\n\t{\n\t\tint VoucherItemShopCode(LPCHARACTER ch, const char* code, std::string& logCode);\n\t\tstd::string logCode;\n\t\tconst int itemResponse = VoucherItemShopCode(ch, code, logCode);\n\t\tif (itemResponse >= 0)\n\t\t{\n\t\t\tRecvUseCodeVoucher(ch, (BYTE) itemResponse, logCode.empty() ? \"kod\" : logCode.c_str());\n\t\t\treturn;\n\t\t}\n\t}\n\n\tchar szCode[CODE_VOUCHER_MAX_LEN * 2 + 1];\n\tDBManager::instance().EscapeString(szCode, sizeof(szCode), code, std::strlen(code));\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (server-patches/playerqol)",
+  "old": "bool CItem::IsEquipable() const",
+  "new": "// MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (server-patches/playerqol): \"Kostiumy innych\"\n// (the owner, 7 October) - a player who turns it on sees every other character\n// (bots and players) without its looks: the armour under the costume, the weapon\n// under the weapon skin, the character's own hair, the sash without its skin.\n// Only for that viewer: the character add / update packets to him carry the\n// plain parts (char.cpp), everyone else gets the usual ones. The client sends\n// \"/kostiumy_innych <0|1>\" after every login and warp and on every click.\nstd::set<DWORD> g_setMt2009PlusPlainLookViewers;\nLPCHARACTER g_pkMt2009PlusLooksOnlyTo = NULL;\t// UpdatePacket: to this viewer only (the refresh)\n\n// Anyone at all: the packets stay as they were while nobody has it on.\nbool Mt2009PlusPlainLooksWanted()\n{\n\treturn !g_setMt2009PlusPlainLookViewers.empty();\n}\n\nbool Mt2009PlusViewsPlainLooks(LPCHARACTER viewer)\n{\n\tif (!viewer || !viewer->IsPC() || !viewer->GetDesc() || viewer->GetDesc()->IsBot())\n\t\treturn false;\n\treturn g_setMt2009PlusPlainLookViewers.find(viewer->GetPlayerID()) != g_setMt2009PlusPlainLookViewers.end();\n}\n\n// The character's parts without its looks, written over awPart (CHR_EQUIPPART_*,\n// filled with the usual parts); true when any part changed. A part with no look\n// worn is left as it is (a polymorph, a fishing rod, a hidden costume...).\nbool Mt2009PlusPlainLookParts(LPCHARACTER ch, DWORD* awPart)\n{\n\tif (!ch || !ch->IsPC() || ch->IsPolymorphed() || !awPart)\n\t\treturn false;\n\tbool changed = false;\n\tif (ch->GetWear(WEAR_COSTUME_BODY))\n\t{\n\t\tLPITEM body = ch->GetWear(WEAR_BODY);\n\t\tconst DWORD v = body ? body->GetVnum() : ch->GetOriginalPart(PART_MAIN);\n\t\tchanged |= awPart[CHR_EQUIPPART_ARMOR] != v;\n\t\tawPart[CHR_EQUIPPART_ARMOR] = v;\n\t}\n#ifdef ENABLE_WEAPON_COSTUME_SYSTEM\n\tif (ch->GetWear(WEAR_COSTUME_WEAPON))\n\t{\n\t\tLPITEM weapon = ch->GetWear(WEAR_WEAPON);\n\t\tconst DWORD v = weapon ? weapon->GetVnum() : 0;\n\t\tchanged |= awPart[CHR_EQUIPPART_WEAPON] != v;\n\t\tawPart[CHR_EQUIPPART_WEAPON] = v;\n\t}\n#endif\n\tif (ch->GetWear(WEAR_COSTUME_HAIR) && awPart[CHR_EQUIPPART_HAIR] != 0)\n\t{\n\t\tawPart[CHR_EQUIPPART_HAIR] = 0;\t// the character's own hair, as with no hair costume on\n\t\tchanged = true;\n\t}\n#ifdef ENABLE_ACCE_COSTUME_SYSTEM\n\tLPITEM sash = ch->GetWear(WEAR_COSTUME_ACCE);\n\tif (sash && awPart[CHR_EQUIPPART_ACCE] != 0)\n\t{\n\t\t// the sash itself (its glow kept), not the look put on it (socket 2, server-patches/azcostume)\n\t\tDWORD v = sash->GetVnum();\n\t\tif (sash->GetSocket(ACCE_ABSORPTION_SOCKET) >= ACCE_EFFECT_FROM_ABS)\n\t\t\tv += ACCE_EFFECT_VNUM;\n\t\tchanged |= awPart[CHR_EQUIPPART_ACCE] != v;\n\t\tawPart[CHR_EQUIPPART_ACCE] = v;\n\t}\n#endif\n\treturn changed;\n}\n\nbool CItem::IsEquipable() const"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (insert)",
+  "old": "\t\taddPacket.bPKMode = m_bPKMode;\n\t\taddPacket.dwMountVnum = GetMountVnum();\n",
+  "new": "\t\t// MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (insert): a viewer with \"Kostiumy innych\" on\n\t\t// gets the plain parts (item.cpp, Mt2009PlusPlainLookParts).\n\t\t{\n\t\t\tbool Mt2009PlusPlainLooksWanted();\n\t\t\tbool Mt2009PlusViewsPlainLooks(LPCHARACTER viewer);\n\t\t\tbool Mt2009PlusPlainLookParts(LPCHARACTER ch, DWORD* awPart);\n\t\t\tif (ch != this && Mt2009PlusPlainLooksWanted() && Mt2009PlusViewsPlainLooks(ch))\n\t\t\t\tMt2009PlusPlainLookParts(this, addPacket.awPart);\n\t\t}\n\t\taddPacket.bPKMode = m_bPKMode;\n\t\taddPacket.dwMountVnum = GetMountVnum();\n"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (update)",
+  "old": "\telse\n\t{\n\t\tPacketAround(pack);\n\t}\n}\n\nLPCHARACTER CHARACTER::FindCharacterInView",
+  "new": "\telse\n\t{\n\t\t// MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (update): the viewers with \"Kostiumy innych\"\n\t\t// on get the plain parts; nobody with it on - one PacketAround as before.\n\t\t// g_pkMt2009PlusLooksOnlyTo: the command's refresh, to that viewer alone.\n\t\textern LPCHARACTER g_pkMt2009PlusLooksOnlyTo;\n\t\tbool Mt2009PlusPlainLooksWanted();\n\t\tbool Mt2009PlusViewsPlainLooks(LPCHARACTER viewer);\n\t\tbool Mt2009PlusPlainLookParts(LPCHARACTER ch, DWORD* awPart);\n\t\tTPacketGCCharacterUpdate plain = pack;\n\t\tconst bool differs = Mt2009PlusPlainLooksWanted() && Mt2009PlusPlainLookParts(this, plain.awPart);\n\t\tif (g_pkMt2009PlusLooksOnlyTo)\n\t\t{\n\t\t\tLPCHARACTER viewer = g_pkMt2009PlusLooksOnlyTo;\n\t\t\tif (viewer->GetDesc())\n\t\t\t\tviewer->GetDesc()->Packet(differs && viewer != this && Mt2009PlusViewsPlainLooks(viewer) ? plain : pack);\n\t\t}\n\t\telse if (!differs)\n\t\t\tPacketAround(pack);\n\t\telse\n\t\t{\n\t\t\tif (!m_bIsObserver)\n\t\t\t{\n\t\t\t\tfor (ENTITY_MAP::iterator it = m_map_view.begin(); it != m_map_view.end(); ++it)\n\t\t\t\t{\n\t\t\t\t\tLPENTITY ent = it->first;\n\t\t\t\t\tif (!ent || !ent->GetDesc())\n\t\t\t\t\t\tcontinue;\n\t\t\t\t\tconst bool usePlain = ent->IsType(ENTITY_CHARACTER) && Mt2009PlusViewsPlainLooks((LPCHARACTER) ent);\n\t\t\t\t\tent->GetDesc()->Packet(usePlain ? plain : pack);\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (GetDesc())\n\t\t\t\tGetDesc()->Packet(pack);\n\t\t}\n\t}\n}\n\nLPCHARACTER CHARACTER::FindCharacterInView"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (command)",
+  "old": "ACMD(do_costume_hide)\n{",
+  "new": "// MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (command): \"/kostiumy_innych <0|1>\" - the\n// others' looks hidden for this player only (item.cpp, Mt2009PlusPlainLookParts),\n// answered \"CostumeOthersAck <0|1>\". The characters around are sent to him again\n// at once (CHARACTER::UpdatePacket to him alone).\nextern std::set<DWORD> g_setMt2009PlusPlainLookViewers;\nextern LPCHARACTER g_pkMt2009PlusLooksOnlyTo;\n\nstruct FMt2009PlusLooksAround\n{\n\tstd::vector<LPCHARACTER> chars;\n\tvoid operator()(LPENTITY ent)\n\t{\n\t\tif (ent && ent->IsType(ENTITY_CHARACTER) && ((LPCHARACTER) ent)->IsPC())\n\t\t\tchars.push_back((LPCHARACTER) ent);\n\t}\n};\n\nACMD(do_costume_view_others)\n{\n\tchar arg1[32];\n\tone_argument(argument, arg1, sizeof(arg1));\n\tint on = 0;\n\tstr_to_number(on, arg1);\n\tif (!ch->IsPC() || !ch->GetDesc() || ch->GetDesc()->IsBot())\n\t\treturn;\n\tconst bool was = g_setMt2009PlusPlainLookViewers.find(ch->GetPlayerID()) != g_setMt2009PlusPlainLookViewers.end();\n\tif (on)\n\t\tg_setMt2009PlusPlainLookViewers.insert(ch->GetPlayerID());\n\telse\n\t\tg_setMt2009PlusPlainLookViewers.erase(ch->GetPlayerID());\n\tif (was != (on != 0) && ch->GetSectree())\n\t{\n\t\tFMt2009PlusLooksAround f;\n\t\tch->GetSectree()->ForEachAround(f);\n\t\tfor (size_t i = 0; i < f.chars.size(); ++i)\n\t\t{\n\t\t\tif (f.chars[i] == ch)\n\t\t\t\tcontinue;\n\t\t\tg_pkMt2009PlusLooksOnlyTo = ch;\n\t\t\tf.chars[i]->UpdatePacket();\n\t\t\tg_pkMt2009PlusLooksOnlyTo = NULL;\n\t\t}\n\t}\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"CostumeOthersAck %d\", on ? 1 : 0);\n}\n\nACMD(do_costume_hide)\n{"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (declare)",
+  "old": "ACMD(do_costume_hide);\n",
+  "new": "ACMD(do_costume_hide);\n// MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (declare)\nACMD(do_costume_view_others);\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (table)",
+  "old": "\t{ \"kostiumy_ukryj\",\tdo_costume_hide,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"kostiumy_ukryj\",\tdo_costume_hide,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t// MT2009_PLUS_COSTUME_VIEW_OTHERS_V1 (table)\n\t{ \"kostiumy_innych\",\tdo_costume_view_others,\t0,\t\tPOS_DEAD,\tGM_PLAYER\t},\n"
+ }
+]

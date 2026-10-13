@@ -6267,11 +6267,71 @@ bool CPlayerBotManager::RequestShopChannel(DWORD dwPlayerID)
 	return true;
 }
 
+// MT2009_PLUS_GUILD_WAR_CHANNEL_V1: the war's own move, to the shop channel
+// (channel 1, where the bots' wars are fought), with no request to stand and
+// no gate to wait for.
+bool CPlayerBotManager::RequestWarChannel(DWORD dwPlayerID)
+{
+	if (!m_bChannelTable || g_bChannel == playerbot_channel_rules::SHOP_CHANNEL)
+		return false;
+	TPlayerBotAccountMap::const_iterator it = m_mapBotAccounts.find(dwPlayerID);
+	if (it == m_mapBotAccounts.end() || it->second.bChannel == playerbot_channel_rules::SHOP_CHANNEL)
+		return false;
+	m_setWarChannelRequests.insert(dwPlayerID);
+	return true;
+}
+
+// MT2009_PLUS_GUILD_WAR_CHANNEL_V1: every core knows every bot's channel (the
+// assignment table) and every guild its members; the P2P list says who of
+// them is in the game on that channel right now.
+int CPlayerBotManager::CountGuildBotsOnChannel(CGuild* guild, BYTE bChannel) const
+{
+	if (!guild)
+		return 0;
+	int n = 0;
+	for (TPlayerBotAccountMap::const_iterator it = m_mapBotAccounts.begin(); it != m_mapBotAccounts.end(); ++it)
+	{
+		if (it->second.bChannel != bChannel || !guild->GetMember(it->first))
+			continue;
+		const CCI* cci = P2P_MANAGER::instance().FindByPID(it->first);
+		if (cci && cci->bChannel == bChannel)
+			++n;
+	}
+	return n;
+}
+
 // The requests collected since the last flush, as one statement. The request
 // time is kept when the bot already waits for the same move, so the stability
 // clock does not restart at every ask.
 void CPlayerBotManager::FlushChannelRequests(DWORD dwNow)
 {
+	// MT2009_PLUS_GUILD_WAR_CHANNEL_V1: the war's moves first, as they are -
+	// the bot is assigned to channel 1 now; this channel logs it out at its
+	// next refresh and channel 1 starts it once it is ready there.
+	if (!m_setWarChannelRequests.empty() && (!m_dwNextChannelFlushTime || dwNow >= m_dwNextChannelFlushTime) &&
+			EnsureChannelSql() && m_pChannelSql->CountQuery() <= PLAYERBOT_CHANNEL_MAX_QUEUED)
+	{
+		const std::string shop = std::to_string(playerbot_channel_rules::SHOP_CHANNEL);
+		std::string q = "UPDATE common.playerbot_channel_assignment SET channel=" + shop +
+				",requested_channel=0,request_reason='',request_at=NULL,"
+				"ready_at=DATE_ADD(NOW(),INTERVAL " + std::to_string(PLAYERBOT_CHANNEL_READY_OUT_SECONDS) +
+				" SECOND),moved_at=NOW(),updated_at=NOW() "
+				"WHERE channel<>" + shop + " AND channel BETWEEN 1 AND " + std::to_string(m_iBotChannels) +
+				" AND pid IN (";
+		size_t n = 0;
+		for (std::set<DWORD>::const_iterator i = m_setWarChannelRequests.begin();
+				i != m_setWarChannelRequests.end() && n < PLAYERBOT_CHANNEL_CHUNK; ++i, ++n)
+		{
+			if (n > 0)
+				q += ",";
+			q += std::to_string(*i);
+		}
+		q += ")";
+		m_pChannelSql->AsyncQuery(q.c_str());
+		sys_log(0, "PLAYERBOT_CHANNEL: %u bots of a guild at war sent from channel %u to channel %s",
+				(unsigned int)n, (unsigned int)g_bChannel, shop.c_str());
+		m_setWarChannelRequests.clear();
+	}
 	if (m_setChannelRequests.empty())
 		return;
 	if (m_dwNextChannelFlushTime && dwNow < m_dwNextChannelFlushTime)
@@ -8176,6 +8236,20 @@ WritePlayerBotGuildStatus(dwNow);
 
 		const bool bRecentDeath = (state.dwLastDeathTime != 0 && (dwNow - state.dwLastDeathTime < 60000));
 		LPCHARACTER partyFocus = FindPlayerBotPartyFocusTarget(ch, state, dwNow);
+		// MT2009_PLUS_PARTY_SPREAD_V1: beside a person the party's focus is a
+		// boss or a stone only - the person's own first - and an ordinary
+		// monster is every bot's own (FindPlayerBotPartySpreadFoe, below).
+		LPCHARACTER spreadPerson = GetPlayerBotPartySpreadPerson(ch);
+		if (spreadPerson)
+		{
+			LPCHARACTER heavyFocus = (state.bVisitingShop || state.bRecoveringAfterDeath ||
+					state.bServicePending || bRecentDeath)
+					? NULL : GetPlayerBotPartySpreadHeavyFocus(ch, spreadPerson, dwNow);
+			if (heavyFocus)
+				partyFocus = heavyFocus;
+			else if (partyFocus && !IsPlayerBotPartyHeavyTarget(partyFocus))
+				partyFocus = NULL;
+		}
 		if (partyFocus && partyFocus != target)
 		{
 			TPlayerBotPartyStrength partyStrength;
@@ -8257,6 +8331,23 @@ WritePlayerBotGuildStatus(dwNow);
 				// rather than round it.
 				if (target && !IsPlayerBotTargetWorthNow(ch, target, state, dwNow))
 					target = NULL;
+				// MT2009_PLUS_PARTY_SPREAD_V1: beside a person, a monster of its
+				// own round the person before the one the person (or another
+				// member) is fighting; what hits the bot and a boss stay as they
+				// were. With none, the engaged and the distributed choice below
+				// finish the person's monster after all.
+				if (spreadPerson && !(target && (target->GetVictim() == ch || IsPlayerBotPartyHeavyTarget(target))))
+				{
+					const char* spreadWhy = NULL;
+					LPCHARACTER own = FindPlayerBotPartySpreadFoe(ch, spreadPerson, state, dwNow, &spreadWhy);
+					if (own && own != target && (own->GetVictim() == ch || IsPlayerBotTargetWorthNow(ch, own, state, dwNow)))
+					{
+						sys_log(0, "PLAYERBOT_PARTY: spread pid=%u name=%s person=%s target_vid=%u target=%s why=%s instead_of=%s",
+								ch->GetPlayerID(), ch->GetName(), spreadPerson->GetName(), (DWORD)own->GetVID(),
+								own->GetName(), spreadWhy ? spreadWhy : "-", target ? target->GetName() : "-");
+						target = own;
+					}
+				}
 				if (!target)
 					target = FindDistributedTarget(ch, state, dwNow);
 				// Found round the bot; kept only if it is round the person too.

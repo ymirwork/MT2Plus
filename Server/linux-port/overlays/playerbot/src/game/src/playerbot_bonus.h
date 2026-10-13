@@ -1998,16 +1998,29 @@ namespace
 		return false;
 	}
 
+	// A line of such a material a bot short of the stones would take off a
+	// stand for the exchange, up to what one exchange wants.
+	bool IsPlayerBotExchangeBuyOffer(LPCHARACTER ch, LPITEM offer)
+	{
+		if (!ch || !offer || ch->GetLevel() < PLAYERBOT_BONUS_MIN_LEVEL || !IsPlayerBotExchangeFlooded(offer))
+			return false;
+		const bool marble = PlayerBotWantsExchangeMarble(ch);
+		if (!marble && !GetPlayerBotExchangeStoneWanted(ch))
+			return false;
+		const int want = marble ? PLAYERBOT_EXCHANGE_MARBLE_UNITS : PLAYERBOT_EXCHANGE_STONE_UNITS;
+		const int surplus = std::max(0, GetPlayerBotExchangeSurplus(ch, offer->GetVnum()));
+		return surplus < want && surplus + (int)offer->GetCount() <= want &&
+				(long long)ch->GetGold() > GetPlayerBotExchangeFee() * 2;
 	// =========================================================================
-	// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V1
-	// Liquidation of M1/M2 upgrade items by bots into tradeable adds / changes
+	// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V1 (Autor: YmirWork / Krystian):
+	// Bot-only simulation of turning excess M1/M2 upgrade materials into tradeable adds / changes
 	// (71285 / 71284). 50 units for common materials, 25 units for rare materials.
 	// The cost is scaled by the world's economy/inflation curve.
 	// =========================================================================
 	const int PLAYERBOT_LIQUIDATE_COMMON_UNITS = 50;
 	const int PLAYERBOT_LIQUIDATE_RARE_UNITS = 25;
-	const DWORD PLAYERBOT_LIQUIDATE_BASE_FEE = 150000;
-	const DWORD PLAYERBOT_LIQUIDATE_GAP_MS = 15 * 60 * 1000;
+	const DWORD PLAYERBOT_LIQUIDATE_GAP_MS = 20 * 60 * 1000;
+	const int PLAYERBOT_LIQUIDATE_BUYER_PERCENT = 15;
 	std::map<DWORD, DWORD> s_mapPlayerBotLiquidateNext;
 
 	bool IsPlayerBotM1M2RareMaterial(DWORD vnum)
@@ -2016,16 +2029,20 @@ namespace
 		{
 			case 30005: // Kawalek Zepsutej Zbroi
 			case 30008: // Ezoteryczny Przewodnik
-			case 30010: // Zolc Niedzwiedzia
-			case 30014: // Futro Yeti
-			case 30016: // Klejnot Demona
-			case 30017: // Ozdobna Spinka Do Wlosow
-			case 30021: // Kawalek Klejnotu
-			case 30030: // Zardzewiale Ostrze
-			case 30041: // Shuriken
-			case 30070: // Futro Wilka +
-			case 30071: // Zolc Niedzwiedzia +
-			case 30075: // Shuriken +
+			case 30009: // Nieznany Lek+
+			case 30014: // Ogon Weza+
+			case 30022: // Ogon Skorpiona
+			case 30030: // Zebro
+			case 30039: // Kawałek Klejnotu
+			case 30040: // Wstęga Do Włosów
+			case 30041: // Czerwona Wstęga Do Włosów
+			case 30042: // Igła Skorpiona
+			case 30046: // Pazur Tygrysa
+			case 30050: // Biala Wstega Do Wlosow
+			case 30051: // Biala Wstega Do Wlosow+
+			case 30056: // Zardzewialy Ostrze
+			case 30075: // Czarny Uniform+
+			case 30083: // Kawałek Płótna
 				return true;
 			default:
 				return false;
@@ -2038,27 +2055,35 @@ namespace
 		{
 			case 30003: // Nos Swini
 			case 30004: // Zab Dzika
-			case 30011: // Klab
-			case 30018: // Czerwona Wstega
-			case 30023: // Futro Bialego Tygrysa
-			case 30027: // Futro Wilka
-			case 30028: // Szpon Wilka
-			case 30031: // Ornament
-			case 30032: // Czarny Uniform
-			case 30033: // Stluczona Porcelana
-			case 30034: // Biala Wstega
-			case 30035: // Krem Do Twarzy
-			case 30037: // Szpon Tygrysa
-			case 30038: // Skora Tygrysa
-			case 30039: // Kawalek Plotna
-			case 30040: // Lisc
-			case 30042: // Pazur Tygrysa
-			case 30052: // Flaga
-			case 30053: // Niedzwiedzia Skora
-			case 30069: // Szpon Wilka +
-			case 30072: // Niedzwiedzia Skora +
-			case 30073: // Biala Wstega +
-			case 30074: // Czarny Uniform +
+			case 30006: // Kiel Niedzwiedzia
+			case 30007: // Skora Niedzwiedzia
+			case 30010: // Zolc Niedzwiedzia
+			case 30011: // Zolc Niedzwiedzia+
+			case 30015: // Skora Weza
+			case 30016: // Oko Pajaka
+			case 30017: // Worek Z Trucizna Pajaka
+			case 30018: // Jajo Pajaka
+			case 30021: // Igla Pajaka
+			case 30023: // Szczypce Skorpiona
+			case 30025: // Futro Wilka
+			case 30027: // Kłębek
+			case 30028: // Kłębek+
+			case 30031: // Futro Wilka+
+			case 30032: // Kiel Wilka
+			case 30033: // Kiel Wilka+
+			case 30034: // Pazur Wilka
+			case 30035: // Pazur Wilka+
+			case 30037: // Skora Tygrysa
+			case 30038: // Kiel Tygrysa
+			case 30047: // Zółć
+			case 30048: // Zółć+
+			case 30049: // Ozdobna Spinka
+			case 30073: // Ozdobny Diament
+			case 30074: // Czarny Uniform
+			case 30076: // Porcelanowa Miska
+			case 30077: // Szeroka Wstega
+			case 30078: // Shiriken
+			case 30079: // Shiriken+
 				return true;
 			default:
 				return false;
@@ -2076,18 +2101,9 @@ namespace
 
 	long long GetPlayerBotLiquidationFee()
 	{
-		return (long long)ScalePlayerBotIwakuraPrice(PLAYERBOT_LIQUIDATE_BASE_FEE);
-	}
-
-	DWORD GetPlayerBotLiquidationRewardVnum(LPCHARACTER ch)
-	{
-		if (!ch)
-			return PLAYERBOT_TRADEABLE_CHANGE_VNUM;
-		const int adds = (int)ch->CountSpecifyItem(PLAYERBOT_TRADEABLE_ADD_VNUM) +
-				(int)ch->CountSpecifyItem(PLAYERBOT_BONUS_ADD_VNUM);
-		const int changes = (int)ch->CountSpecifyItem(PLAYERBOT_TRADEABLE_CHANGE_VNUM) +
-				(int)ch->CountSpecifyItem(PLAYERBOT_BONUS_CHANGE_VNUM);
-		return adds <= changes ? PLAYERBOT_TRADEABLE_ADD_VNUM : PLAYERBOT_TRADEABLE_CHANGE_VNUM;
+		const double yf = GetPlayerBotWorldYangFactor();
+		const long long fee = (long long)std::floor(300000.0 * (0.40 + 0.60 * yf));
+		return std::max(120000LL, fee);
 	}
 
 	bool ManagePlayerBotLiquidationM1M2(LPCHARACTER ch)
@@ -2096,44 +2112,64 @@ namespace
 			return false;
 		const DWORD now = get_dword_time();
 		std::map<DWORD, DWORD>::const_iterator next = s_mapPlayerBotLiquidateNext.find(ch->GetPlayerID());
-		if (next != s_mapPlayerBotLiquidateNext.end() && (int)(now - next->second) < 0)
+		if (next != s_mapPlayerBotLiquidateNext.end() && now < next->second)
 			return false;
+
 		const long long fee = GetPlayerBotLiquidationFee();
-		if ((long long)ch->GetGold() - fee < GetPlayerBotReservedGold(ch) + PLAYERBOT_SHOPPING_GOLD_FLOOR)
+		if ((long long)ch->GetGold() < fee * 2)
 			return false;
 
-		std::set<DWORD> seen;
-		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		const DWORD commonMats[] = {
+			30003, 30004, 30006, 30007, 30010, 30011, 30015, 30016, 30017, 30018,
+			30021, 30023, 30025, 30027, 30028, 30031, 30032, 30033, 30034, 30035,
+			30037, 30038, 30047, 30048, 30049, 30073, 30074, 30076, 30077, 30078, 30079
+		};
+		const DWORD rareMats[] = {
+			30005, 30008, 30009, 30014, 30022, 30030, 30039, 30040, 30041, 30042,
+			30046, 30050, 30051, 30056, 30075, 30083
+		};
+
+		DWORD material = 0;
+		int reqUnits = 0;
+		for (size_t i = 0; i < sizeof(rareMats) / sizeof(rareMats[0]); ++i)
 		{
-			LPITEM item = ch->GetInventoryItem(cell);
-			if (!item || item->GetCell() != cell || item->isLocked() || !seen.insert(item->GetVnum()).second)
-				continue;
-			const DWORD material = item->GetVnum();
-			const int reqUnits = GetPlayerBotLiquidationRequiredUnits(material);
-			if (reqUnits <= 0)
-				continue;
-			const int surplus = GetPlayerBotExchangeSurplus(ch, material);
-			if (surplus < reqUnits)
-				continue;
-
-			const DWORD reward = GetPlayerBotLiquidationRewardVnum(ch);
-			ch->RemoveSpecifyItem(material, reqUnits);
-			PlayerBotChangeGold(ch, -fee);
-			s_mapPlayerBotLiquidateNext[ch->GetPlayerID()] = now + PLAYERBOT_LIQUIDATE_GAP_MS;
-
-			LPITEM made = ch->AutoGiveItem(reward, 1, -1, false);
-			if (made)
-				LogManager::instance().ItemLog(ch, made, "PLAYERBOT_M1M2_LIQUIDATION", made->GetName());
-			sys_log(0, "PLAYERBOT_M1M2_LIQUIDATION: liquidated pid=%u name=%s material=%u units=%d fee=%lld reward=%u gold=%lld",
-					ch->GetPlayerID(), ch->GetName(), material, reqUnits, fee, reward,
-					(long long)ch->GetGold());
-			return true;
+			if (ch->CountSpecifyItem(rareMats[i]) >= (DWORD)PLAYERBOT_LIQUIDATE_RARE_UNITS)
+			{
+				material = rareMats[i];
+				reqUnits = PLAYERBOT_LIQUIDATE_RARE_UNITS;
+				break;
+			}
 		}
-		return false;
+		if (!material)
+		{
+			for (size_t i = 0; i < sizeof(commonMats) / sizeof(commonMats[0]); ++i)
+			{
+				if (ch->CountSpecifyItem(commonMats[i]) >= (DWORD)PLAYERBOT_LIQUIDATE_COMMON_UNITS)
+				{
+					material = commonMats[i];
+					reqUnits = PLAYERBOT_LIQUIDATE_COMMON_UNITS;
+					break;
+				}
+			}
+		}
+
+		if (!material || reqUnits <= 0)
+			return false;
+
+		s_mapPlayerBotLiquidateNext[ch->GetPlayerID()] = now + PLAYERBOT_LIQUIDATE_GAP_MS;
+		ch->RemoveSpecifyItem(material, reqUnits);
+		ch->PointChange(POINT_GOLD, -fee);
+
+		const DWORD reward = (number(0, 1) == 0) ? 71284 : 71285;
+		LPITEM made = ch->AutoGiveItem(reward, 1, -1, false);
+		if (made)
+			LogManager::instance().ItemLog(ch, made, "PLAYERBOT_M1M2_LIQUIDATION", made->GetName());
+		sys_log(0, "PLAYERBOT_M1M2_LIQUIDATION: liquidated pid=%u name=%s material=%u units=%d fee=%lld reward=%u gold=%lld",
+				ch->GetPlayerID(), ch->GetName(), material, reqUnits, fee, reward,
+				(long long)ch->GetGold());
+		return true;
 	}
 
-	// 15% of bots act as M1/M2 material liquidation buyers to keep market liquidity
-	const int PLAYERBOT_LIQUIDATE_BUYER_PERCENT = 15;
 	const int PLAYERBOT_LIQUIDATE_BUY_PURSE_PERCENT = 20;
 
 	bool IsPlayerBotM1M2LiquidationBuyer(LPCHARACTER ch)
@@ -2151,37 +2187,11 @@ namespace
 		const int reqUnits = GetPlayerBotLiquidationRequiredUnits(vnum);
 		if (reqUnits <= 0)
 			return false;
-		if (CountPlayerBotFreeInventoryCells(ch) < 2)
+		const int have = (int)ch->CountSpecifyItem(vnum);
+		if (have >= reqUnits)
 			return false;
-		// Bot buys when it has fewer bonus stones than desired reserve (3)
-		const int tradeAdds = (int)ch->CountSpecifyItem(PLAYERBOT_TRADEABLE_ADD_VNUM);
-		const int tradeChanges = (int)ch->CountSpecifyItem(PLAYERBOT_TRADEABLE_CHANGE_VNUM);
-		if (tradeAdds >= PLAYERBOT_TRADEABLE_BONUS_KEEP && tradeChanges >= PLAYERBOT_TRADEABLE_BONUS_KEEP)
-			return false;
-
-		const int surplus = std::max(0, GetPlayerBotExchangeSurplus(ch, vnum));
-		if (surplus >= reqUnits)
-			return false;
-		// Do not buy more than what completes the pack
-		if (surplus + (int)offer->GetCount() > reqUnits)
-			return false;
-		const long long fee = GetPlayerBotLiquidationFee();
-		return (long long)ch->GetGold() > fee * 2 + PLAYERBOT_SHOPPING_GOLD_FLOOR;
-	}
-
-	// A line of such a material a bot short of the stones would take off a
-	// stand for the exchange, up to what one exchange wants.
-	bool IsPlayerBotExchangeBuyOffer(LPCHARACTER ch, LPITEM offer)
-	{
-		if (!ch || !offer || ch->GetLevel() < PLAYERBOT_BONUS_MIN_LEVEL || !IsPlayerBotExchangeFlooded(offer))
-			return false;
-		const bool marble = PlayerBotWantsExchangeMarble(ch);
-		if (!marble && !GetPlayerBotExchangeStoneWanted(ch))
-			return false;
-		const int want = marble ? PLAYERBOT_EXCHANGE_MARBLE_UNITS : PLAYERBOT_EXCHANGE_STONE_UNITS;
-		const int surplus = std::max(0, GetPlayerBotExchangeSurplus(ch, offer->GetVnum()));
-		return surplus < want && surplus + (int)offer->GetCount() <= want &&
-				(long long)ch->GetGold() > GetPlayerBotExchangeFee() * 2;
+		return (have + (int)offer->GetCount() <= reqUnits + 10) &&
+				((long long)ch->GetGold() > GetPlayerBotLiquidationFee() * 2);
 	}
 
 	bool ManagePlayerBotBonusReroll(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)

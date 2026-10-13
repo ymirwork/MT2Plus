@@ -135,6 +135,8 @@ namespace
 	// PLAYERBOT_TRADEABLE_BONUS_KEEP of a kind for that and lists the rest, and
 	// buys one off a counter at the fixed price at most when it holds none of
 	// the kind (playerbot_market.h). Under that level every one is goods.
+	const DWORD PLAYERBOT_TRADEABLE_CHANGE_VNUM = 71284;
+	const DWORD PLAYERBOT_TRADEABLE_ADD_VNUM = 71285;
 	const DWORD PLAYERBOT_TRADEABLE_ADD_PRICE = 5000000;
 	const DWORD PLAYERBOT_SM_COUPON_50_PRICE = 1000000;	// playerbot_price_tables.h, 80017
 	const DWORD PLAYERBOT_TRADEABLE_CHANGE_SM = 69;
@@ -142,6 +144,11 @@ namespace
 	const int PLAYERBOT_TRADEABLE_BONUS_MIN_LEVEL = 40;
 	const int PLAYERBOT_TRADEABLE_BONUS_KEEP = 3;
 	const int PLAYERBOT_TRADEABLE_BONUS_BUY_PURSE_PERCENT = 20;
+
+	bool IsPlayerBotTradeableBonusVnum(DWORD vnum)
+	{
+		return vnum == PLAYERBOT_TRADEABLE_CHANGE_VNUM || vnum == PLAYERBOT_TRADEABLE_ADD_VNUM;
+	}
 
 	// MT2009_PLUS_SHEET_PRICES_ONLY_V1 (the owner, 8 October: "na rynku nie ma
 	// stalych cen"): the owner's fixed prices are gone. The shard (30 000), the

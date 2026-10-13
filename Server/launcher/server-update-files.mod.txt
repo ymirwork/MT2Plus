@@ -41,6 +41,8 @@ linux-port/docker/updater/bin/*
 # The playerbot sources: the overlay is the source of truth, the staged copy
 # under the engine tree (listed below with the engine files) is what compiles.
 linux-port/overlays/playerbot/src/game/src/playerbot_*
+# AH_V1 (Autor: Vekirion): the Auction House, a new engine file kept in the overlay.
+linux-port/overlays/playerbot/src/game/src/auction_house.cpp
 
 # ---- the mt2009 tree ---------------------------------------------------------
 linux-port/docker/docker-compose.yml
@@ -90,6 +92,7 @@ linux-port/docker/game/cube.pasy.txt
 linux-port/docker/game/cube.wiki_nowe.txt
 linux-port/docker/game/special_item_group.wiki_nowe.txt
 linux-port/docker/game/costume_sets.txt
+linux-port/docker/game/drop_wiki.txt
 linux-port/docker/game/dragon_soul_applys.mt2009plus.txt
 linux-port/docker/game/special_spawns.baroness.txt
 # MT2009_PLUS_OCHAO_V1: Swiatynia Ochao's share files (Dockerfile step "share: Swiatynia Ochao").
@@ -226,6 +229,7 @@ linux-port/docker/game/src/server/game/src/BlueDragon.h
 linux-port/docker/game/src/server/game/src/Makefile
 linux-port/docker/game/src/server/game/src/battle.cpp
 linux-port/docker/game/src/server/game/src/char.cpp
+linux-port/docker/game/src/server/game/src/war_map.cpp
 linux-port/docker/game/src/server/game/src/char_affect.cpp
 linux-port/docker/game/src/server/game/src/char.h
 linux-port/docker/game/src/server/game/src/char_battle.cpp
@@ -301,6 +305,7 @@ linux-port/docker/game/src/server/game/src/p2p.h
 # line 65) and this one enumerated thirty-six names, so the first new file
 # (playerbot_offline_policy.h, 2.0.26) failed the packager's pairing check.
 linux-port/docker/game/src/server/game/src/playerbot_*
+linux-port/docker/game/src/server/game/src/auction_house.cpp
 linux-port/docker/game/src/server/game/src/pvp.cpp
 linux-port/docker/game/src/server/game/src/questlua_affect.cpp
 linux-port/docker/game/src/server/game/src/questlua_quest.cpp

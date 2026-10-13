@@ -80,9 +80,9 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 
 ## 1. Wersjonowanie i Identyfikacja
 
-- **Wersja serwera (`Server/VERSION`):** `2.31.0`
-- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-51`
-- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.62`
+- **Wersja serwera (`Server/VERSION`):** `2.32.0`
+- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-53`
+- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.63`
 - **Baza kodu:** Fork projektu *Metin2 Playerbots Singleplayer* (`mt2009`) autorstwa Tieru, wywodzący się z bazy MartySama r41023 (oraz wczesnych serwerfiles AzzlackSyndicate).
 - **Główni autorzy rozszerzenia SP+:** ZAXEP / SIZOWSKI, Digi Rasta, Vekirion, seban latino, OskarPWA, Iwakura.
 
@@ -246,7 +246,7 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
 | `Szybkie_Zbieranie_Autolowy.zip` | Klient (Python) | `Klient/pack/root/uiautohunt.py` (obszarowe podnoszenie dropu) | **Aktywny** |
 | `Ukrycie_Wartosci_HP_Celu.zip` | Klient (Python) | `Klient/pack/root/uitarget.py` (usunięcie cyfrowego HP innych graczy/mobów) | **Aktywny** |
 | `Wstawanie_100_Procent_HP.zip` | Serwer (C++) | `game/src/cmd_general.cpp`, `char.cpp` (100% HP po ożywieniu) | **Aktywny** |
-| `Fix_Boty_Gildia_Exp_Party.zip` | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Aktywny** |
+| `Fix_Boty_Gildia_Exp_Party.zip` | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Włączony w Upstream 2.32.0** |
 | `Seban_Panel_Rozszerzona_Ekonomia_V2.zip` | Web / Panel Seban | `Server/linux-port/docker/seban-panel/` (Centrum Gospodarki, YmirWork telemetria) | **Aktywny** |
 | `MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip` | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
 | `Paczka_Recykling_Bonusow.zip` | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |

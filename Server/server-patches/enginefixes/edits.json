@@ -1,0 +1,326 @@
+[
+ {
+  "file": "input.cpp",
+  "marker": "MT2009_PLUS_EARLY_PACKET_V1 (skip)",
+  "old": "int CInputHandshake::Analyze(LPDESC d, BYTE bHeader, const char * c_pData)\n{\n",
+  "new": "// MT2009_PLUS_EARLY_PACKET_V1 (skip) (server-patches/enginefixes): a chat\n// command or a whisper that reaches a connection before it is in the game -\n// still saying hello (handshake) or loading (login phase) - is passed over\n// whole. Both phases used to read only its fixed head and took the text after\n// it for the next packets: an unknown header, and the connection was closed.\n// The Companion's window (P) polls the server with \"/towarzysz\" and its poll\n// could leave right after a channel change or a teleport had opened the new\n// connection, so every such change ended on the login screen.\nint Mt2009PlusSkipEarlyPacket(LPDESC d, BYTE bHeader, const char * c_pData, int iBufferLeft)\n{\n\tconst int iHead = bHeader == HEADER_CG_WHISPER ? (int) sizeof(TPacketCGWhisper) : (int) sizeof(TPacketCGChat);\n\tif (iBufferLeft < iHead)\n\t\treturn -1;\n\tconst WORD wSize = *reinterpret_cast<const WORD *>(c_pData + sizeof(BYTE));\n\tif ((int) wSize < iHead)\n\t{\n\t\tsys_err(\"early packet %u with a bad size %u (fd %d)\", bHeader, wSize, d->GetSocket());\n\t\td->SetPhase(PHASE_CLOSE);\n\t\treturn -1;\n\t}\n\tif (iBufferLeft < (int) wSize)\n\t\treturn -1;\n\tsys_log(0, \"early packet %u (%u bytes) passed over before the game phase (fd %d)\", bHeader, wSize, d->GetSocket());\n\treturn (int) wSize - iHead;\n}\n\nint CInputHandshake::Analyze(LPDESC d, BYTE bHeader, const char * c_pData)\n{\n"
+ },
+ {
+  "file": "input.cpp",
+  "marker": "MT2009_PLUS_EARLY_PACKET_V1 (handshake)",
+  "old": "\tif (bHeader == 10)\n\t\treturn 0;\n",
+  "new": "\tif (bHeader == 10)\n\t\treturn 0;\n\n\t// MT2009_PLUS_EARLY_PACKET_V1 (handshake): a command before the hello.\n\tif (bHeader == HEADER_CG_CHAT || bHeader == HEADER_CG_WHISPER)\n\t\treturn Mt2009PlusSkipEarlyPacket(d, bHeader, c_pData, m_iBufferLeft);\n"
+ },
+ {
+  "file": "input_login.cpp",
+  "marker": "MT2009_PLUS_EARLY_PACKET_V1 (login)",
+  "old": "\t\tcase HEADER_CG_CHAT:\n\t\tcase HEADER_CG_MOVE:\n\t\t\tbreak;\n",
+  "new": "\t\t// MT2009_PLUS_EARLY_PACKET_V1 (login): a chat command or a whisper while\n\t\t// the character loads is passed over whole, its text with it\n\t\t// (Mt2009PlusSkipEarlyPacket, input.cpp).\n\t\tcase HEADER_CG_CHAT:\n\t\tcase HEADER_CG_WHISPER:\n\t\t\t{\n\t\t\t\textern int Mt2009PlusSkipEarlyPacket(LPDESC d, BYTE bHeader, const char * c_pData, int iBufferLeft);\n\t\t\t\treturn Mt2009PlusSkipEarlyPacket(d, bHeader, c_pData, m_iBufferLeft);\n\t\t\t}\n\n\t\tcase HEADER_CG_MOVE:\n\t\t\tbreak;\n"
+ },
+ {
+  "file": "config.cpp",
+  "marker": "MT2009_PLUS_MAP_ALLOW_COPY_V1",
+  "old": "\t\tint i = *(it++);\n\t\t*(pl++) = i;\n\n\t\tif (++iCount > size)\n\t\t\tbreak;\n",
+  "new": "\t\t// MT2009_PLUS_MAP_ALLOW_COPY_V1 (server-patches/enginefixes): the bound\n\t\t// before the write. It was checked after it, so a core with one map more\n\t\t// than MAP_ALLOW_LIMIT wrote that map over the next field of the setup\n\t\t// packet - the login count, garbage logins in the db core and an endless\n\t\t// loading screen on the first teleport. A map past the limit is now\n\t\t// left out with an error, not written.\n\t\tif (iCount >= size)\n\t\t{\n\t\t\tsys_err(\"MAP_ALLOW: %u maps on this core, MAP_ALLOW_LIMIT is %d - map %d and the rest are not announced\",\n\t\t\t\t\t(unsigned int) s_set_map_allows.size(), size, *it);\n\t\t\tbreak;\n\t\t}\n\t\tint i = *(it++);\n\t\t*(pl++) = i;\n\t\t++iCount;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_MINIBOSS_V1 (rank)",
+  "old": "\t\tconst bool boss = victim->IsMonster() && victim->GetMobRank() >= MOB_RANK_BOSS;\n\t\tif (victim->IsMonster() && (boss ? !m_bBosses : !m_bMobs))\n\t\t\treturn;\n",
+  "new": "\t\tconst bool boss = victim->IsMonster() && victim->GetMobRank() >= MOB_RANK_BOSS;\n\t\t// MT2009_PLUS_AUTOHUNT_MINIBOSS_V1 (rank) (server-patches/enginefixes):\n\t\t// a miniboss - rank S_KNIGHT: Chuong, Lykos, Scrofa, Bera, Tigris, the\n\t\t// Bestial Archer and Specialist, the dungeons' elite monsters - is a\n\t\t// target with \"Moby\" and with \"Bossy\" alike (only \"Moby\" took it).\n\t\tconst bool miniboss = victim->IsMonster() && victim->GetMobRank() == MOB_RANK_S_KNIGHT;\n\t\tif (victim->IsMonster() && (boss ? !m_bBosses : (miniboss ? !(m_bMobs || m_bBosses) : !m_bMobs)))\n\t\t\treturn;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_MINIBOSS_V1 (order)",
+  "old": "\t\tif (m_bBossPriority && boss)\n\t\t\tscore -= 2000000;\n",
+  "new": "\t\tif (m_bBossPriority && boss)\n\t\t\tscore -= 2000000;\n\t\t// MT2009_PLUS_AUTOHUNT_MINIBOSS_V1 (order): with \"Bossy\", a miniboss\n\t\t// right after the boss and before the Metin.\n\t\telse if (m_bBossPriority && miniboss)\n\t\t\tscore -= 1500000;\n"
+ },
+ {
+  "file": "battle.cpp",
+  "marker": "MT2009_PLUS_ARROW_RANGE_V1",
+  "old": "\tint iPercent = 100;\n\tif (iDist > minDistance)\n",
+  "new": "\tint iPercent = 100;\n\t// MT2009_PLUS_ARROW_RANGE_V1: the fade below runs from value4 (full\n\t// strength) to value5 (value2 per cent, twice that against a monster). The\n\t// elemental arrows - Ognista, Trujaca, Lodowa, Przekleta Strzala (8006-8009)\n\t// - carry 0 in all three, so every shot of theirs past point-blank came to\n\t// 0 per cent: an archer with one of them dealt no damage at all. An arrow\n\t// without a fade range (value5 not past value4) strikes at full strength,\n\t// as a silver arrow does against a monster at any distance.\n\tif (pkArrow->GetValue(5) > pkArrow->GetValue(4) && iDist > minDistance)\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CROWD_V1 (struct)",
+  "old": "\tLPCHARACTER\tm_pkBest;\n\tint\t\tm_iBestScore;\n\n\tFAutoHuntTarget(LPCHARACTER ch, int anchorX, int anchorY, int range, bool stones, DWORD skipVID,\n\t\t\tbool mobs = true, bool bosses = true, bool bossPriority = false)\n\t\t: m_ch(ch), m_iAnchorX(anchorX), m_iAnchorY(anchorY), m_iRange(range), m_bStones(stones),\n\t\tm_dwSkipVID(skipVID), m_bMobs(mobs), m_bBosses(bosses), m_bBossPriority(bossPriority),\n\t\tm_pkBest(NULL), m_iBestScore(0x7fffffff)\n\t{\n\t}\n",
+  "new": "\tLPCHARACTER\tm_pkBest;\n\tint\t\tm_iBestScore;\n\t// MT2009_PLUS_AUTOHUNT_CROWD_V1 (struct) (server-patches/enginefixes): the\n\t// nearest one plain - what the hunter boxed in by a pack asks for\n\t// (uiautohunt.py, COMBAT_STUCK_SECONDS): no ranking by who is hitting it,\n\t// by stone or by boss, which would send it after the one it could not\n\t// reach again.\n\tbool\t\tm_bNearest;\n\n\tFAutoHuntTarget(LPCHARACTER ch, int anchorX, int anchorY, int range, bool stones, DWORD skipVID,\n\t\t\tbool mobs = true, bool bosses = true, bool bossPriority = false)\n\t\t: m_ch(ch), m_iAnchorX(anchorX), m_iAnchorY(anchorY), m_iRange(range), m_bStones(stones),\n\t\tm_dwSkipVID(skipVID), m_bMobs(mobs), m_bBosses(bosses), m_bBossPriority(bossPriority),\n\t\tm_pkBest(NULL), m_iBestScore(0x7fffffff), m_bNearest(false)\n\t{\n\t}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CROWD_V1 (score)",
+  "old": "\t\tint score = DISTANCE_APPROX(victim->GetX() - m_ch->GetX(), victim->GetY() - m_ch->GetY());\n\t\tif (victim->GetVictim() == m_ch)\n\t\t\tscore /= 4;\n",
+  "new": "\t\tint score = DISTANCE_APPROX(victim->GetX() - m_ch->GetX(), victim->GetY() - m_ch->GetY());\n\t\t// MT2009_PLUS_AUTOHUNT_CROWD_V1 (score): asked for the nearest, the\n\t\t// distance alone.\n\t\tif (m_bNearest)\n\t\t{\n\t\t\tif (score < m_iBestScore)\n\t\t\t{\n\t\t\t\tm_iBestScore = score;\n\t\t\t\tm_pkBest = victim;\n\t\t\t}\n\t\t\treturn;\n\t\t}\n\t\tif (victim->GetVictim() == m_ch)\n\t\t\tscore /= 4;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CROWD_V1 (argument)",
+  "old": "\tint mobs = 1;\n\tint bosses = 1;\n\tbool categories = false;\n\t{\n\t\tchar skip1[256], skip2[256], skip3[256], skip4[256], skip5[256], arg6[256], arg7[256];\n\t\tconst char * more = two_arguments(argument, skip1, sizeof(skip1), skip2, sizeof(skip2));\n\t\tmore = two_arguments(more, skip3, sizeof(skip3), skip4, sizeof(skip4));\n\t\tmore = one_argument(more, skip5, sizeof(skip5));\n\t\ttwo_arguments(more, arg6, sizeof(arg6), arg7, sizeof(arg7));\n\t\tif (*arg6)\n\t\t{\n\t\t\tcategories = true;\n\t\t\tstr_to_number(mobs, arg5);\n\t\t\tstr_to_number(bosses, arg6);\n\t\t\tskipVID = 0;\n\t\t\tif (*arg7)\n\t\t\t\tstr_to_number(skipVID, arg7);\n\t\t}\n\t}\n\n\tFAutoHuntTarget f(ch, anchorX, anchorY, range, stones != 0, skipVID);\n\tf.m_bMobs = mobs != 0;\n\tf.m_bBosses = bosses != 0;\n\tf.m_bBossPriority = categories && bosses != 0;\n",
+  "new": "\tint mobs = 1;\n\tint bosses = 1;\n\tbool categories = false;\n\t// MT2009_PLUS_AUTOHUNT_CROWD_V1 (argument): an eighth argument of 1 after\n\t// the skip VID asks for the nearest monster plain - the hunter boxed in on\n\t// its way leaves the target it could not reach (the seventh) and takes one\n\t// of the pack round it. A client without it sends seven.\n\tint nearest = 0;\n\t{\n\t\tchar skip1[256], skip2[256], skip3[256], skip4[256], skip5[256], arg6[256], arg7[256], arg8[256];\n\t\tconst char * more = two_arguments(argument, skip1, sizeof(skip1), skip2, sizeof(skip2));\n\t\tmore = two_arguments(more, skip3, sizeof(skip3), skip4, sizeof(skip4));\n\t\tmore = one_argument(more, skip5, sizeof(skip5));\n\t\tmore = two_arguments(more, arg6, sizeof(arg6), arg7, sizeof(arg7));\n\t\tone_argument(more, arg8, sizeof(arg8));\n\t\tif (*arg6)\n\t\t{\n\t\t\tcategories = true;\n\t\t\tstr_to_number(mobs, arg5);\n\t\t\tstr_to_number(bosses, arg6);\n\t\t\tskipVID = 0;\n\t\t\tif (*arg7)\n\t\t\t\tstr_to_number(skipVID, arg7);\n\t\t\tif (*arg8)\n\t\t\t\tstr_to_number(nearest, arg8);\n\t\t}\n\t}\n\n\tFAutoHuntTarget f(ch, anchorX, anchorY, range, stones != 0, skipVID);\n\tf.m_bMobs = mobs != 0;\n\tf.m_bBosses = bosses != 0;\n\tf.m_bBossPriority = categories && bosses != 0;\n\tf.m_bNearest = nearest == 1;\n"
+ },
+ {
+  "file": "char_skill.cpp",
+  "marker": "MT2009_PLUS_WUKONG_GUARDIANS_V1 (crush)",
+  "old": "\t\t\t\tlong tx = (long)(pkChrVictim->GetX()+fx);\n\t\t\t\tlong ty = (long)(pkChrVictim->GetY()+fy);\n\n\t\t\t\tpkChrVictim->Sync(tx, ty);\n\t\t\t\tpkChrVictim->Goto(tx, ty);\n\t\t\t\tpkChrVictim->CalculateMoveDuration();\n\n\t\t\t\tpkChrVictim->SyncPacket();\n",
+  "new": "\t\t\t\tlong tx = (long)(pkChrVictim->GetX()+fx);\n\t\t\t\tlong ty = (long)(pkChrVictim->GetY()+fy);\n\n\t\t\t\t// MT2009_PLUS_WUKONG_GUARDIANS_V1 (crush) (server-patches/enginefixes): a push\n\t\t\t\t// goes only as far as the ground is open. It used to land wherever its\n\t\t\t\t// length ended - over the edge of a platform, into a wall or a rock - and\n\t\t\t\t// the monster followed its victim there. On Wukong's Hill (3 October,\n\t\t\t\t// supporters' server) the Cloud Defenders' push carried a player's\n\t\t\t\t// companion step by step 25 cells off the edge of the arena, one Defender\n\t\t\t\t// went after it, and the run could not be finished: nobody can walk\n\t\t\t\t// there. The line from the victim to the end of the push is checked\n\t\t\t\t// every 25 units; the push stops at the last open point (no push at all\n\t\t\t\t// when the first one is blocked).\n\t\t\t\t{\n\t\t\t\t\tconst long lFromX = pkChrVictim->GetX();\n\t\t\t\t\tconst long lFromY = pkChrVictim->GetY();\n\t\t\t\t\tconst int iSteps = MAX(1, (int) (fCrushSlidingLength / 25.0f));\n\t\t\t\t\tlong lOpenX = lFromX, lOpenY = lFromY;\n\t\t\t\t\tbool bCut = false;\n\t\t\t\t\tfor (int iStep = 1; iStep <= iSteps; ++iStep)\n\t\t\t\t\t{\n\t\t\t\t\t\tconst long lX = lFromX + (long) (fx * iStep / iSteps);\n\t\t\t\t\t\tconst long lY = lFromY + (long) (fy * iStep / iSteps);\n\t\t\t\t\t\tif (!SECTREE_MANAGER::instance().IsMovablePosition(pkChrVictim->GetMapIndex(), lX, lY))\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\tbCut = true;\n\t\t\t\t\t\t\tbreak;\n\t\t\t\t\t\t}\n\t\t\t\t\t\tlOpenX = lX;\n\t\t\t\t\t\tlOpenY = lY;\n\t\t\t\t\t}\n\t\t\t\t\tif (bCut)\n\t\t\t\t\t{\n\t\t\t\t\t\tsys_log(0, \"CRUSH_CUT: %s stops at (%ld %ld) before blocked ground\", pkChrVictim->GetName(), lOpenX, lOpenY);\n\t\t\t\t\t\ttx = lOpenX;\n\t\t\t\t\t\tty = lOpenY;\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tif (tx != pkChrVictim->GetX() || ty != pkChrVictim->GetY())\n\t\t\t\t{\n\t\t\t\t\tpkChrVictim->Sync(tx, ty);\n\t\t\t\t\tpkChrVictim->Goto(tx, ty);\n\t\t\t\t\tpkChrVictim->CalculateMoveDuration();\n\n\t\t\t\t\tpkChrVictim->SyncPacket();\n\t\t\t\t}\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_CUBE_FOR_PLAYERS_V1",
+  "old": "\t{ \"cube\",\t\t\t\tdo_cube,\t\t\t\t0,\tPOS_DEAD,\tGM_IMPLEMENTOR },\n",
+  "new": "\t{ \"cube\",\t\t\t\tdo_cube,\t\t\t\t0,\tPOS_DEAD,\tGM_PLAYER }, // MT2009_PLUS_CUBE_FOR_PLAYERS_V1 (server-patches/enginefixes): the quests open the cube window with command(\"cube open\") (Seon-Pyeong 20091 and the other crafting NPCs) - at GM_IMPLEMENTOR every player got \"command does not exist\"; Cube_open still checks the NPC and the distance.\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (struct)",
+  "old": "\tbool\t\tm_bNearest;\n",
+  "new": "\tbool\t\tm_bNearest;\n\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (struct): the targets the client gave up on in the last minute\n\t// (upstream 2.0.76, uiautohunt.py: up to 32 VIDs, the ninth argument).\n\tstd::set<DWORD>\tm_setSkip;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (skip)",
+  "old": "\t\tif (m_dwSkipVID && (DWORD) victim->GetVID() == m_dwSkipVID)\n\t\t\treturn;\n",
+  "new": "\t\tif (m_dwSkipVID && (DWORD) victim->GetVID() == m_dwSkipVID)\n\t\t\treturn;\n\t\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (skip)\n\t\tif (!m_setSkip.empty() && m_setSkip.count((DWORD) victim->GetVID()))\n\t\t\treturn;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (argument)",
+  "old": "\t\tone_argument(more, arg8, sizeof(arg8));\n",
+  "new": "\t\tmore = one_argument(more, arg8, sizeof(arg8));\n\t\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (argument): \"123,456,...\" ninth.\n\t\tone_argument(more, skipList, sizeof(skipList));\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (declare)",
+  "old": "\tint nearest = 0;\n\t{\n",
+  "new": "\tint nearest = 0;\n\tchar skipList[512] = \"\"; // MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (declare)\n\t{\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (fill)",
+  "old": "\tf.m_bNearest = nearest == 1;\n",
+  "new": "\tf.m_bNearest = nearest == 1;\n\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (fill)\n\tfor (char* p = skipList; *p && f.m_setSkip.size() < 32; )\n\t{\n\t\tDWORD vid = (DWORD) strtoul(p, &p, 10);\n\t\tif (vid)\n\t\t\tf.m_setSkip.insert(vid);\n\t\twhile (*p && (*p < '0' || *p > '9'))\n\t\t\t++p;\n\t}\n"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_BOSS_SKULL_V1",
+  "old": "\tif (entity->IsType(ENTITY_CHARACTER))\n\t{\n\t\tsys_log(3, \"EntityInsert %s (RaceNum %d) (%d %d) TO %s\",\n\t\t\t\tGetName(), GetRaceNum(), GetX() / SECTREE_SIZE, GetY() / SECTREE_SIZE, ((LPCHARACTER)entity)->GetName());\n\t}\n}\n",
+  "new": "\t// MT2009_PLUS_BOSS_SKULL_V1 (server-patches/enginefixes): a boss and a\n\t// miniboss (rank BOSS and up - Best. Kapitan is BOSS; S_KNIGHT are the\n\t// strong common monsters such as the Black Orcs, MT2009_PLUS_BOSS_SKULL_V2) come into\n\t// a person's view with a small skull over the head - the client's\n\t// \"BossMark <vid>\" puts its emoticon 120 on the monster (game.py), which\n\t// makes it easier to find among the monsters (the owner, 3 October).\n\tif (IsMonster() && !IsDead() && GetMobRank() >= MOB_RANK_BOSS &&\n\t\t\tch && ch->IsPC() && !d->IsBot())\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"BossMark %u\", (DWORD) m_vid);\n\n\tif (entity->IsType(ENTITY_CHARACTER))\n\t{\n\t\tsys_log(3, \"EntityInsert %s (RaceNum %d) (%d %d) TO %s\",\n\t\t\t\tGetName(), GetRaceNum(), GetX() / SECTREE_SIZE, GetY() / SECTREE_SIZE, ((LPCHARACTER)entity)->GetName());\n\t}\n}\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PATH_V1 (declare)",
+  "old": "ACMD(do_autohunt_target);\n",
+  "new": "ACMD(do_autohunt_target);\nACMD(do_autohunt_path);\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (declare)\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PATH_V1 (table)",
+  "old": "\t{ \"autohunt_target\",\tdo_autohunt_target,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"autohunt_target\",\tdo_autohunt_target,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t{ \"autohunt_path\",\tdo_autohunt_path,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (table)\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PATH_V1 (hello)",
+  "old": "\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntTarget %u\",\n\t\t\tf.m_pkBest ? (unsigned int) (DWORD) f.m_pkBest->GetVID() : 0);\n}\n",
+  "new": "\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntTarget %u\",\n\t\t\tf.m_pkBest ? (unsigned int) (DWORD) f.m_pkBest->GetVID() : 0);\n\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (hello): once a map, the ground's kind for /autohunt_path -\n\t// \"AutoHuntPath 0 hello <0 none|1 grid|2 corridors>\" (uiautohunt.py).\n\t{\n\t\tstatic std::map<DWORD, long> s_mapHelloMap;\n\t\tlong& said = s_mapHelloMap[ch->GetPlayerID()];\n\t\tif (said != ch->GetMapIndex())\n\t\t{\n\t\t\tsaid = ch->GetMapIndex();\n\t\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntPath 0 hello %d\",\n\t\t\t\t\tCPlayerBotManager::instance().GetHumanPathKind(ch->GetMapIndex()));\n\t\t}\n\t}\n}\n\n// MT2009_PLUS_AUTOHUNT_PATH_V1 (command): \"/autohunt_path <seq> <vid> <dx> <dy>\" - the way round\n// the walls to a monster (its VID, read here) or to a point given as an offset\n// from the character (the hunt's start), from the bots' route planner\n// (CPlayerBotManager::PlanHumanPath). Answered \"AutoHuntPath <seq> <ok|direct|\n// none|wait|off> <kind> [<dx>,<dy>;...]\", every point an offset from the\n// character as the client counts them (upstream 2.0.76's protocol).\nACMD(do_autohunt_path)\n{\n\tif (!ch || !ch->GetDesc() || !ch->GetSectree())\n\t\treturn;\n\tchar a1[64], a2[64], a3[64], a4[64];\n\tconst char* rest = two_arguments(argument, a1, sizeof(a1), a2, sizeof(a2));\n\ttwo_arguments(rest, a3, sizeof(a3), a4, sizeof(a4));\n\tunsigned int seq = 0;\n\tDWORD vid = 0;\n\tlong dx = 0, dy = 0;\n\tstr_to_number(seq, a1);\n\tstr_to_number(vid, a2);\n\tstr_to_number(dx, a3);\n\tstr_to_number(dy, a4);\n\tconst int kind = CPlayerBotManager::instance().GetHumanPathKind(ch->GetMapIndex());\n\tif (kind == 0)\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntPath %u off 0\", seq);\n\t\treturn;\n\t}\n\tlong tx = ch->GetX() + dx, ty = ch->GetY() + dy;\n\tif (vid)\n\t{\n\t\tLPCHARACTER target = CHARACTER_MANAGER::instance().Find(vid);\n\t\tif (target && target->GetMapIndex() == ch->GetMapIndex())\n\t\t{\n\t\t\ttx = target->GetX();\n\t\t\tty = target->GetY();\n\t\t}\n\t}\n\tstd::vector<std::pair<long, long> > points;\n\tconst int r = CPlayerBotManager::instance().PlanHumanPath(ch, tx, ty, points);\n\tif (r == -1)\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntPath %u wait %d\", seq, kind);\n\t\treturn;\n\t}\n\tif (r <= 0 || points.empty())\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntPath %u none %d\", seq, kind);\n\t\treturn;\n\t}\n\tif (points.size() <= 1)\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntPath %u direct %d\", seq, kind);\n\t\treturn;\n\t}\n\t// The chat line holds about 450 characters: at most 24 points, spread evenly\n\t// over the route, the target last.\n\tstd::string line;\n\tconst size_t keep = std::min<size_t>(points.size(), 24);\n\tfor (size_t i = 0; i < keep; ++i)\n\t{\n\t\tconst size_t k = keep <= 1 ? points.size() - 1 : (i * (points.size() - 1)) / (keep - 1);\n\t\tchar one[32];\n\t\tsnprintf(one, sizeof(one), \"%s%ld,%ld\", line.empty() ? \"\" : \";\",\n\t\t\t\tpoints[k].first - ch->GetX(), points[k].second - ch->GetY());\n\t\tline += one;\n\t}\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntPath %u ok %d %s\", seq, kind, line.c_str());\n}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (struct)",
+  "old": "\tstd::set<DWORD>\tm_setSkip;\n",
+  "new": "\tstd::set<DWORD>\tm_setSkip;\n\t// MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (struct) (Autor: blaki): the client's order, the tenth\n\t// argument: 1 Boss>Metin>Mob, 2 Boss>Mob>Metin, 3 Metin>Boss>Mob, 4 Metin>Mob>Boss,\n\t// 5 Mob>Boss>Metin, 6 Mob>Metin>Boss; 0 (or none) the ranking below.\n\tint\t\tm_iPriorityOrder = 0;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (score)",
+  "old": "\t\tint score = DISTANCE_APPROX(victim->GetX() - m_ch->GetX(), victim->GetY() - m_ch->GetY());\n\t\t// MT2009_PLUS_AUTOHUNT_CROWD_V1 (score): asked for the nearest, the\n",
+  "new": "\t\tint score = DISTANCE_APPROX(victim->GetX() - m_ch->GetX(), victim->GetY() - m_ch->GetY());\n\t\t// MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (score) (Autor: blaki): the nearest within the first\n\t\t// category of the order that has a target. 0 boss (a miniboss too with \"Bossy\"),\n\t\t// 1 Metin, 2 any other monster; the six orders are every permutation.\n\t\tif (!m_bNearest && m_iPriorityOrder >= 1 && m_iPriorityOrder <= 6)\n\t\t{\n\t\t\tstatic const int s_aiOrder[6][3] = {\n\t\t\t\t{0, 1, 2}, {0, 2, 1}, {1, 0, 2},\n\t\t\t\t{1, 2, 0}, {2, 0, 1}, {2, 1, 0}\n\t\t\t};\n\t\t\tconst int category = (boss || (miniboss && m_bBosses)) ? 0 : (victim->IsStone() ? 1 : 2);\n\t\t\tfor (int rank = 0; rank < 3; ++rank)\n\t\t\t\tif (s_aiOrder[m_iPriorityOrder - 1][rank] == category)\n\t\t\t\t{\n\t\t\t\t\tscore += rank * 1000000;\n\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\tif (score < m_iBestScore)\n\t\t\t{\n\t\t\t\tm_iBestScore = score;\n\t\t\t\tm_pkBest = victim;\n\t\t\t}\n\t\t\treturn;\n\t\t}\n\t\t// MT2009_PLUS_AUTOHUNT_CROWD_V1 (score): asked for the nearest, the\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (declare)",
+  "old": "\tchar skipList[512] = \"\"; // MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (declare)\n",
+  "new": "\tchar skipList[512] = \"\"; // MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (declare)\n\tchar priorityArg[64] = \"\"; // MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (declare) (Autor: blaki)\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (argument)",
+  "old": "\t\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (argument): \"123,456,...\" ninth.\n\t\tone_argument(more, skipList, sizeof(skipList));\n",
+  "new": "\t\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (argument): \"123,456,...\" ninth.\n\t\tmore = one_argument(more, skipList, sizeof(skipList));\n\t\t// MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (argument) (Autor: blaki): the order tenth; a client\n\t\t// that sends it sends the ninth too (\"0\" for no skips). Fewer arguments: as before.\n\t\tone_argument(more, priorityArg, sizeof(priorityArg));\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (fill)",
+  "old": "\tf.m_bNearest = nearest == 1;\n\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (fill)\n",
+  "new": "\tf.m_bNearest = nearest == 1;\n\t// MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (fill) (Autor: blaki): 0 the nearest plain, 1-6 an order.\n\tif (categories && *priorityArg)\n\t{\n\t\tint order = 0;\n\t\tstr_to_number(order, priorityArg);\n\t\torder = MAX(0, MIN(order, 6));\n\t\tif (order == 0)\n\t\t\tf.m_bNearest = true;\n\t\telse\n\t\t\tf.m_iPriorityOrder = order;\n\t}\n\t// MT2009_PLUS_AUTOHUNT_SKIPLIST_V1 (fill)\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_MOUNT_V1 (command)",
+  "old": "ACMD(do_autohunt_target)\n{\n",
+  "new": "// MT2009_PLUS_AUTOHUNT_MOUNT_V1 (command) (Autor: blaki): Auto Lowy gets off and back on a\n// mount that holds the hunter in place (uiautohunt.py, MOUNT_STUCK_SECONDS). /ride is a\n// toggle, and a retry after a late success would get the rider off again: \"off\" and \"on\"\n// do something only when needed, and every call answers \"AutoHuntMount <action> <mounted>\".\n// \"on\" brings back only the summoned horse or the worn mount seal, never a ride item from\n// the bag.\nACMD(do_autohunt_mount)\n{\n\tif (!ch || ch->IsDead() || !ch->GetSectree())\n\t\treturn;\n\tchar action[32];\n\tone_argument(argument, action, sizeof(action));\n\tif (strcmp(action, \"off\") && strcmp(action, \"on\"))\n\t\treturn;\n\tconst bool mounted = ch->IsHorseRiding() || ch->GetMountVnum() != 0;\n\tif (!strcmp(action, \"off\") && mounted)\n\t\tdo_ride(ch, \"\", 0, 0);\n\telse if (!strcmp(action, \"on\") && !mounted)\n\t{\n\t\tbool available = ch->GetHorse() != NULL;\n#ifdef ENABLE_MOUNT_COSTUME_SYSTEM\n\t\tavailable = available || ch->GetWear(WEAR_COSTUME_MOUNT) != NULL;\n#endif\n\t\tif (available)\n\t\t\tdo_ride(ch, \"\", 0, 0);\n\t}\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntMount %s %d\", action,\n\t\t\t(ch->IsHorseRiding() || ch->GetMountVnum() != 0) ? 1 : 0);\n}\n\nACMD(do_autohunt_target)\n{\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_BLOCKED_V1 (segment)",
+  "old": "ACMD(do_autohunt_target)\n{\n",
+  "new": "// MT2009_PLUS_AUTOHUNT_BLOCKED_V1 (segment) (Autor: blaki): whether a wall, a rock or a\n// building (ATTR_BLOCK | ATTR_OBJECT, the map's own 50-unit grid) stands on the straight\n// line from the hunter to its target - the target stays selectable, the client asks\n// /autohunt_path for the way round. The two ends are not tested: a monster may stand on\n// the edge of a blocked cell.\nstatic bool AutoHuntSegmentBlocked(long lMapIndex, long sx, long sy, long tx, long ty)\n{\n\tconst long dx = tx - sx;\n\tconst long dy = ty - sy;\n\tconst long length = DISTANCE_APPROX(dx, dy);\n\tif (length <= 100)\n\t\treturn false;\n\tfor (long step = 50; step <= length - 50; step += 50)\n\t{\n\t\tconst long x = sx + dx * step / length;\n\t\tconst long y = sy + dy * step / length;\n\t\tif (!SECTREE_MANAGER::instance().IsMovablePosition(lMapIndex, x, y))\n\t\t\treturn true;\n\t}\n\treturn false;\n}\n\nACMD(do_autohunt_target)\n{\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_BLOCKED_V1 (reply)",
+  "old": "\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntTarget %u\",\n\t\t\tf.m_pkBest ? (unsigned int) (DWORD) f.m_pkBest->GetVID() : 0);\n\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (hello)",
+  "new": "\t// MT2009_PLUS_AUTOHUNT_BLOCKED_V1 (reply) (Autor: blaki): \"AutoHuntTarget <vid> <blocked>\";\n\t// a client before it reads the VID alone.\n\tch->ChatPacket(CHAT_TYPE_COMMAND, \"AutoHuntTarget %u %d\",\n\t\t\tf.m_pkBest ? (unsigned int) (DWORD) f.m_pkBest->GetVID() : 0,\n\t\t\t(f.m_pkBest && AutoHuntSegmentBlocked(ch->GetMapIndex(), ch->GetX(), ch->GetY(),\n\t\t\t\t\tf.m_pkBest->GetX(), f.m_pkBest->GetY())) ? 1 : 0);\n\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (hello)"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_MOUNT_V1 (declare)",
+  "old": "ACMD(do_autohunt_path);\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (declare)\n",
+  "new": "ACMD(do_autohunt_path);\t// MT2009_PLUS_AUTOHUNT_PATH_V1 (declare)\nACMD(do_autohunt_mount);\t// MT2009_PLUS_AUTOHUNT_MOUNT_V1 (declare) (Autor: blaki)\n"
+ },
+ {
+  "file": "cmd.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_MOUNT_V1 (table)",
+  "old": "\t{ \"autohunt_target\",\tdo_autohunt_target,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n",
+  "new": "\t{ \"autohunt_target\",\tdo_autohunt_target,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\n\t{ \"autohunt_mount\",\tdo_autohunt_mount,\t0,\t\t\tPOS_DEAD,\tGM_PLAYER\t},\t// MT2009_PLUS_AUTOHUNT_MOUNT_V1 (table) (Autor: blaki)\n"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_MOUNT_HORSE_STATS_V1 (stats)",
+  "old": "\t\tif (GetMountVnum() && !GetWear(WEAR_COSTUME_MOUNT))\n#else\n",
+  "new": "\t\t// MT2009_PLUS_MOUNT_HORSE_STATS_V1 (stats): a costume mount gives the rider the\n\t\t// horse's ST/DX/HT/IQ by the character's horse level too, as riding the\n\t\t// horse does (the owner, 4 October); the mount's own bonuses come on top.\n\t\tif (GetMountVnum())\n#else\n"
+ },
+ {
+  "file": "char.cpp",
+  "marker": "MT2009_PLUS_MOUNT_HORSE_STATS_V1 (armor)",
+  "old": "\t\tif( true == IsHorseRiding() )\n\t\t{\n\t\t\tif (iArmor < GetHorseArmor())\n\t\t\t\tiArmor = GetHorseArmor();\n",
+  "new": "\t\t// MT2009_PLUS_MOUNT_HORSE_STATS_V1 (armor): and the horse's armour on a costume mount.\n\t\tif( true == IsHorseRiding() || (GetMountVnum() && GetWear(WEAR_COSTUME_MOUNT)) )\n\t\t{\n\t\t\tif (iArmor < GetHorseArmor())\n\t\t\t\tiArmor = GetHorseArmor();\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_CHEST_DROP_EVENT_V1",
+  "old": "\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n",
+  "new": "\t// MT2009_PLUS_CHEST_DROP_EVENT_V1: the panel's chest drop event - any chest the\n\t// operator names, with its chance a kill (playerbot_events.h).\n\t{\n\t\tvoid Mt2009PlusChestDrops(LPCHARACTER victim, LPCHARACTER killer, std::vector<LPITEM>& vec_item);\n\t\tMt2009PlusChestDrops(pkChr, pkKiller, vec_item);\n\t}\n\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n"
+ },
+ {
+  "file": "guild.h",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (guild.h)",
+  "old": "\t\tYANG\t\tGetGuildMoney() const\t{ return m_data.gold; }\n",
+  "new": "\t\tYANG\t\tGetGuildMoney() const\t{ return m_data.gold; }\n\t\t// MT2009_PLUS_GUILD_TREASURY_V1 (guild.h) (owner, 4 October): the treasury - what\n\t\t// the members and the bots' collections (\"Zrzutka yang\") paid in - is\n\t\t// spent only on the guild: its land and its buildings. Nobody takes it\n\t\t// out into a bag (RequestWithdrawMoney refuses); SpendGuildMoney takes\n\t\t// it through the db core's withdrawal, whose \"give\" this core answers\n\t\t// by giving nothing (RecvWithdrawMoneyGive). Available = the gold less\n\t\t// what this core has asked for and the db core has not taken yet.\n\t\tYANG\t\tGetGuildMoneyAvailable() const\t{ return m_data.gold > m_llMt2009SpendPending ? m_data.gold - m_llMt2009SpendPending : 0; }\n\t\tbool\t\tSpendGuildMoney(LPCHARACTER ch, YANG iGold, const char* c_pszWhat);\n\t\tYANG\t\tm_llMt2009SpendPending = 0;\n"
+ },
+ {
+  "file": "guild.cpp",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (guild.cpp withdraw)",
+  "old": "void CGuild::RequestWithdrawMoney(LPCHARACTER ch, YANG iGold)\n{\n\tif (false==ch->CanDeposit())",
+  "new": "void CGuild::RequestWithdrawMoney(LPCHARACTER ch, YANG iGold)\n{\n\t// MT2009_PLUS_GUILD_TREASURY_V1 (guild.cpp withdraw): the treasury is the\n\t// guild's - it pays the land and the buildings, never a bag.\n\tif (ch)\n\t\tch->ChatPacket(CHAT_TYPE_INFO, \"[Gildia] Yang ze skarbca gildii mozna wydac tylko na gildie: zakup ziemi i budynki. Nie da sie go wyplacic.\");\n\treturn;\n\n\tif (false==ch->CanDeposit())"
+ },
+ {
+  "file": "guild.cpp",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (guild.cpp give)",
+  "old": "void CGuild::RecvWithdrawMoneyGive(YANG iChangeGold)\n{\n\tLPCHARACTER ch = GetMasterCharacter();\n\n\tif (ch)\n\t{\n\t\tch->ChangeGold(iChangeGold);\n\t\tsys_log(0, \"GUILD: WITHDRAW %s:%u player %s[%u] gold %lld\", GetName(), GetID(), ch->GetName(), ch->GetPlayerID(), iChangeGold);\n\t}\n\n\tTPacketGDGuildMoneyWithdrawGiveReply p;\n\tp.dwGuild = GetID();\n\tp.iChangeGold = iChangeGold;\n\tp.bGiveSuccess = ch ? 1 : 0;\n\tdb_clientdesc->DBPacket(HEADER_GD_GUILD_WITHDRAW_MONEY_GIVE_REPLY, 0, &p, sizeof(p));\n}\n",
+  "new": "void CGuild::RecvWithdrawMoneyGive(YANG iChangeGold)\n{\n\t// MT2009_PLUS_GUILD_TREASURY_V1 (guild.cpp give): the db core took the\n\t// sum out of the treasury. It was this core's spending on the guild\n\t// (SpendGuildMoney) - nobody gets it, the db core keeps it out. Anything\n\t// else (a withdrawal from before the rule) is refused, and the db core\n\t// puts it back into the treasury.\n\tconst bool spent = iChangeGold > 0 && m_llMt2009SpendPending >= iChangeGold;\n\tif (spent)\n\t\tm_llMt2009SpendPending -= iChangeGold;\n\tsys_log(0, \"GUILD: TREASURY %s %s:%u gold %lld\", spent ? \"SPENT\" : \"WITHDRAW REFUSED\", GetName(), GetID(), iChangeGold);\n\n\tTPacketGDGuildMoneyWithdrawGiveReply p;\n\tp.dwGuild = GetID();\n\tp.iChangeGold = iChangeGold;\n\tp.bGiveSuccess = spent ? 1 : 0;\n\tdb_clientdesc->DBPacket(HEADER_GD_GUILD_WITHDRAW_MONEY_GIVE_REPLY, 0, &p, sizeof(p));\n}\n\n// MT2009_PLUS_GUILD_TREASURY_V1 (guild.cpp spend): pays iGold of the guild's\n// land or buildings out of the treasury. False when the treasury lacks it.\nbool CGuild::SpendGuildMoney(LPCHARACTER ch, YANG iGold, const char* c_pszWhat)\n{\n\tif (iGold <= 0)\n\t\treturn true;\n\tif (GetGuildMoneyAvailable() < iGold)\n\t\treturn false;\n\tm_llMt2009SpendPending += iGold;\n\n\tTPacketGDGuildMoney p;\n\tp.dwGuild = GetID();\n\tp.iGold = iGold;\n\tdb_clientdesc->DBPacket(HEADER_GD_GUILD_WITHDRAW_MONEY, 0, &p, sizeof(p));\n\n\tchar buf[96 + 1];\n\tsnprintf(buf, sizeof(buf), \"%u %s %s\", GetID(), GetName(), c_pszWhat ? c_pszWhat : \"\");\n\tif (ch)\n\t\tLogManager::instance().CharLog(ch, iGold, \"GUILD_TREASURY_SPEND\", buf);\n\tsys_log(0, \"GUILD: TREASURY SPEND %s:%u gold %lld for %s\", GetName(), GetID(), iGold, c_pszWhat ? c_pszWhat : \"?\");\n\treturn true;\n}\n"
+ },
+ {
+  "file": "questlua_guild.cpp",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (questlua_guild.cpp)",
+  "old": "\tALUA(guild_get_max_member0)\n\t{",
+  "new": "\t// MT2009_PLUS_GUILD_TREASURY_V1 (questlua_guild.cpp): the treasury the\n\t// guild_building quest pays a land from - what it holds now, and paying\n\t// a sum out of it (the master only; true when paid).\n\tALUA(guild_treasury_available)\n\t{\n\t\tLPCHARACTER ch = CQuestManager::instance().GetCurrentCharacterPtr();\n\t\tCGuild* pGuild = ch ? ch->GetGuild() : NULL;\n\t\tlua_pushnumber(L, pGuild ? (double)pGuild->GetGuildMoneyAvailable() : 0);\n\t\treturn 1;\n\t}\n\n\tALUA(guild_treasury_spend)\n\t{\n\t\tLPCHARACTER ch = CQuestManager::instance().GetCurrentCharacterPtr();\n\t\tCGuild* pGuild = ch ? ch->GetGuild() : NULL;\n\t\tconst YANG gold = lua_isnumber(L, 1) ? (YANG)lua_tonumber(L, 1) : 0;\n\t\tconst char* what = lua_isstring(L, 2) ? lua_tostring(L, 2) : \"quest\";\n\t\tlua_pushboolean(L, pGuild && pGuild->GetMasterPID() == ch->GetPlayerID() && gold >= 0 &&\n\t\t\t\tpGuild->SpendGuildMoney(ch, gold, what));\n\t\treturn 1;\n\t}\n\n\tALUA(guild_get_max_member0)\n\t{"
+ },
+ {
+  "file": "questlua_guild.cpp",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (questlua_guild.cpp list)",
+  "old": "\t\t\t{ \"level\",\t\t\t\t\tguild_level\t\t\t\t\t},\n",
+  "new": "\t\t\t{ \"level\",\t\t\t\t\tguild_level\t\t\t\t\t},\n\t\t\t{ \"treasury_available\",\t\tguild_treasury_available\t},\t// MT2009_PLUS_GUILD_TREASURY_V1 (questlua_guild.cpp list)\n\t\t\t{ \"treasury_spend\",\t\t\tguild_treasury_spend\t\t},\n"
+ },
+ {
+  "file": "cmd_gm.cpp",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (cmd_gm.cpp check)",
+  "old": "\t\t\t\t\tif (ch->GetGold() < (int)t->dwPrice)\n\t\t\t\t\t{\n\t\t\t\t\t\tch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Your guild does not have enough Yang to erect this building.\"));\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n",
+  "new": "\t\t\t\t\t// MT2009_PLUS_GUILD_TREASURY_V1 (cmd_gm.cpp check): the guild's\n\t\t\t\t\t// treasury pays first, the master's own yang the rest.\n\t\t\t\t\tconst YANG treasuryPart = ch->GetGuild() ? MIN((YANG)t->dwPrice, ch->GetGuild()->GetGuildMoneyAvailable()) : 0;\n\t\t\t\t\tif (ch->GetGold() < (YANG)t->dwPrice - treasuryPart)\n\t\t\t\t\t{\n\t\t\t\t\t\tch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Your guild does not have enough Yang to erect this building.\"));\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n"
+ },
+ {
+  "file": "cmd_gm.cpp",
+  "marker": "MT2009_PLUS_GUILD_TREASURY_V1 (cmd_gm.cpp pay)",
+  "old": "\t\t\t\t{\n\t\t\t\t\tch->ChangeGold(-t->dwPrice);\n",
+  "new": "\t\t\t\t{\n\t\t\t\t\t// MT2009_PLUS_GUILD_TREASURY_V1 (cmd_gm.cpp pay): the treasury's\n\t\t\t\t\t// part first (it can only have grown since the check), the\n\t\t\t\t\t// rest from the master's bag.\n\t\t\t\t\tYANG fromTreasury = ch->GetGuild() ? MIN((YANG)t->dwPrice, ch->GetGuild()->GetGuildMoneyAvailable()) : 0;\n\t\t\t\t\tif (fromTreasury > 0 && !ch->GetGuild()->SpendGuildMoney(ch, fromTreasury, \"building\"))\n\t\t\t\t\t\tfromTreasury = 0;\n\t\t\t\t\tch->ChangeGold(-((YANG)t->dwPrice - fromTreasury));\n\t\t\t\t\tif (fromTreasury > 0)\n\t\t\t\t\t\tch->ChatPacket(CHAT_TYPE_INFO, \"[Gildia] Ze skarbca gildii zaplacono %lld Yang, z Twojego ekwipunku %lld Yang.\", (long long)fromTreasury, (long long)((YANG)t->dwPrice - fromTreasury));\n"
+ },
+ {
+  "file": "desc.h",
+  "marker": "MT2009_PLUS_PACKET_TRACE_V1 (desc.h)",
+  "old": "\t\tbool\t\t\tm_bBot;\n\t\tbool\t\t\tm_bChannelStatusRequested;\n",
+  "new": "\t\tbool\t\t\tm_bBot;\n\t\tbool\t\t\tm_bChannelStatusRequested;\n\n\t// MT2009_PLUS_PACKET_TRACE_V1 (desc.h): the last packets this server sent\n\t// to the connection, dumped to syserr when the client's own stream breaks\n\t// (input.cpp, \"UNKNOWN HEADER\"). The supporters' server lost every player\n\t// of one core at once twice on 4 October and nothing said what the core\n\t// had sent them; the next time the dump does.\n\tpublic:\n\t\tvoid\t\t\tMt2009NoteSent(const void* c_pvData, int iSize);\n\t\tvoid\t\t\tMt2009DumpSent(const char* c_pszWhy);\n\tprotected:\n\t\tstruct TMt2009Sent { DWORD dwTime; int iSize; BYTE bHeader; BYTE bSub; char szText[48]; };\n\t\tenum { MT2009_SENT_TRACE = 48 };\n\t\tTMt2009Sent\t\tm_aMt2009Sent[MT2009_SENT_TRACE] = {};\n\t\tunsigned int\tm_uMt2009SentNext = 0;\n"
+ },
+ {
+  "file": "desc.cpp",
+  "marker": "MT2009_PLUS_PACKET_TRACE_V1 (desc.cpp)",
+  "old": "void DESC::BufferedPacket(const void * c_pvData, int iSize)\n{\n\tif (m_bBot)\n\t\treturn;\n",
+  "new": "// MT2009_PLUS_PACKET_TRACE_V1 (desc.cpp): one line of the connection's trace -\n// the header, the size, for a chat line its type and the start of its text\n// (the bots' chat commands travel there); and anything over 16 KB goes to\n// syserr at once with the receiver. A call is not always a whole packet - a\n// dynamic packet's body often follows its header in a second call (the\n// offline shops' entries) - so the first byte is only the header's guess and\n// no size field is judged here.\nvoid DESC::Mt2009NoteSent(const void* c_pvData, int iSize)\n{\n\tif (!c_pvData || iSize <= 0)\n\t\treturn;\n\tconst BYTE* p = static_cast<const BYTE*>(c_pvData);\n\tTMt2009Sent& s = m_aMt2009Sent[m_uMt2009SentNext++ % MT2009_SENT_TRACE];\n\ts.dwTime = get_dword_time();\n\ts.iSize = iSize;\n\ts.bHeader = p[0];\n\ts.bSub = 0;\n\ts.szText[0] = '\\0';\n\tconst char* who = GetCharacter() ? GetCharacter()->GetName() : GetHostName();\n\tif (p[0] == HEADER_GC_CHAT && iSize >= (int)sizeof(TPacketGCChat))\n\t{\n\t\tconst TPacketGCChat* chat = reinterpret_cast<const TPacketGCChat*>(p);\n\t\ts.bSub = chat->type;\n\t\tconst int textLen = MIN((int)sizeof(s.szText) - 1, iSize - (int)sizeof(TPacketGCChat));\n\t\tfor (int i = 0; i < textLen; ++i)\n\t\t{\n\t\t\tconst BYTE c = p[sizeof(TPacketGCChat) + i];\n\t\t\ts.szText[i] = (c < 32 || c == 127) ? '.' : (char)c;\n\t\t}\n\t\ts.szText[MAX(0, textLen)] = '\\0';\n\t}\n\tif (iSize > 16384)\n\t\tsys_err(\"PACKET_TRACE: big packet header %u size %d to %s\", (unsigned int)p[0], iSize, who);\n}\n\nvoid DESC::Mt2009DumpSent(const char* c_pszWhy)\n{\n\tconst DWORD now = get_dword_time();\n\tsys_err(\"PACKET_TRACE: %s - %s (%s) phase %d, the last packets sent to it, oldest first:\",\n\t\t\tc_pszWhy ? c_pszWhy : \"?\", GetCharacter() ? GetCharacter()->GetName() : \"-\", GetHostName(), m_iPhase);\n\tconst unsigned int count = MIN((unsigned int)MT2009_SENT_TRACE, m_uMt2009SentNext);\n\tfor (unsigned int k = 0; k < count; ++k)\n\t{\n\t\tconst TMt2009Sent& s = m_aMt2009Sent[(m_uMt2009SentNext - count + k) % MT2009_SENT_TRACE];\n\t\tif (s.bHeader == HEADER_GC_CHAT)\n\t\t\tsys_err(\"PACKET_TRACE:   -%ums header %u size %d chat type %u '%s'\", now - s.dwTime,\n\t\t\t\t\t(unsigned int)s.bHeader, s.iSize, (unsigned int)s.bSub, s.szText);\n\t\telse\n\t\t\tsys_err(\"PACKET_TRACE:   -%ums header %u size %d\", now - s.dwTime, (unsigned int)s.bHeader, s.iSize);\n\t}\n}\n\nvoid DESC::BufferedPacket(const void * c_pvData, int iSize)\n{\n\tif (m_bBot)\n\t\treturn;\n\tMt2009NoteSent(c_pvData, iSize); // MT2009_PLUS_PACKET_TRACE_V1 (desc.cpp buffered)\n"
+ },
+ {
+  "file": "desc.cpp",
+  "marker": "MT2009_PLUS_PACKET_TRACE_V1 (desc.cpp packet)",
+  "old": "#ifdef ENABLE_SYSLOG_PACKET_SENT\n\tstd::string stName = GetCharacter()? GetCharacter()->GetName() : GetHostName();",
+  "new": "\t// MT2009_PLUS_PACKET_TRACE_V1 (desc.cpp packet): every packet into the trace.\n\tMt2009NoteSent(c_pvData, iSize);\n\n#ifdef ENABLE_SYSLOG_PACKET_SENT\n\tstd::string stName = GetCharacter()? GetCharacter()->GetName() : GetHostName();"
+ },
+ {
+  "file": "input.cpp",
+  "marker": "MT2009_PLUS_PACKET_TRACE_V1 (input.cpp)",
+  "old": "\t\t\tsys_err(\"UNKNOWN HEADER: %d, LAST HEADER: %d(%d), REMAIN BYTES: %d, fd: %d\",\n\t\t\t\t\tbHeader, bLastHeader, iLastPacketLen, m_iBufferLeft, lpDesc->GetSocket());\n",
+  "new": "\t\t\tsys_err(\"UNKNOWN HEADER: %d, LAST HEADER: %d(%d), REMAIN BYTES: %d, fd: %d\",\n\t\t\t\t\tbHeader, bLastHeader, iLastPacketLen, m_iBufferLeft, lpDesc->GetSocket());\n\t\t\t// MT2009_PLUS_PACKET_TRACE_V1 (input.cpp): who it was and what the\n\t\t\t// server had sent it just before - the client's stream breaks after\n\t\t\t// a packet it could not read.\n\t\t\tlpDesc->Mt2009DumpSent(\"UNKNOWN HEADER\");\n"
+ },
+ {
+  "file": "input.cpp",
+  "marker": "MT2009_PLUS_PACKET_TRACE_V1 (input.cpp bytes)",
+  "old": "\t\t\tlpDesc->Mt2009DumpSent(\"UNKNOWN HEADER\");\n",
+  "new": "\t\t\tlpDesc->Mt2009DumpSent(\"UNKNOWN HEADER\");\n\t\t\t// MT2009_PLUS_PACKET_TRACE_V1 (input.cpp bytes): and the first bytes\n\t\t\t// it sent, so the next time says whether it was a real packet or noise.\n\t\t\t{\n\t\t\t\tchar hex[3 * 48 + 1];\n\t\t\t\tint n = 0;\n\t\t\t\tconst int show = MIN(48, m_iBufferLeft);\n\t\t\t\tfor (int i = 0; i < show; ++i)\n\t\t\t\t\tn += snprintf(hex + n, sizeof(hex) - n, \"%02x \", (unsigned int)(BYTE)c_pData[i]);\n\t\t\t\thex[n] = '\\0';\n\t\t\t\tsys_err(\"PACKET_TRACE:   received %d bytes, first %d: %s\", m_iBufferLeft, show, hex);\n\t\t\t}\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_ITEM_EXTRA_APPLY_V1 (include)",
+  "old": "#include \"belt_inventory_helper.h\"\n",
+  "new": "#include \"belt_inventory_helper.h\"\n// MT2009_PLUS_ITEM_EXTRA_APPLY_V1 (include): the bonus lines beyond item_proto's\n// three (world.item_extra_apply, overlay playerbot_item_extra_apply.h).\n#include \"playerbot_item_extra_apply.h\"\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_ITEM_EXTRA_APPLY_V1 (apply)",
+  "old": "\t\tm_pOwner->PointChange(apply.bType, bAdd ? value : -value);\n\t}\n\n#ifdef ENABLE_ACCE_COSTUME_SYSTEM\n\tif (GetType() == ITEM_COSTUME && GetSubType() == COSTUME_ACCE)\n",
+  "new": "\t\tm_pOwner->PointChange(apply.bType, bAdd ? value : -value);\n\t}\n\n\t// MT2009_PLUS_ITEM_EXTRA_APPLY_V1 (apply): the item's extra bonus lines\n\t// (world.item_extra_apply - more than the three item_proto has room for),\n\t// worn exactly like the proto's own above: the same POINT_* numbers, utility\n\t// points skipped, an ore socket raising them alike; a mount seal's go\n\t// nowhere, as its proto bonuses go through AFFECT_MOUNT_BONUS instead.\n#ifdef ENABLE_MOUNT_COSTUME_SYSTEM\n\tif (!IsNewMountItem())\n#endif\n\tif (const std::vector<TItemApply>* extraApplies = GetMt2009ItemExtraApplies(GetVnum()))\n\t{\n\t\tfor (const TItemApply& apply : *extraApplies)\n\t\t{\n\t\t\tif (apply.bType == POINT_NONE)\n\t\t\t\tcontinue;\n\n\t\t\tif (m_pOwner->IsUtilityPoint(apply.bType))\n\t\t\t\tcontinue;\n\n\t\t\tint value = apply.lValue;\n\t\t\tif (0 != accessoryGrade)\n\t\t\t\tvalue += MAX(accessoryGrade, value * aiAccessorySocketEffectivePct[accessoryGrade] / 100);\n\n\t\t\tm_pOwner->PointChange(apply.bType, bAdd ? value : -value);\n\t\t}\n\t}\n\n#ifdef ENABLE_ACCE_COSTUME_SYSTEM\n\tif (GetType() == ITEM_COSTUME && GetSubType() == COSTUME_ACCE)\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_AREZZO_BALANCE_V1 (push)",
+  "old": "bool CHARACTER::IsResistPush()\n{\n\tif (IsAffectFlag(AFF_SKILL_STRONG_BODY))\n\t\treturn true;\n\n\treturn false;\n}\n",
+  "new": "bool CHARACTER::IsResistPush()\n{\n\tif (IsAffectFlag(AFF_SKILL_STRONG_BODY))\n\t\treturn true;\n\n\t// MT2009_PLUS_AREZZO_BALANCE_V1 (push) (server-patches/enginefixes): no boss is pushed\n\t// (the owner, 5 October: \"bosses should neither push the player nor be pushed\").\n\t// A player's crush skills (the horse's, the archer's, the warrior's) slid a boss\n\t// like any monster, and on the Arezzo maps' slopes a boss could be pinned against\n\t// a wall from the saddle - or never reached. The skills' push (char_skill.cpp)\n\t// and the knockback of a mounted archer's shot ask this; a hit's own slide, which\n\t// the attacker's client reports, is turned down in input_main.cpp (the same marker).\n\tif (IsMonster() && GetMobRank() >= MOB_RANK_BOSS)\n\t\treturn true;\n\n\treturn false;\n}\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_AREZZO_BALANCE_V1 (sync)",
+  "old": "\t\tswitch (victim->GetCharType())\n\t\t{\n\t\t\tcase CHAR_TYPE_NPC:\n\t\t\tcase CHAR_TYPE_WARP:\n\t\t\tcase CHAR_TYPE_GOTO:\n\t\t\t\tcontinue;\n\t\t}\n\n\t\tif (!victim->SetSyncOwner(ch))\n\t\t\tcontinue;\n",
+  "new": "\t\tswitch (victim->GetCharType())\n\t\t{\n\t\t\tcase CHAR_TYPE_NPC:\n\t\t\tcase CHAR_TYPE_WARP:\n\t\t\tcase CHAR_TYPE_GOTO:\n\t\t\t\tcontinue;\n\t\t}\n\n\t\t// MT2009_PLUS_AREZZO_BALANCE_V1 (sync) (server-patches/enginefixes): a boss is\n\t\t// not moved by the slide the attacker's client gives it on a hit (a combo's\n\t\t// blow, a rider's charge) - the client reports where its hits pushed a monster\n\t\t// and the core used to take that as the monster's place. The boss stays where\n\t\t// the core has it; the attacker's client puts it back there with the boss's next\n\t\t// attack or step (both carry its position). char_battle.cpp, the same marker:\n\t\t// the skills' push.\n\t\tif (victim->IsMonster() && victim->GetMobRank() >= MOB_RANK_BOSS)\n\t\t\tcontinue;\n\n\t\tif (!victim->SetSyncOwner(ch))\n\t\t\tcontinue;\n"
+ },
+ {
+  "file": "item_attribute.cpp",
+  "marker": "MT2009_PLUS_RARE_ATTR_INDEPENDENT_V1",
+  "old": "\tfor (int i = 0; i < MAX_NORM_ATTR_NUM + 1; ++i)\n\t\tif (GetAttributeType(i) == bApply)\n\t\t\treturn true;\n",
+  "new": "\t// MT2009_PLUS_RARE_ATTR_INDEPENDENT_V1: only the five normal bonus lines - the\n\t// stock loop ran to MAX_NORM_ATTR_NUM + 1 and so read the first 6/7 bonus line\n\t// too: a critical hit in the 6th bonus made the 1-5 lines refuse it (the owner,\n\t// 5 October: \"bonusy 6/7 powinny byc niezalezne od 1-5\").\n\tfor (int i = 0; i < MAX_NORM_ATTR_NUM; ++i)\n\t\tif (GetAttributeType(i) == bApply)\n\t\t\treturn true;\n"
+ },
+ {
+  "file": "desc.cpp",
+  "marker": "MT2009_PLUS_INPUT_DESYNC_FIX_V1",
+  "old": "\t\t\tTEMP_BUFFER\ttempbuf;\n\t\t\tLPBUFFER lpBufferDecrypt = tempbuf.getptr();\n\t\t\tbuffer_adjust_size(lpBufferDecrypt, iSizeBuffer);\n",
+  "new": "\t\t\t// MT2009_PLUS_INPUT_DESYNC_FIX_V1 (server-patches/enginefixes): the\n\t\t\t// decrypt buffer is made big enough up front. It used to be a default\n\t\t\t// 8 KB TEMP_BUFFER grown by buffer_adjust_size() on a COPY of its\n\t\t\t// pointer: a read over 8 KB (a client's packets piling up while the\n\t\t\t// core was busy) reallocated it, gave the old 8 KB buffer back to the\n\t\t\t// pool, and the TEMP_BUFFER then gave the same buffer back a second\n\t\t\t// time when it went out of scope. The pool held it twice, so two\n\t\t\t// TEMP_BUFFERs later shared one memory: a packet handler's buffer\n\t\t\t// (a chat text) overwrote the decrypted input while it was being read\n\t\t\t// (\"buffer_proceed: length argument bigger than buffer (length: 1,\n\t\t\t// buffer: 0)\", then UNKNOWN HEADER with random or plain-text bytes),\n\t\t\t// on every connection until the core restarted.\n\t\t\tTEMP_BUFFER\ttempbuf(MAX(iSizeBuffer, 8192));\n\t\t\tLPBUFFER lpBufferDecrypt = tempbuf.getptr();\n\t\t\tif (buffer_has_space(lpBufferDecrypt) < iSizeBuffer)\n\t\t\t{\n\t\t\t\tsys_err(\"MT2009_PLUS_INPUT_DESYNC_FIX_V1: decrypt buffer %d < %d (fd %d)\", buffer_has_space(lpBufferDecrypt), iSizeBuffer, m_sock);\n\t\t\t\treturn -1;\n\t\t\t}\n"
+ },
+ {
+  "file": "char_state.cpp",
+  "marker": "MT2009_PLUS_AREZZO_STONE_GROUPS_V1",
+  "old": "\tDWORD dwVnum = number(MIN(GetMobTable().sAttackSpeed, GetMobTable().sMovingSpeed ), MAX(GetMobTable().sAttackSpeed, GetMobTable().sMovingSpeed));\n",
+  "new": "\tDWORD dwVnum = number(MIN(GetMobTable().sAttackSpeed, GetMobTable().sMovingSpeed ), MAX(GetMobTable().sAttackSpeed, GetMobTable().sMovingSpeed));\n\t// MT2009_PLUS_AREZZO_STONE_GROUPS_V1 (server-patches/enginefixes): Dolina Cyklopow (map 360)\n\t// has the Metin of Shadow (8009), whose groups (attack/moving speed 1301-1310) are the\n\t// desert's - Pustynny Zawadiaka (2108) and the snake archers came out of every stone on\n\t// the cyclopes' map and killed its level-45 hunters (night test 6/7 October). There the\n\t// stone calls the map's own cyclops groups (group.arezzo.txt 36001-36003); 8009 keeps its\n\t// desert groups everywhere else.\n\tif (GetMapIndex() == 360 && dwVnum >= 1301 && dwVnum <= 1310)\n\t\tdwVnum = 36001 + number(0, 2);\n"
+ },
+ {
+  "file": "item_manager.cpp",
+  "marker": "MT2009_PLUS_AREZZO_ENCHANT_PERMIT_V1",
+  "old": "\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n\n\tfor (itertype(vec_item) it = vec_item.begin(); it != vec_item.end(); ++it)\n",
+  "new": "\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n\n\t// MT2009_PLUS_AREZZO_ENCHANT_PERMIT_V1 (the owner, 7 October: \"na nowych mapach Arezzo pozwolenie na\n\t// zaczarowanie przedmiotow leci za czesto, ustaw 1/4\"): on Dolina Cyklopow (360), Pustkowie Faraona (361)\n\t// and Zaczarowany Las (362) a Pozwolenie na Zaczar. Przedmiotu (30370) - Metin Cienia's - stays at 1 in 4;\n\t// the same stones elsewhere drop as before.\n\t{\n\t\tconst long lMapIndex = pkChr->GetMapIndex();\n\t\tif (lMapIndex == 360 || lMapIndex == 361 || lMapIndex == 362)\n\t\t{\n\t\t\tfor (std::vector<LPITEM>::iterator it = vec_item.begin(); it != vec_item.end(); )\n\t\t\t{\n\t\t\t\tif (*it && (*it)->GetVnum() == 30370 && number(1, 4) != 1)\n\t\t\t\t{\n\t\t\t\t\tM2_DESTROY_ITEM(*it);\n\t\t\t\t\tit = vec_item.erase(it);\n\t\t\t\t}\n\t\t\t\telse\n\t\t\t\t\t++it;\n\t\t\t}\n\t\t}\n\t}\n\n\tfor (itertype(vec_item) it = vec_item.begin(); it != vec_item.end(); ++it)\n"
+ }
+]

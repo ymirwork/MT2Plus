@@ -1,0 +1,26 @@
+[
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_QUIVER_V1 (helper)",
+  "old": "int CHARACTER::GetArrowAndBow(LPITEM * ppkBow, LPITEM * ppkArrow, int iArrowCount/* = 1 */)\n{\n",
+  "new": "// MT2009_PLUS_QUIVER_V1 (helper): a quiver is an arrow (ITEM_WEAPON /\n// WEAPON_ARROW, the arrow slot) with a real-time limit - Kolczan (8010, the\n// ItemShop's, 14 days). A stack of arrows is never timed, so the limit is the\n// whole rule and a quiver of another length needs a row in item_proto only.\n// The engine's own quiver (ENABLE_QUIVER_SYSTEM, WEAPON_QUIVER) stays off: it\n// changes two packets the 2.0.x client does not know. Its arrows never run out:\n// GetArrowAndBow hands out as many as a shot asks while it has time left, and\n// UseArrow spends none. The bots ask the same of IsPlayerBotQuiver\n// (playerbot_gear.h).\nstatic bool Mt2009PlusIsQuiver(LPITEM pkItem)\n{\n\tif (!pkItem || pkItem->GetType() != ITEM_WEAPON || pkItem->GetSubType() != WEAPON_ARROW)\n\t\treturn false;\n\tfor (int i = 0; i < ITEM_LIMIT_MAX_NUM; ++i)\n\t\tif (pkItem->GetLimitType(i) == LIMIT_REAL_TIME)\n\t\t\treturn true;\n\treturn false;\n}\n\nint CHARACTER::GetArrowAndBow(LPITEM * ppkBow, LPITEM * ppkArrow, int iArrowCount/* = 1 */)\n{\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_QUIVER_V1 (count)",
+  "old": "\tiArrowCount = MIN(iArrowCount, pkArrow->GetCount());\n",
+  "new": "\t// MT2009_PLUS_QUIVER_V1 (count): a quiver holds every arrow a shot asks\n\t// for, until its time is up (the expiry event takes it a moment later).\n\tif (Mt2009PlusIsQuiver(pkArrow))\n\t{\n\t\tif (pkArrow->GetSocket(0) > 0 && pkArrow->GetSocket(0) <= time(0))\n\t\t\treturn 0;\n\t\t*ppkBow = pkBow;\n\t\t*ppkArrow = pkArrow;\n\t\treturn MAX(iArrowCount, 1);\n\t}\n\n\tiArrowCount = MIN(iArrowCount, pkArrow->GetCount());\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_QUIVER_V1 (use)",
+  "old": "void CHARACTER::UseArrow(LPITEM pkArrow, DWORD dwArrowCount)\n{\n",
+  "new": "void CHARACTER::UseArrow(LPITEM pkArrow, DWORD dwArrowCount)\n{\n\t// MT2009_PLUS_QUIVER_V1 (use): a quiver's arrows are never spent - its\n\t// count stays 1 and it never leaves the slot by running out.\n\tif (Mt2009PlusIsQuiver(pkArrow))\n\t\treturn;\n\n"
+ },
+ {
+  "file": "item.cpp",
+  "marker": "MT2009_PLUS_QUIVER_V1 (sockets)",
+  "old": "\t\t\t\tif ((dwVnum = GetSocket(i)) <= 2)\n\t\t\t\t\tcontinue;\n",
+  "new": "\t\t\t\tif ((dwVnum = GetSocket(i)) <= 2)\n\t\t\t\t\tcontinue;\n\t\t\t\t// MT2009_PLUS_QUIVER_V1 (sockets): socket 0 of a time-limited weapon or armour (the Kolczan 8010)\n\t\t\t\t// is its end time, not a stone's vnum (\"cannot find table by vnum 1792...\" on every ComputePoints).\n\t\t\t\tif (i == 0 && (m_pProto->aLimits[0].bType == LIMIT_REAL_TIME || m_pProto->aLimits[1].bType == LIMIT_REAL_TIME ||\n\t\t\t\t\t\tm_pProto->aLimits[0].bType == LIMIT_REAL_TIME_START_FIRST_USE || m_pProto->aLimits[1].bType == LIMIT_REAL_TIME_START_FIRST_USE))\n\t\t\t\t\tcontinue;\n"
+ }
+]

@@ -13,7 +13,7 @@ quest teleport_ring begin
             return {
                 low_level = {get_player_map1_index(), get_player_map2_index(), get_player_map3_index(), 64, 63, 61},
                 high_level = {62, 66, 67, 68},
-                additional = {65, 69, 70, 360, 361},
+                additional = {65, 69, 70},
                 dungeons = {({5, 25, 45})[pc.get_empire()], 108, 109, 104},
             }
         end

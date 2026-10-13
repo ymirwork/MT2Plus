@@ -1694,13 +1694,6 @@ namespace
 	// them from nobody.
 	const DWORD PLAYERBOT_BONUS_CHANGE_VNUM = 71084;
 	const DWORD PLAYERBOT_BONUS_ADD_VNUM = 71085;
-	const DWORD PLAYERBOT_TRADEABLE_CHANGE_VNUM = 71284;
-	const DWORD PLAYERBOT_TRADEABLE_ADD_VNUM = 71285;
-
-	inline bool IsPlayerBotTradeableBonusVnum(DWORD vnum)
-	{
-		return vnum == PLAYERBOT_TRADEABLE_CHANGE_VNUM || vnum == PLAYERBOT_TRADEABLE_ADD_VNUM;
-	}
 	// Below this the gear itself is still changing every few levels, and a
 	// plain stone is worth more than the piece it would go on - so a bot this
 	// young spends only the green ones, which are for that gear and no other
@@ -2465,6 +2458,13 @@ namespace
 	// PLAYERBOT_SEARCH_RANGE from the bot itself, and a bot that always had its
 	// next monster in reach never stood idle long enough to be walked back.
 	const int PLAYERBOT_PARTY_HUMAN_HUNT_RANGE = 2500;
+	// MT2009_PLUS_PARTY_SPREAD_V1 (FindPlayerBotPartySpreadFoe): how far from
+	// the person a bot beside it picks a monster of its own - the follow
+	// distance, so the pick never sets the follow pass walking it back - and
+	// the person's HP under which what hits the person comes first, the
+	// person's own target included.
+	const int PLAYERBOT_PARTY_SPREAD_RANGE = PLAYERBOT_PARTY_FOLLOW_DISTANCE;
+	const int PLAYERBOT_PARTY_SPREAD_DANGER_HP_PERCENT = 40;
 	const DWORD PLAYERBOT_PARTY_FOLLOW_INTERVAL = 2000;
 	// A bot that could not follow its player onto another map tries again this
 	// much later; TransitionPlayerBotMap already says why, once a minute.
@@ -7586,8 +7586,7 @@ namespace
 		PLAYERBOT_RARE_GOODS_NONE = 0,
 		PLAYERBOT_RARE_GOODS_COR = 1,
 		PLAYERBOT_RARE_GOODS_SASH = 2,
-		PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS = 3,
-		PLAYERBOT_RARE_GOODS_KINDS = 4
+		PLAYERBOT_RARE_GOODS_KINDS = 3
 	};
 	// Every "Cor Draconis" of the item table; not the Cor Draconis chest
 	// (83014) nor the recipe (30650).
@@ -7608,7 +7607,6 @@ namespace
 	// line of it may add more, up to PLAYERBOT_RARE_GOODS_LINES_PER_SHOP.
 	const int PLAYERBOT_RARE_GOODS_SHOP_PERCENT_COR = 20;
 	const int PLAYERBOT_RARE_GOODS_SHOP_PERCENT_SASH = 20;
-	const int PLAYERBOT_RARE_GOODS_SHOP_PERCENT_TRADEABLE_BONUS = 20;
 	const int PLAYERBOT_RARE_GOODS_LINES_PER_SHOP = 3;
 	// Where it ranks among a counter's goods: under a level-30 weapon (2000),
 	// over a big bonus roll (1500).
@@ -7758,6 +7756,25 @@ namespace
 	// clock keeps at most this many pieces before it drops the stale ones.
 	const DWORD PLAYERBOT_GEAR_JUNK_STALL_WAIT_MS = 2 * PLAYERBOT_OFFLINE_UNSOLD_STEP_MS;
 	const size_t PLAYERBOT_GEAR_JUNK_SINCE_MAX = 200000;
+	// MT2009_PLUS_BOT_BAG_HOARD_FIX_V1 (zgloszenie 4af9ac48, 2.30.0, 11 October:
+	// "boty zbierajac eq wszystko ulepszaja do +4 i zostawiaja sobie w eq"): of
+	// that gear only this many pieces of a sale kind (GetPlayerBotSaleGearKind)
+	// wait in the bag for the counter - the first in its cells; the rest are
+	// the merchant's at once, and so is every one of them while the bag is
+	// full. The six-hour clock is not kept over a restart and a full counter
+	// took none, so 933 bots of the test world carried 21 pieces and more.
+	const int PLAYERBOT_GEAR_JUNK_WAIT_PER_KIND = 1;
+	// MT2009_PLUS_BOT_BAG_HOARD_FIX_V2 (the owner, 12 October: "To moze niech
+	// chetniej je wystawiaja na sprzedaz?" - 19 000 pieces at +5..+9 in the
+	// test world's bags, 16 454 of them with 1 409 bots whose counters had no
+	// free cell). A full counter takes such a spare in place of its cheapest
+	// line (BotOfflineSpareGearSwap, playerbot_offline_shop.h): a line asking
+	// at most 1/PLAYERBOT_SPARE_SWAP_PRICE_RATIO of the spare's price, standing
+	// PLAYERBOT_SPARE_SWAP_MIN_STAND_MS at least, while the counter shows
+	// fewer than PLAYERBOT_SPARE_SWAP_COUNTER_LINES lines of such spares.
+	const int PLAYERBOT_SPARE_SWAP_PRICE_RATIO = 4;
+	const DWORD PLAYERBOT_SPARE_SWAP_MIN_STAND_MS = 30 * 60 * 1000;
+	const int PLAYERBOT_SPARE_SWAP_COUNTER_LINES = 24;
 	void NotePlayerBotCorBought(LPCHARACTER ch, DWORD vnum, long long price, DWORD count);
 	const DWORD PLAYERBOT_CRAFT_UNSOLD_RECALL_MS_PRE = 12 * 60 * 60 * 1000;
 	bool IsPlayerBotSaddlebagKeeperPID(DWORD pid);
@@ -7789,8 +7806,6 @@ namespace
 			return PLAYERBOT_RARE_GOODS_COR;
 		if (IsPlayerBotSashVnum(vnum))
 			return PLAYERBOT_RARE_GOODS_SASH;
-		if (IsPlayerBotTradeableBonusVnum(vnum))
-			return PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS;
 		return PLAYERBOT_RARE_GOODS_NONE;
 	}
 
@@ -7865,8 +7880,7 @@ namespace
 	int GetPlayerBotRareGoodsShopPercent(int kind)
 	{
 		return kind == PLAYERBOT_RARE_GOODS_COR ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_COR
-				: kind == PLAYERBOT_RARE_GOODS_SASH ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_SASH
-				: kind == PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_TRADEABLE_BONUS : 0;
+				: kind == PLAYERBOT_RARE_GOODS_SASH ? PLAYERBOT_RARE_GOODS_SHOP_PERCENT_SASH : 0;
 	}
 
 	// A bot that has been AFK and was struck puts the next stop off this long.

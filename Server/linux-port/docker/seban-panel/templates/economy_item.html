@@ -1,1 +1,210 @@
-{% extends 'base.html' %}{% block title %}{{item.item_name}} · Gospodarka{% endblock %}{% block content %}<a class="back" href="{{url_for('economy')}}">← Wróć do gospodarki</a><p class="eyebrow">HISTORIA PRZEDMIOTU</p><h1>{{item.item_name}} <span class="muted">· VNUM {{item.vnum}}</span></h1><section class="panel"><h2>Stan w gospodarce · ostatnie 14 dni</h2><canvas id="item-history"></canvas></section><script>new Chart(document.getElementById('item-history'),{type:'line',data:{labels:{{history|map(attribute='captured_at')|list|tojson}},datasets:[{label:'Sztuki na serwerze',data:{{history|map(attribute='amount')|list|tojson}},borderColor:'#f2c34d',backgroundColor:'#f2c34d22',fill:true,tension:.25,pointRadius:0}]},options:{plugins:{legend:{labels:{color:'#cfe0f7'}}},scales:{x:{ticks:{color:'#8fa5c1',maxTicksLimit:12}},y:{ticks:{color:'#8fa5c1'}}}}});</script>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}{{ item.item_name }} · Gospodarka{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('economy') }}">← Wróć do gospodarki</a>
+<p class="eyebrow">SZCZEGÓŁY PRZEDMIOTU</p>
+
+<div style="display:flex; align-items:center; gap:14px; margin-bottom:16px">
+  {% if item.icon_url %}<img src="{{ item.icon_url }}" style="width:36px; height:36px" loading="lazy" alt="">{% endif %}
+  <div>
+    <h1 style="margin:0; font-size:26px">{{ item.item_name }} <span class="muted" style="font-size:16px; font-weight:normal">· VNUM {{ item.vnum }}</span></h1>
+  </div>
+</div>
+
+{# Pasek KPI lokalizacji przedmiotu #}
+<section class="cards">
+  <article>
+    <span>Łącznie w świecie</span>
+    <strong>{{ '{:,}'.format(distribution.total).replace(',', ' ') }}</strong>
+    <small>{{ distribution.owners }} unikalnych posiadaczy</small>
+  </article>
+  <article>
+    <span>W ekwipunkach</span>
+    <strong>{{ '{:,}'.format(distribution.inv).replace(',', ' ') }}</strong>
+    <small>u noszących postaci i w sakwach</small>
+  </article>
+  <article>
+    <span>W magazynach Dozorcy</span>
+    <strong>{{ '{:,}'.format(distribution.safebox).replace(',', ' ') }}</strong>
+    <small>zdeponowane w SAFEBOX</small>
+  </article>
+  <article>
+    <span>Na rynku (sklepy offline)</span>
+    <strong>{{ '{:,}'.format(distribution.shop).replace(',', ' ') }}</strong>
+    <small>{{ market.offers }} aktywnych ofert</small>
+  </article>
+</section>
+
+{# Grid: Wykres historii + Rynek offline #}
+<section class="grid two">
+  <article class="panel">
+    <h2>📈 Stan w gospodarce · Ostatnie 14 dni</h2>
+    <p class="muted">Historia sumarycznej liczby sztuk tego przedmiotu na serwerze.</p>
+    <div style="height:250px">
+      <canvas id="item-history"></canvas>
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>🏪 Wycena, Wartość Godziwa i Płynność Rynku</h2>
+    {% if market.offers > 0 %}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px">
+        <div style="background:rgba(246,200,95,0.08); padding:10px; border-radius:6px; border:1px solid rgba(246,200,95,0.25)">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <span style="font-size:11px; color:#f6c85f; font-weight:600; text-transform:uppercase">Cena Godziwa (Mediana)</span>
+            <span title="Mediana ofert straganów: odporna na sztuczne zawyżanie cen" style="cursor:help; font-size:11px; color:var(--muted)">⚖️ Fair Value</span>
+          </div>
+          <div style="font-size:18px; font-weight:700; color:#f6c85f; margin-top:2px" title="{{ '{:,}'.format(market.fair_value).replace(',', ' ') }} Yang">{{ format_yang(market.fair_value) }}</div>
+          <small style="font-size:11px; color:var(--muted)">Średnia arytm.: {{ format_yang(market.avg_unit_price) }}</small>
+        </div>
+        <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:6px; border:1px solid var(--edge)">
+          <span style="font-size:11px; color:var(--muted)">Rozstęp Cen (Spread)</span>
+          <div style="font-size:14px; font-weight:600; color:#ffe28a; margin-top:3px" title="{{ '{:,}'.format(market.min_unit_price).replace(',', ' ') }} – {{ '{:,}'.format(market.max_unit_price).replace(',', ' ') }} Yang">
+            {{ format_yang(market.min_unit_price) }} – {{ format_yang(market.max_unit_price) }}
+          </div>
+          <small style="font-size:11px; color:var(--muted)">Rozrzut: +{{ market.spread_pct }}%</small>
+        </div>
+      </div>
+
+      {# Wskaźnik Płynności i Rotacji (24h) #}
+      <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:6px; border:1px solid var(--edge); margin-bottom:12px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+          <span style="font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:600">Rotacja i Płynność (24h)</span>
+          <span class="badge" style="background:rgba(255,255,255,0.08); color:{{ market.liquidity_badge.color }}; border:1px solid currentColor; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600">
+            {{ market.liquidity_badge.label }}
+          </span>
+        </div>
+        <div style="font-size:12px; color:var(--muted)">
+          • Wolumen kupna: <b style="color:#fff">{{ market.units_sold_24h }}</b> sztuk ({{ market.tx_count_24h }} transakcji)<br>
+          • Dobowy obrót: <b style="color:#39e890" title="{{ '{:,}'.format(market.turnover_yang_24h).replace(',', ' ') }} Yang">{{ format_yang(market.turnover_yang_24h) }}</b>
+        </div>
+      </div>
+
+      <p class="muted" style="font-size:12px; margin-bottom:12px">
+        Wystawionych obecnie: <b>{{ market.units }}</b> sztuk w <b>{{ market.offers }}</b> aktywnych ofertach.
+      </p>
+      <div style="display:flex; gap:8px">
+        <a href="{{ url_for('market_preview') }}?q={{ item.item_name|urlencode }}&sort=unit_asc" class="button" style="text-decoration:none; padding:7px 12px; font-size:12px; border-radius:4px; background:#4ea5ff; color:#fff; font-weight:600">
+          🔍 Zobacz oferty w Podglądzie Rynku →
+        </a>
+      </div>
+    {% else %}
+      <p class="muted" style="padding:20px 0">Przedmiot nie jest obecnie wystawiony na żadnym aktywnym straganie rynku offline.</p>
+      <a href="{{ url_for('economy_shops') }}?q={{ item.item_name|urlencode }}" class="quiet" style="font-size:12px; text-decoration:none; color:inherit">
+        Sprawdź historię sprzedaży w sklepach →
+      </a>
+    {% endif %}
+
+    {% if price_history and price_history|length > 1 %}
+      <h3 style="font-size:13px; margin:16px 0 8px 0; color:var(--muted); text-transform:uppercase">Historia średniej ceny rynkowej (14 dni)</h3>
+      <div style="height:140px">
+        <canvas id="item-price-history"></canvas>
+      </div>
+    {% endif %}
+  </article>
+</section>
+
+{# Top Posiadacze #}
+<section class="panel">
+  <h2>🏆 Najwięksi Posiadacze (Top 8)</h2>
+  <p class="muted">Postacie posiadające najwięcej sztuk tego przedmiotu na serwerze (w ekwipunkach i na straganach).</p>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Postać</th>
+        <th>Poziom</th>
+        <th>Królestwo</th>
+        <th style="text-align:right">Posiadane sztuki</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holders %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>
+          <a href="{{ url_for('player', pid=h.id) }}" style="text-decoration:none; color:inherit; font-weight:600">
+            {% if h.is_person %}<span title="Postać gracza" style="color:#39e890">👤</span>{% else %}<span title="Bot" style="color:var(--muted)">🤖</span>{% endif %}
+            {{ h.name }}
+          </a>
+        </td>
+        <td>{{ h.level }}</td>
+        <td>
+          {% if empire_flag(h.empire) %}
+            <img class="empire-flag-inline" src="{{ empire_flag(h.empire) }}" alt="{{ empire_info(h.empire).name }}">
+          {% endif %}
+          {{ empire_info(h.empire).name }}
+        </td>
+        <td style="text-align:right; font-weight:700; color:#ffe28a">
+          {{ '{:,}'.format(h.item_count).replace(',', ' ') }}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="muted" style="text-align:center; padding:16px">Nikt obecnie nie posiada tego przedmiotu.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+const histCanvas = document.getElementById('item-history');
+if (histCanvas) {
+  new Chart(histCanvas, {
+    type: 'line',
+    data: {
+      labels: {{ history|map(attribute='captured_at')|list|tojson }},
+      datasets: [{
+        label: 'Sztuki na serwerze',
+        data: {{ history|map(attribute='amount')|list|tojson }},
+        borderColor: '#f2c34d',
+        backgroundColor: '#f2c34d22',
+        fill: true,
+        tension: .25,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8fa5c1', maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#8fa5c1' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
+
+{% if price_history and price_history|length > 1 %}
+const priceCanvas = document.getElementById('item-price-history');
+if (priceCanvas) {
+  new Chart(priceCanvas, {
+    type: 'line',
+    data: {
+      labels: {{ price_history|map(attribute='captured_at')|list|tojson }},
+      datasets: [{
+        label: 'Śr. cena',
+        data: {{ price_history|map(attribute='avg_price')|list|tojson }},
+        borderColor: '#39e890',
+        backgroundColor: '#39e89022',
+        fill: true,
+        tension: .25,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8fa5c1', maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#8fa5c1' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
+{% endif %}
+</script>
+{% endblock %}

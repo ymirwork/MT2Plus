@@ -1241,6 +1241,29 @@ def resolve_item_display_name(vnum, socket0, base_name):
 
 _season_cache = {"at": 0.0, "weekly": [], "records": {}}
 
+_ITEM_PROTO_CACHE = {}
+
+def get_cached_item_proto(vnum):
+    """Szybki cache w pamięci RAM dla metadanych przedmiotu (nazwa, typ, podtyp).
+    Eliminuje tysiące powtarzających się zapytań SQL do bazy danych."""
+    vnum = int(vnum or 0)
+    cached = _ITEM_PROTO_CACHE.get(vnum)
+    now = time.time()
+    if cached and (now - cached["ts"]) < 3600:
+        return cached["row"]
+    proto = one("SELECT vnum, locale_name, name, type, subtype FROM world.item_proto WHERE vnum=%s", (vnum,))
+    if not proto:
+        proto = one("SELECT vnum, locale_name, name, type, subtype FROM player.item_proto WHERE vnum=%s", (vnum,))
+    res = {
+        "vnum": vnum,
+        "locale_name": game_text(proto.get("locale_name") or proto.get("name") or f"VNUM {vnum}") if proto else f"VNUM {vnum}",
+        "type": int(proto.get("type") or 0) if proto and proto.get("type") is not None else 0,
+        "subtype": int(proto.get("subtype") or 0) if proto and proto.get("subtype") is not None else 0,
+    }
+    _ITEM_PROTO_CACHE[vnum] = {"ts": now, "row": res}
+    return res
+
+
 
 def _news_event_source_rows(since, before=None, scan_limit=900):
     """Raw log.log candidate rows for a rare achievement (skill masteries,
@@ -4435,6 +4458,42 @@ def write_shop_explain_enabled(enabled):
         ON DUPLICATE KEY UPDATE value=VALUES(value)""", ("1" if enabled else "0",))
 
 
+def format_yang(val):
+    """Formatuje wartości Yang w metinowskim systemie k, kk, kkk:
+    >= 1 000 000 000 -> kkk (np. 2.66 kkk)
+    >= 1 000 000     -> kk  (np. 410.06 kk)
+    >= 1 000         -> k   (np. 60.5 k)
+    < 1 000          -> Yang (np. 500 Yang)
+    """
+    if val is None:
+        return "0 Yang"
+    try:
+        n = int(val)
+    except (ValueError, TypeError):
+        return f"{val} Yang"
+    neg = "-" if n < 0 else ""
+    n = abs(n)
+    if n >= 1_000_000_000:
+        v = n / 1_000_000_000
+        s = f"{v:.2f}".rstrip("0").rstrip(".")
+        return f"{neg}{s} kkk"
+    elif n >= 1_000_000:
+        v = n / 1_000_000
+        s = f"{v:.2f}".rstrip("0").rstrip(".")
+        return f"{neg}{s} kk"
+    elif n >= 1_000:
+        v = n / 1_000
+        s = f"{v:.2f}".rstrip("0").rstrip(".")
+        return f"{neg}{s} k"
+    else:
+        return f"{neg}{n} Yang"
+
+
+@app.template_filter("yang")
+def yang_filter(val):
+    return format_yang(val)
+
+
 @app.context_processor
 def globals_for_templates():
     tieru_url = os.environ.get("TIERU_PANEL_URL", "http://127.0.0.1:7788")
@@ -4472,7 +4531,7 @@ def globals_for_templates():
         if not rank:
             return escape(label)
         return Markup('<span class="top-level-badge" title="Top 10 poziomu · #%d">%s</span>') % (rank, escape(label))
-    return {"tieru_url": tieru_url, "discord_url": MT2009_PLUS_DISCORD_URL, "website_url": MT2009_PLUS_WEBSITE_URL, "panel_brand": brand, "settings": current_settings, "map_name": map_name, "item_icon": item_icon, "job_name": job_name, "class_profile": class_profile, "class_portrait": class_portrait, "empire_info": empire_info, "empire_flag": empire_flag, "static_asset_url": static_asset_url, "level_badge": level_badge, "top_level_rank": lambda pid: top_level_rank_map().get(int(pid or 0)), "feature_enabled": lambda name: panel_feature_enabled(name, current_settings), "panel_features": panel_feature_states(current_settings), "class_label": class_label, "ui_language": "pl", "i18n_payload": None, "ds_kind_count": 7 if ENGINE_MT2009 else 6}
+    return {"tieru_url": tieru_url, "discord_url": MT2009_PLUS_DISCORD_URL, "website_url": MT2009_PLUS_WEBSITE_URL, "panel_brand": brand, "settings": current_settings, "map_name": map_name, "item_icon": item_icon, "job_name": job_name, "class_profile": class_profile, "class_portrait": class_portrait, "empire_info": empire_info, "empire_flag": empire_flag, "static_asset_url": static_asset_url, "level_badge": level_badge, "top_level_rank": lambda pid: top_level_rank_map().get(int(pid or 0)), "feature_enabled": lambda name: panel_feature_enabled(name, current_settings), "panel_features": panel_feature_states(current_settings), "class_label": class_label, "ui_language": "pl", "i18n_payload": None, "ds_kind_count": 7 if ENGINE_MT2009 else 6, "format_yang": format_yang}
 
 
 @app.after_request
@@ -7067,37 +7126,655 @@ def player_action_delete(pid):
     return redirect(url_for("players"))
 
 
+def classify_economy_item(vnum, item_type=None, subtype=None):
+    if vnum in SKILLBOOK_VNUMS or (50300 <= vnum <= 50514):
+        return "skillbooks", "Księgi"
+    if 28000 <= vnum <= 28960:
+        return "stones", "Kamienie Duszy"
+    if (30000 <= vnum <= 30329) or item_type == 5:
+        return "materials", "Ulepszacze"
+    if item_type in (1, 2, 28, 34, 35) or (10 <= vnum <= 15300):
+        return "equipment", "Ekwipunek"
+    if item_type == 29 or (110000 <= vnum <= 160000):
+        return "alchemy", "Alchemia"
+    if (item_type == 3 and subtype == 8) or item_type == 6 or (50000 <= vnum <= 50200):
+        return "chests", "Szkatułki"
+    return "other", "Inne"
+
+
+ECONOMY_WATCHLIST_DEF = [
+    {"vnum": 71284, "label": "Zaczarowanie (H)", "tag": "Bonus"},
+    {"vnum": 71285, "label": "Wzmocnienie (H)", "tag": "Bonus"},
+    {"vnum": 50513, "label": "Kamień Duchowy", "tag": "Skille"},
+    {"vnum": 27987, "label": "Małż", "tag": "Ulepszacz"},
+    {"vnum": 27992, "label": "Biała Perła", "tag": "Ulepszacz"},
+    {"vnum": 27993, "label": "Niebieska Perła", "tag": "Ulepszacz"},
+    {"vnum": 27994, "label": "Krwawa Perła", "tag": "Ulepszacz"},
+    {"vnum": 50050, "label": "Medal Konny", "tag": "Rozwój"},
+    {"vnum": 30006, "label": "Ząb Orka", "tag": "Biolog"},
+    {"vnum": 30047, "label": "Księga Klątw", "tag": "Biolog"},
+    {"vnum": 30021, "label": "Kawałek Klejnotu", "tag": "Ulepszacz"},
+]
+
+
+def calculate_world_yang_inflation(world_yang):
+    start_pct = 40.0
+    zero_yang = 10000000000.0  # 10 billion
+    step_yang = 2500000000.0   # 2.5 billion
+    hot_pct = 10.0
+    cool_from = 30000000000.0
+    if world_yang <= 0:
+        factor = start_pct / 100.0
+    elif world_yang <= zero_yang:
+        factor = (start_pct + (100.0 - start_pct) * (world_yang / zero_yang)) / 100.0
+    else:
+        hot_end = max(zero_yang, cool_from)
+        hot_steps = (min(world_yang, hot_end) - zero_yang) / step_yang
+        factor = (1.0 + hot_pct / 100.0) ** hot_steps
+    return round(factor, 4)
+
+
+_ECONOMY_MAIN_CACHE = {}
+
 @app.route("/economy")
 @login_required
 def economy():
     query = request.args.get("q", "").strip().lower()
-    latest = one("SELECT MAX(captured_at) AS captured_at FROM player.web_seban_item_snapshot").get("captured_at")
-    items = []
+    cat_filter = request.args.get("cat", "all").strip().lower()
+    page = request.args.get("page", 1, type=int)
+    if page < 1:
+        page = 1
+
+    now_ts = time.time()
+    # Cache disabled for instant template & telemetry reflection
+    is_default_view = (not query and (not cat_filter or cat_filter == "all") and page == 1)
+
+    # 1. KPI Cards & Engine Inflation
+
+    world_yang_row = one("SELECT COALESCE(SUM(gold),0) AS world_yang FROM player.player") or {}
+    world_yang = int(world_yang_row.get("world_yang") or 0)
+    engine_inflation_factor = calculate_world_yang_inflation(world_yang)
+
+    totals = one("SELECT COALESCE(SUM(gold),0) AS total_yang, COUNT(id) AS total_players FROM player.player WHERE name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')") or {}
+    total_yang = int(totals.get("total_yang") or 0)
+    total_players = int(totals.get("total_players") or 0)
+    avg_yang = total_yang // total_players if total_players else 0
+
+    latest_shop = (one("SELECT MAX(captured_at) AS m FROM player.web_seban_shop_snapshot") or {}).get("m")
+    shop_stats = one("SELECT COALESCE(SUM(total_value),0) AS shop_val, COALESCE(SUM(offer_count),0) AS shop_offers FROM player.web_seban_shop_snapshot WHERE captured_at=%s", (latest_shop,)) if latest_shop else {}
+
+    baseline = one("SELECT value FROM player.web_seban_metric_snapshot WHERE metric='total_yang' AND captured_at >= NOW() - INTERVAL 24 HOUR ORDER BY captured_at ASC LIMIT 1")
+    baseline_yang = int(baseline.get("value")) if baseline else total_yang
+    inflation_pct = round(((total_yang - baseline_yang) / baseline_yang * 100), 1) if baseline_yang else 0.0
+
+    bonus_pool_row = one("SELECT COALESCE(SUM(count),0) AS c FROM player.item WHERE vnum IN (71284, 71285, 71084, 71085)") or {}
+    bonus_pool = int(bonus_pool_row.get("c") or 0)
+
+    kpi = {
+        "total_yang": total_yang,
+        "world_yang": world_yang,
+        "engine_inflation_factor": engine_inflation_factor,
+        "engine_inflation_pct": round(engine_inflation_factor * 100, 1),
+        "avg_yang": avg_yang,
+        "total_players": total_players,
+        "shop_val": int(shop_stats.get("shop_val") or 0),
+        "shop_offers": int(shop_stats.get("shop_offers") or 0),
+        "inflation_pct": inflation_pct,
+        "bonus_pool": bonus_pool,
+    }
+
+    # 2. Watchlist (Barometr Surowców)
+    w_vnums = [w["vnum"] for w in ECONOMY_WATCHLIST_DEF]
+    w_placeholders = ','.join(['%s'] * len(w_vnums))
+    w_counts_raw = rows(f"SELECT vnum, SUM(count) AS total_count FROM player.item WHERE vnum IN ({w_placeholders}) GROUP BY vnum", tuple(w_vnums))
+    w_counts_map = {int(r["vnum"]): int(r["total_count"]) for r in w_counts_raw}
+
+    w_prices_raw = rows(f"""
+      SELECT s.vnum, ROUND(s.total_value / s.total_units) AS avg_price, s.offers, s.total_units
+      FROM player.web_seban_shop_item_snapshot s
+      JOIN (
+        SELECT vnum, MAX(captured_at) AS max_cap
+        FROM player.web_seban_shop_item_snapshot
+        WHERE vnum IN ({w_placeholders})
+        GROUP BY vnum
+      ) m ON s.vnum = m.vnum AND s.captured_at = m.max_cap
+    """, tuple(w_vnums))
+    w_prices_map = {int(r["vnum"]): r for r in w_prices_raw}
+
+    watchlist = []
+    for w in ECONOMY_WATCHLIST_DEF:
+        v = w["vnum"]
+        pm = w_prices_map.get(v, {})
+        watchlist.append({
+            "vnum": v,
+            "label": w["label"],
+            "tag": w["tag"],
+            "amount": w_counts_map.get(v, 0),
+            "avg_price": int(pm.get("avg_price") or 0),
+            "offers": int(pm.get("offers") or 0),
+            "icon": item_icon_url(v)
+        })
+
+    # 3. Wealth (Struktura majątku i Top 8 najbogatszych)
+    wealth_row = one("""
+    SELECT 
+      SUM(CASE WHEN a.login NOT LIKE 'playerbot_%%' AND p.name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman') THEN p.gold ELSE 0 END) AS player_gold,
+      SUM(CASE WHEN a.login LIKE 'playerbot_%%' THEN p.gold ELSE 0 END) AS bot_gold,
+      COUNT(CASE WHEN a.login NOT LIKE 'playerbot_%%' AND p.name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman') THEN 1 END) AS player_count,
+      COUNT(CASE WHEN a.login LIKE 'playerbot_%%' THEN 1 END) AS bot_count
+    FROM player.player p
+    JOIN account.account a ON a.id = p.account_id
+    """) or {}
+
+    top_richest = rows("""
+    SELECT p.id, p.name, p.level, p.gold, pi.empire,
+           (a.login NOT LIKE 'playerbot_%%') AS is_person
+    FROM player.player p
+    JOIN player.player_index pi ON pi.id = p.account_id
+    JOIN account.account a ON a.id = p.account_id
+    WHERE p.name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')
+    ORDER BY p.gold DESC LIMIT 8
+    """)
+
+    wealth = {
+        "player_gold": int(wealth_row.get("player_gold") or 0),
+        "bot_gold": int(wealth_row.get("bot_gold") or 0),
+        "player_count": int(wealth_row.get("player_count") or 0),
+        "bot_count": int(wealth_row.get("bot_count") or 0),
+        "top_richest": top_richest
+    }
+
+    # 4. Special Systems Telemetry (Moduł 6 - Graceful/Conditional)
+    special_systems = {"available": False}
+    try:
+        liq_stats = one("""
+            SELECT 
+                COUNT(*) AS total_liquidations,
+                COUNT(DISTINCT who) AS active_bots,
+                SUM(CASE WHEN vnum=71285 THEN 1 ELSE 0 END) AS adds_created,
+                SUM(CASE WHEN vnum=71284 THEN 1 ELSE 0 END) AS switches_created
+            FROM log.log
+            WHERE how='PLAYERBOT_M1M2_LIQUIDATION'
+        """) or {}
+        tot_liq = int(liq_stats.get("total_liquidations") or 0)
+        buyer_bots_count = (one("""
+            SELECT COUNT(*) AS c FROM player.player p
+            JOIN account.account a ON a.id = p.account_id
+            WHERE a.login LIKE 'playerbot_%%' AND MOD(p.id, 100) < 15
+        """) or {}).get("c") or 0
+
+        liq_recent = rows("""
+            SELECT l.time, l.who, p.name, l.vnum, l.hint, pi.empire
+            FROM log.log l
+            LEFT JOIN player.player p ON p.id = l.who
+            LEFT JOIN player.player_index pi ON pi.id = p.account_id
+            WHERE l.how='PLAYERBOT_M1M2_LIQUIDATION'
+            ORDER BY l.time DESC LIMIT 6
+        """)
+        for r in liq_recent:
+            r["time_str"] = r["time"].strftime("%H:%M:%S") if r.get("time") else "—"
+            r["item_name"] = resolve_item_display_name(r["vnum"], 0, game_text(r.get("hint") or ""))
+            r["icon_url"] = item_icon_url(r["vnum"])
+
+        if tot_liq > 0 or buyer_bots_count > 0:
+            special_systems = {
+                "available": True,
+                "total_liquidations": tot_liq,
+                "active_bots": int(liq_stats.get("active_bots") or 0),
+                "adds_created": int(liq_stats.get("adds_created") or 0),
+                "switches_created": int(liq_stats.get("switches_created") or 0),
+                "buyer_bots_count": buyer_bots_count,
+                "recent": liq_recent
+            }
+    except Exception:
+        special_systems = {"available": False}
+
+    # 5. Items in circulation with category & window breakdown
+    latest = (one("SELECT MAX(captured_at) AS captured_at FROM player.web_seban_item_snapshot") or {}).get("captured_at")
+    raw_items = []
+    cat_counts = {"all": 0, "materials": 0, "skillbooks": 0, "stones": 0, "equipment": 0, "alchemy": 0, "chests": 0, "other": 0}
     if latest:
-        items = rows("""
-          SELECT s.vnum, s.socket0, s.amount, COALESCE(p.locale_name, CONCAT('VNUM ', s.vnum)) AS item_name
-          FROM player.web_seban_item_snapshot s LEFT JOIN player.item_proto p ON p.vnum=s.vnum
-          WHERE s.captured_at=%s ORDER BY s.amount DESC
-        """, (latest,))
-        for item in items:
-            item["item_name"] = resolve_item_display_name(item["vnum"], item["socket0"], game_text(item["item_name"]))
-        if query:
-            items = [item for item in items if query in item["item_name"].lower() or query == str(item["vnum"])]
+        # Pamięć podręczna (TTL 60s) snapshotu przedmiotów
+        now_ts = time.time()
+        cached_circ = _ITEM_PROTO_CACHE.get(f"_circ_{latest}")
+        if cached_circ and (now_ts - cached_circ["ts"]) < 60:
+            raw_items, cat_counts = cached_circ["items"], dict(cached_circ["counts"])
+        else:
+            raw_items = rows("""
+              SELECT s.vnum, s.socket0, s.amount, COALESCE(p.locale_name, CONCAT('VNUM ', s.vnum)) AS item_name,
+                     p.type AS item_type, p.subtype AS item_subtype
+              FROM player.web_seban_item_snapshot s LEFT JOIN player.item_proto p ON p.vnum=s.vnum
+              WHERE s.captured_at=%s ORDER BY s.amount DESC
+            """, (latest,))
+            for item in raw_items:
+                item["item_name"] = resolve_item_display_name(item["vnum"], item["socket0"], game_text(item["item_name"]))
+                cat_key, cat_name = classify_economy_item(item["vnum"], item.get("item_type"), item.get("item_subtype"))
+                item["cat_key"] = cat_key
+                item["cat_name"] = cat_name
+                cat_counts["all"] += 1
+                if cat_key in cat_counts:
+                    cat_counts[cat_key] += 1
+                else:
+                    cat_counts["other"] += 1
+            _ITEM_PROTO_CACHE[f"_circ_{latest}"] = {"ts": now_ts, "items": raw_items, "counts": cat_counts}
+
+
+    filtered_items = raw_items
+    if cat_filter and cat_filter != "all":
+        filtered_items = [i for i in filtered_items if i.get("cat_key") == cat_filter]
+    if query:
+        filtered_items = [i for i in filtered_items if query in i["item_name"].lower() or query == str(i["vnum"])]
+
+    PER_PAGE = 50
+    total_items_count = len(filtered_items)
+    total_pages = max(1, (total_items_count + PER_PAGE - 1) // PER_PAGE)
+    if page > total_pages:
+        page = total_pages
+    start_idx = (page - 1) * PER_PAGE
+    items_page = filtered_items[start_idx : start_idx + PER_PAGE]
+
+    # Batch query window distribution for items on current page
+    vnums_on_page = list({i["vnum"] for i in items_page})
+    if vnums_on_page:
+        w_placeholders = ','.join(['%s'] * len(vnums_on_page))
+        w_rows = rows(f"""
+          SELECT vnum,
+                 SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
+                 SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
+                 SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count
+          FROM player.item WHERE vnum IN ({w_placeholders}) GROUP BY vnum
+        """, tuple(vnums_on_page))
+        w_map = {int(r["vnum"]): r for r in w_rows}
+        for item in items_page:
+            w = w_map.get(item["vnum"], {})
+            item["inv_count"] = int(w.get("inv_count") or 0)
+            item["safebox_count"] = int(w.get("safebox_count") or 0)
+            item["shop_count"] = int(w.get("shop_count") or 0)
+            item["icon_url"] = item_icon_url(item["vnum"])
+
+    # 6. Bilans Walutowy (Faucet vs Sink / Net Yang Burn Rate) - Moduł 2 & Punkt 2
+    faucet_sink = {"available": False}
+    try:
+        fs_log = one("""
+            SELECT 
+                SUM(CASE WHEN gold > 0 THEN gold ELSE 0 END) AS faucet_gold,
+                SUM(CASE WHEN gold < 0 THEN -gold ELSE 0 END) AS sink_gold,
+                SUM(CASE WHEN type = 'MONSTER' AND gold > 0 THEN gold ELSE 0 END) AS monster_drop,
+                SUM(CASE WHEN type = 'DROP' AND gold > 0 THEN gold ELSE 0 END) AS ground_drop,
+                SUM(CASE WHEN type = 'SHOP' AND gold > 0 THEN gold ELSE 0 END) AS npc_sales,
+                SUM(CASE WHEN type = 'KILL' AND gold > 0 THEN gold ELSE 0 END) AS pvp_gain,
+                SUM(CASE WHEN type = 'REFINE' AND gold < 0 THEN -gold ELSE 0 END) AS blacksmith_sink,
+                SUM(CASE WHEN type = 'GUILD' AND gold < 0 THEN -gold ELSE 0 END) AS guild_sink
+            FROM log.money_log
+            WHERE time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """) or {}
+        
+        # Prowizja rynku offline (TAX)
+        shop_tax_row = one("""
+            SELECT SUM(CAST(SUBSTRING_INDEX(extra, 'TAX: ', -1) AS UNSIGNED)) AS total_tax
+            FROM log.ikarusshop_log
+            WHERE what = 'BUY_ITEM' AND extra LIKE '%%TAX:%%'
+              AND time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """) or {}
+        shop_tax_sink = int(shop_tax_row.get("total_tax") or 0)
+        
+        faucet_total = int(fs_log.get("faucet_gold") or 0)
+        blacksmith_sink = int(fs_log.get("blacksmith_sink") or 0)
+        guild_sink = int(fs_log.get("guild_sink") or 0)
+        sink_total = blacksmith_sink + guild_sink + shop_tax_sink
+        net_delta = faucet_total - sink_total
+        burn_rate_pct = round((sink_total / faucet_total * 100), 1) if faucet_total > 0 else 0.0
+
+        # Bot market injection (ile Yang boty wpompowały kupując oferty od postaci)
+        bot_market_row = one("""
+            SELECT SUM(l.yang) as bot_spent, COUNT(*) as bot_buys
+            FROM log.ikarusshop_log l
+            JOIN account.account a ON a.id = l.who
+            WHERE l.what = 'BUY_ITEM' AND a.login LIKE 'playerbot_%%'
+              AND l.time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """) or {}
+
+        faucet_sink = {
+            "available": True,
+            "faucet_total": faucet_total,
+            "sink_total": sink_total,
+            "net_delta": net_delta,
+            "burn_rate_pct": burn_rate_pct,
+            "monster_drop": int(fs_log.get("monster_drop") or 0),
+            "ground_drop": int(fs_log.get("ground_drop") or 0),
+            "npc_sales": int(fs_log.get("npc_sales") or 0),
+            "blacksmith_sink": blacksmith_sink,
+            "shop_tax_sink": shop_tax_sink,
+            "bot_market_spent": int(bot_market_row.get("bot_spent") or 0),
+            "bot_market_buys": int(bot_market_row.get("bot_buys") or 0),
+        }
+    except Exception:
+        faucet_sink = {"available": False}
+
+    # 7. Trend Yang (7 days)
     trend = rows("""
       SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, value FROM player.web_seban_metric_snapshot
       WHERE metric='total_yang' AND captured_at >= NOW() - INTERVAL 7 DAY ORDER BY captured_at
     """)
-    return render_template("economy.html", latest=latest, items=items[:500], query=query, trend=trend)
+
+    # Discord webhook configured status
+    discord_configured = bool(os.environ.get("SEBAN_DISCORD_WEBHOOK_URL") or os.environ.get("DISCORD_WEBHOOK_URL") or settings().get("discord_webhook_url"))
+
+    rendered = render_template("economy.html", latest=latest, items=items_page,
+                               page=page, total_pages=total_pages, total_items_count=total_items_count,
+                               cat_filter=cat_filter, cat_counts=cat_counts, query=query,
+                               kpi=kpi, watchlist=watchlist, wealth=wealth,
+                               special_systems=special_systems, faucet_sink=faucet_sink,
+                               discord_configured=discord_configured, trend=trend)
+    if is_default_view:
+        _ECONOMY_MAIN_CACHE["default"] = {"ts": now_ts, "html": rendered}
+    return rendered
+
+
+
+@app.route("/economy/export")
+@login_required
+def economy_export():
+    """Eksport zestawienia przedmiotów w obiegu do formatu CSV lub JSON."""
+    fmt = request.args.get("format", "csv").lower()
+    latest = (one("SELECT MAX(captured_at) AS captured_at FROM player.web_seban_item_snapshot") or {}).get("captured_at")
+    raw_items = []
+    if latest:
+        raw_items = rows("""
+          SELECT s.vnum, s.socket0, s.amount, COALESCE(p.locale_name, CONCAT('VNUM ', s.vnum)) AS item_name,
+                 p.type AS item_type, p.subtype AS item_subtype
+          FROM player.web_seban_item_snapshot s LEFT JOIN player.item_proto p ON p.vnum=s.vnum
+          WHERE s.captured_at=%s ORDER BY s.amount DESC
+        """, (latest,))
+        for item in raw_items:
+            item["item_name"] = resolve_item_display_name(item["vnum"], item["socket0"], game_text(item["item_name"]))
+            cat_key, cat_name = classify_economy_item(item["vnum"], item.get("item_type"), item.get("item_subtype"))
+            item["category"] = cat_name
+
+    if fmt == "json":
+        return jsonify({
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "snapshot": str(latest) if latest else None,
+            "count": len(raw_items),
+            "items": raw_items
+        })
+
+    # Default CSV
+    import io
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(["VNUM", "Nazwa Przedmiotu", "Kategoria", "Ilość w Obiegu"])
+    for item in raw_items:
+        writer.writerow([item["vnum"], item["item_name"], item.get("category", "Inne"), item["amount"]])
+
+    filename = f"metin2_economy_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return output.getvalue(), 200, {
+        "Content-Type": "text/csv; charset=utf-8-sig",
+        "Content-Disposition": f"attachment; filename={filename}"
+    }
+
+
+def send_discord_economy_report(webhook_url=None):
+    """Pomocnik generujący i wysyłający embed gospodarki na Webhook Discord."""
+    url = (
+        webhook_url or
+        os.environ.get("SEBAN_DISCORD_WEBHOOK_URL", "").strip() or
+        os.environ.get("DISCORD_WEBHOOK_URL", "").strip() or
+        settings().get("discord_webhook_url", "").strip()
+    )
+    if not url:
+        return False, "Brak skonfigurowanego adresu Discord Webhook URL."
+
+    try:
+        # 1. Dane gospodarki
+        world_yang_row = one("SELECT COALESCE(SUM(gold),0) AS world_yang FROM player.player") or {}
+        world_yang = int(world_yang_row.get("world_yang") or 0)
+        engine_inflation = calculate_world_yang_inflation(world_yang)
+
+        totals = one("SELECT COALESCE(SUM(gold),0) AS total_yang, COUNT(id) AS total_players FROM player.player WHERE name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')") or {}
+        total_yang = int(totals.get("total_yang") or 0)
+        total_players = int(totals.get("total_players") or 0)
+
+        # 2. Faucet & Sink
+        fs = one("""
+            SELECT 
+                SUM(CASE WHEN gold > 0 THEN gold ELSE 0 END) AS faucet_gold,
+                SUM(CASE WHEN gold < 0 THEN -gold ELSE 0 END) AS sink_gold,
+                SUM(CASE WHEN type = 'REFINE' AND gold < 0 THEN -gold ELSE 0 END) AS blacksmith_sink
+            FROM log.money_log
+            WHERE time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """) or {}
+        shop_tax_row = one("""
+            SELECT SUM(CAST(SUBSTRING_INDEX(extra, 'TAX: ', -1) AS UNSIGNED)) AS total_tax
+            FROM log.ikarusshop_log
+            WHERE what = 'BUY_ITEM' AND extra LIKE '%%TAX:%%'
+              AND time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """) or {}
+        faucet_24h = int(fs.get("faucet_gold") or 0)
+        sink_24h = int(fs.get("blacksmith_sink") or 0) + int(shop_tax_row.get("total_tax") or 0)
+        net_delta = faucet_24h - sink_24h
+
+        # 3. Aktywne oferty rynku
+        latest_shop = (one("SELECT MAX(captured_at) AS m FROM player.web_seban_shop_snapshot") or {}).get("m")
+        shop_stats = one("SELECT COALESCE(SUM(total_value),0) AS shop_val, COALESCE(SUM(offer_count),0) AS shop_offers FROM player.web_seban_shop_snapshot WHERE captured_at=%s", (latest_shop,)) if latest_shop else {}
+        shop_val = int(shop_stats.get("shop_val") or 0)
+        shop_offers = int(shop_stats.get("shop_offers") or 0)
+
+        # Format embed Discord zgodny z punktem 10 PROJECT_CONTEXT.md
+        embed_color = 0x39E890 if net_delta >= 0 else 0xEF4444
+        fields = [
+            {"name": "💰 Yang w Obiegu", "value": f"**{format_yang(total_yang)}** ({total_players} postaci)", "inline": True},
+            {"name": "📊 Mnożnik Cen (Inflacja)", "value": f"**x{engine_inflation:.4f}** ({round(engine_inflation * 100, 1)}% bazy)", "inline": True},
+            {"name": "🏪 Rynek Offline", "value": f"**{format_yang(shop_val)}** ({shop_offers} ofert)", "inline": True},
+            {"name": "🌊 Dopływ Yang (Faucet 24h)", "value": f"+{format_yang(faucet_24h)}", "inline": True},
+            {"name": "🔥 Niszczenie Yang (Sink 24h)", "value": f"-{format_yang(sink_24h)}", "inline": True},
+            {"name": "⚖️ Bilans Dobowy (Net Delta)", "value": f"{'+' if net_delta >= 0 else ''}{format_yang(net_delta)}", "inline": True},
+        ]
+
+        payload = {
+            "username": "Seban Panel · Gospodarka",
+            "avatar_url": "https://raw.githubusercontent.com/martysama0134/how-to-mt2/master/resources/icons/item/money.png",
+            "embeds": [{
+                "title": "📈 Raport Gospodarki & Bilans Yang",
+                "description": "Cykliczny monitoring przepływu waluty, inflacji silnika oraz obrotów rynku.",
+                "color": embed_color,
+                "fields": fields,
+                "footer": {"text": f"MT2Plus Server · {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
+            }]
+        }
+
+        req = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "User-Agent": "SebanPanel-Economy/2.0"}
+        )
+        with urlopen(req, timeout=8) as resp:
+            if resp.status in (200, 204):
+                write_settings({"discord_last_report_ts": str(int(time.time()))})
+                return True, "Raport wysłany pomyślnie."
+            return False, f"Kod statusu Discord: {resp.status}"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _discord_hourly_reporter_worker():
+    """Wątek w tle wysyłający raport co 1 godzinę, jeśli włączono w panelu."""
+    while True:
+        try:
+            s = settings()
+            auto_enabled = s.get("discord_hourly_report", "0") == "1"
+            webhook_url = s.get("discord_webhook_url", "").strip() or os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+            if auto_enabled and webhook_url:
+                last_ts = int(s.get("discord_last_report_ts", "0") or 0)
+                now_ts = int(time.time())
+                if now_ts - last_ts >= 3600:
+                    send_discord_economy_report(webhook_url)
+        except Exception:
+            pass
+        time.sleep(60)
+
+
+threading.Thread(target=_discord_hourly_reporter_worker, name="discord-hourly-economy", daemon=True).start()
+
+
+@app.post("/economy/discord-report")
+@login_required
+def economy_discord_report():
+    """Zapisuje ustawienia Webhooka i harmonogramu 1h oraz opcjonalnie wysyła natychmiastowy raport."""
+    webhook_url = request.form.get("webhook_url", "").strip()
+    hourly_enabled = "1" if request.form.get("hourly_enabled") == "1" else "0"
+    action = request.form.get("action", "send")
+
+    updates = {"discord_hourly_report": hourly_enabled}
+    if webhook_url:
+        updates["discord_webhook_url"] = webhook_url
+    write_settings(updates)
+
+    if action == "save_only":
+        flash("Zapisano ustawienia Webhooka Discord i harmonogramu raportów co 1h.", "success")
+        return redirect(url_for("economy"))
+
+    ok, msg = send_discord_economy_report(webhook_url)
+    if ok:
+        flash("Pomyślnie wysłano raport gospodarki na Discord! " + ("Harmonogram co 1h jest aktywny." if hourly_enabled == "1" else ""), "success")
+    else:
+        flash(f"Nie udało się wysłać raportu na Discord: {msg}", "error")
+
+    return redirect(url_for("economy"))
 
 
 @app.route("/economy/item/<int:vnum>")
 @login_required
 def economy_item(vnum):
-    item = one("SELECT vnum,COALESCE(locale_name,CONCAT('VNUM ',vnum)) AS item_name FROM player.item_proto WHERE vnum=%s", (vnum,)) or {"vnum": vnum, "item_name": f"VNUM {vnum}"}
-    item["item_name"] = game_text(item["item_name"])
-    history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,amount
+    proto = one("SELECT vnum,COALESCE(locale_name,CONCAT('VNUM ',vnum)) AS item_name, type, subtype FROM player.item_proto WHERE vnum=%s", (vnum,)) or {"vnum": vnum, "item_name": f"VNUM {vnum}"}
+    item = {
+        "vnum": vnum,
+        "item_name": game_text(proto["item_name"]),
+        "type": proto.get("type"),
+        "subtype": proto.get("subtype"),
+        "icon_url": item_icon_url(vnum)
+    }
+    history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, amount
       FROM player.web_seban_item_snapshot WHERE vnum=%s AND captured_at >= NOW() - INTERVAL 14 DAY ORDER BY captured_at""", (vnum,))
-    return render_template("economy_item.html", item=item, history=history)
+
+    # Distribution across windows
+    dist = one("""
+      SELECT 
+        SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
+        SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
+        SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
+        SUM(count) AS total_count,
+        COUNT(DISTINCT owner_id) AS total_owners
+      FROM player.item WHERE vnum=%s
+    """, (vnum,)) or {}
+
+    distribution = {
+        "inv": int(dist.get("inv_count") or 0),
+        "safebox": int(dist.get("safebox_count") or 0),
+        "shop": int(dist.get("shop_count") or 0),
+        "total": int(dist.get("total_count") or 0),
+        "owners": int(dist.get("total_owners") or 0)
+    }
+
+    # Top holders
+    holders = rows("""
+      SELECT p.id, p.name, p.level, pi.empire, (a.login NOT LIKE 'playerbot_%%') AS is_person,
+             SUM(i.count) AS item_count
+      FROM player.item i
+      JOIN player.player p ON p.id = i.owner_id
+      JOIN player.player_index pi ON pi.id = p.account_id
+      JOIN account.account a ON a.id = p.account_id
+      WHERE i.vnum = %s
+      GROUP BY p.id ORDER BY item_count DESC LIMIT 8
+    """, (vnum,))
+
+    # Market snapshot & price history with Fair Value / Median / Spread
+    active_offers_raw = rows("""
+      SELECT 
+        (CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS unit_price,
+        i.count AS count
+      FROM player.item i
+      JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
+      WHERE i.vnum = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
+        AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+      ORDER BY unit_price ASC
+    """, (vnum,))
+
+    offers_count = len(active_offers_raw)
+    total_market_units = sum(int(r["count"]) for r in active_offers_raw) if active_offers_raw else 0
+
+    fair_value = 0
+    min_unit_price = 0
+    max_unit_price = 0
+    avg_unit_price = 0
+    spread_pct = 0.0
+
+    if offers_count > 0:
+        prices = [float(r["unit_price"]) for r in active_offers_raw]
+        min_unit_price = int(prices[0])
+        max_unit_price = int(prices[-1])
+        avg_unit_price = int(sum(prices) / offers_count)
+        
+        # Mediana (Fair Value)
+        mid = offers_count // 2
+        if offers_count % 2 != 0:
+            fair_value = int(prices[mid])
+        else:
+            fair_value = int((prices[mid - 1] + prices[mid]) / 2)
+
+        if min_unit_price > 0:
+            spread_pct = round(((max_unit_price - min_unit_price) / min_unit_price) * 100, 1)
+
+    # Obroty i rotacja z logów transakcji 24h (Płynność rynku)
+    liquidity_24h = one("""
+      SELECT 
+        COUNT(*) AS tx_count_24h,
+        COALESCE(SUM(count), 0) AS units_sold_24h,
+        COALESCE(SUM(yang), 0) AS turnover_yang_24h
+      FROM log.ikarusshop_log
+      WHERE vnum = %s AND what = 'BUY_ITEM' AND time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    """, (vnum,)) or {}
+
+    tx_count_24h = int(liquidity_24h.get("tx_count_24h") or 0)
+    units_sold_24h = int(liquidity_24h.get("units_sold_24h") or 0)
+    turnover_yang_24h = int(liquidity_24h.get("turnover_yang_24h") or 0)
+
+    # Ocena płynności
+    if tx_count_24h >= 50 or units_sold_24h >= 200:
+        liquidity_badge = {"label": "Bardzo Wysoka Płynność", "color": "#39e890", "desc": "Przedmiot natychmiast rotuje na rynku"}
+    elif tx_count_24h >= 10 or units_sold_24h >= 30:
+        liquidity_badge = {"label": "Umiarkowana Płynność", "color": "#60a5fa", "desc": "Stabilny popyt, oferty regularnie schodzą"}
+    elif tx_count_24h > 0:
+        liquidity_badge = {"label": "Niska Płynność", "color": "#f6c85f", "desc": "Rzadkie transakcje, sprzedaż wymaga czasu"}
+    else:
+        liquidity_badge = {"label": "Brak Obrotu (Zastój)", "color": "var(--muted)", "desc": "Brak kupców w ostatnich 24h"}
+
+    market = {
+        "offers": offers_count,
+        "units": total_market_units,
+        "min_unit_price": min_unit_price,
+        "max_unit_price": max_unit_price,
+        "avg_unit_price": avg_unit_price,
+        "fair_value": fair_value,
+        "spread_pct": spread_pct,
+        "tx_count_24h": tx_count_24h,
+        "units_sold_24h": units_sold_24h,
+        "turnover_yang_24h": turnover_yang_24h,
+        "liquidity_badge": liquidity_badge
+    }
+
+    price_history = rows("""
+      SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,
+             ROUND(total_value / total_units) AS avg_price, total_units, offers
+      FROM player.web_seban_shop_item_snapshot
+      WHERE vnum = %s AND captured_at >= NOW() - INTERVAL 14 DAY
+      ORDER BY captured_at ASC
+    """, (vnum,))
+
+    return render_template("economy_item.html", item=item, history=history,
+                           distribution=distribution, holders=holders,
+                           market=market, price_history=price_history)
 
 
 def _shop_trend(current, previous):
@@ -7113,8 +7790,8 @@ def shop_item_market_row(vnum, socket0, shop_latest):
     Resolves its own display name (instead of taking one from the caller) so
     that the same vnum -- e.g. 50300, the generic Skill Book -- can come back
     with a different name per socket0."""
-    proto = one("SELECT COALESCE(locale_name, CONCAT('VNUM ', vnum)) AS item_name FROM player.item_proto WHERE vnum=%s", (vnum,))
-    base_name = game_text(proto["item_name"]) if proto else f"VNUM {vnum}"
+    proto = get_cached_item_proto(vnum)
+    base_name = proto["locale_name"] if proto else f"VNUM {vnum}"
     item_name = resolve_item_display_name(vnum, socket0, base_name)
     now_row = one("""SELECT captured_at, offers, total_units, total_value
       FROM player.web_seban_shop_item_snapshot WHERE vnum=%s AND socket0=%s ORDER BY captured_at DESC LIMIT 1""", (vnum, socket0))
@@ -7150,27 +7827,25 @@ def map_short_code(index):
 
 
 def _item_display_name(vnum, socket0=0):
-    proto = one("SELECT COALESCE(locale_name, CONCAT('VNUM ', vnum)) AS item_name FROM player.item_proto WHERE vnum=%s", (vnum,))
-    base_name = game_text(proto["item_name"]) if proto else f"VNUM {vnum}"
+    proto = get_cached_item_proto(vnum)
+    base_name = proto["locale_name"] if proto else f"VNUM {vnum}"
     return resolve_item_display_name(vnum, socket0, base_name)
 
+
+_SALES_VELOCITY_CACHE = {}
 
 def shop_sales_velocity(hours=24, limit=15, only_skillbooks=False):
     """Ranks items by how many times bots actually bought them off a stall in
     the last `hours` (log.log how='PLAYERBOT_STALL_SOLD'), not by what is
     merely listed -- that is what shop_item_market_row() already covers.
     Demand signal for 'which price should go up', per operator's ask.
-    log.log itself has no socket0 column, but log.what is the sold item's
-    own id, and that row often still exists in player.item (confirmed on
-    live data: ~79% over 24h, ~90% within the last hour -- it only
-    disappears once a bot actually consumes the book). Joining it back lets
-    Skill Book sales split by the taught skill; a sale whose item is
-    already gone can't be attributed to any specific skill, so it is
-    dropped rather than shown as a 'which price should I raise' row for an
-    unknown skill -- that gave no real signal (confirmed with operator: the
-    lumped generic row was topping the ranking and telling them nothing
-    actionable). only_skillbooks=True narrows the whole query to Skill Book
-    vnums, for a dedicated 'top skill books' panel."""
+    Zbuforowane w pamięci podręcznej (TTL 60s) w celu natychmiastowego renderowania strony."""
+    cache_key = (hours, limit, only_skillbooks)
+    now_ts = time.time()
+    cached = _SALES_VELOCITY_CACHE.get(cache_key)
+    if cached and (now_ts - cached["ts"]) < 60:
+        return cached["data"]
+
     vnum_filter = " AND l.vnum IN ({})".format(",".join(str(v) for v in SKILLBOOK_VNUMS)) if only_skillbooks else ""
     raw = rows(f"""SELECT l.vnum, l.hint, l.time, i.socket0 FROM log.log l
       LEFT JOIN player.item i ON i.id=l.what
@@ -7208,7 +7883,9 @@ def shop_sales_velocity(hours=24, limit=15, only_skillbooks=False):
             "per_hour": round(a["sales"] / hours, 1),
             "price_trend": _shop_trend(recent_avg, older_avg) if recent_avg is not None else "flat",
         })
+    _SALES_VELOCITY_CACHE[cache_key] = {"ts": now_ts, "data": result}
     return result
+
 
 
 def recent_shop_sales(limit=10):
@@ -7244,9 +7921,25 @@ def recent_shop_sales(limit=10):
     return sales
 
 
+_ECONOMY_SHOPS_CACHE = {}
+
 @app.route("/economy/shops")
 @login_required
 def economy_shops():
+    query = request.args.get("q", "").strip()
+    try:
+        hours = int(request.args.get("hours", "24"))
+    except (TypeError, ValueError):
+        hours = 24
+    if hours not in (1, 6, 12, 24, 72, 168):
+        hours = 24
+
+    now_ts = time.time()
+    cache_key = f"{hours}_{query}" if query else f"default_{hours}"
+    cached_shops = _ECONOMY_SHOPS_CACHE.get(cache_key)
+    if cached_shops and (now_ts - cached_shops["ts"]) < 45:
+        return cached_shops["html"]
+
     # The collector's first snapshot creates the table; before it this page is
     # empty, like the dashboard's chart, not a 500.
     try:
@@ -7272,7 +7965,7 @@ def economy_shops():
         "items": sum(t["items"] for t in empire_totals.values()),
         "value": sum(t["value"] for t in empire_totals.values()),
         "transactions_total": int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD'").get("n") or 0),
-        "transactions_24h": int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL 24 HOUR").get("n") or 0),
+        "transactions_period": int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL %s HOUR", (hours,)).get("n") or 0),
     }
 
     # Same label/series pivot as maps(): one line per empire, values aligned
@@ -7296,17 +7989,8 @@ def economy_shops():
     ]}
 
     shop_latest = one("SELECT MAX(captured_at) AS captured_at FROM player.web_seban_shop_item_snapshot").get("captured_at")
-    query = request.args.get("q", "").strip()
     market_items = []
     if query:
-        # A search can name an item with zero active offers right now -- look
-        # it up regardless of whether it is in today's top ranking, and
-        # shop_item_market_row() reports whether it is on the market or was
-        # last seen there, rather than silently returning nothing.
-        # A generic term can match dozens/hundreds of item_proto rows (e.g.
-        # a common Polish word); items that have ever actually shown up in a
-        # shop are what the operator is asking about, so they are ranked
-        # first instead of getting cut off by LIMIT in plain vnum order.
         candidates = rows("""SELECT ip.vnum, COALESCE(ip.locale_name, CONCAT('VNUM ', ip.vnum)) AS item_name
           FROM player.item_proto ip
           LEFT JOIN (SELECT vnum, MAX(captured_at) AS seen FROM player.web_seban_shop_item_snapshot GROUP BY vnum) h
@@ -7314,12 +7998,6 @@ def economy_shops():
           WHERE ip.vnum=%s OR ip.locale_name LIKE %s
           ORDER BY (h.seen IS NOT NULL) DESC, ip.vnum LIMIT 20""",
           (int(query) if query.isdigit() else -1, f"%{query}%"))
-        # (vnum, socket0) pairs to look up. A plain item_proto match on the
-        # generic Skill Book (50300) is expanded into every specific skill
-        # variant this shop history has ever seen; a query is also matched
-        # against skill names directly, since item_proto's own locale_name
-        # for 50300 is always "Ksiega Umiejetnosci" and can never mention
-        # e.g. "Berserk" the way resolve_item_display_name()'s output does.
         keys = []
         for c in candidates:
             if int(c["vnum"]) in SKILLBOOK_VNUMS:
@@ -7346,19 +8024,23 @@ def economy_shops():
     except (TypeError, ValueError):
         fastest_items_limit = 15
     fastest_items_limit = max(15, min(100, fastest_items_limit))
-    all_sales_velocity = shop_sales_velocity(limit=None)
+    all_sales_velocity = shop_sales_velocity(hours=hours, limit=None)
     velocity_by_item = {(int(item["vnum"]), int(item.get("socket0", 0))): item for item in all_sales_velocity}
     for item in market_items:
         velocity = velocity_by_item.get((int(item["vnum"]), int(item.get("socket0", 0))), {})
-        item["sales_24h"] = int(velocity.get("sales", 0))
+        item["sales_period"] = int(velocity.get("sales", 0))
         item["sales_per_hour"] = float(velocity.get("per_hour", 0))
 
-    return render_template("economy_shops.html", latest=latest, by_map=by_map, query=query,
-                            empire_totals=empire_totals, kpi=kpi, value_trend=value_trend,
-                            market_items=market_items, fastest_items_limit=fastest_items_limit,
-                            sales_velocity=all_sales_velocity[:fastest_items_limit],
-                            skillbook_velocity=shop_sales_velocity(limit=5, only_skillbooks=True),
-                            recent_sales=recent_shop_sales(10))
+    rendered = render_template("economy_shops.html", latest=latest, by_map=by_map, query=query, hours=hours,
+                               empire_totals=empire_totals, kpi=kpi, value_trend=value_trend,
+                               market_items=market_items, fastest_items_limit=fastest_items_limit,
+                               sales_velocity=all_sales_velocity[:fastest_items_limit],
+                               skillbook_velocity=shop_sales_velocity(hours=hours, limit=5, only_skillbooks=True),
+                               recent_sales=recent_shop_sales(10))
+    _ECONOMY_SHOPS_CACHE[cache_key] = {"ts": now_ts, "html": rendered}
+    return rendered
+
+
 
 
 @app.route("/api/shop-feed")
@@ -7411,7 +8093,8 @@ def retirement_control_status():
     defaults = {"batch_id": 0, "bot_count": 50, "window_minutes": 15,
                 "shop_minutes": 30, "requested_at": 0, "queued_count": 0,
                 "active_count": 0, "reset_count": 0, "state": "ready",
-                "seen": False, "not_seen": False}
+                "seen": False, "not_seen": False, "progress_pct": 0,
+                "eta_text": "", "eta_seconds": 0}
     try:
         control = one("""SELECT batch_id,bot_count,window_minutes,shop_minutes,requested_at
                          FROM common.playerbot_retire_control WHERE id=1""")
@@ -7423,19 +8106,44 @@ def retirement_control_status():
     result.update({key: int(control.get(key) or 0) for key in
                    ("batch_id", "bot_count", "window_minutes", "shop_minutes", "requested_at")})
     progress = one("""SELECT COALESCE(b.queued_count,0) AS queued_count,
+        b.started_at,
         SUM(p.stage IN ('shopping','selling','closing')) AS active_count,
         SUM(p.stage='reset') AS reset_count, MAX(b.id IS NOT NULL) AS seen
       FROM common.playerbot_retire_control c
       LEFT JOIN common.playerbot_retire_batch b ON b.id=c.batch_id
       LEFT JOIN common.playerbot_retire_pick p ON p.batch_id=c.batch_id
-      WHERE c.id=1 GROUP BY c.batch_id,b.queued_count""") or {}
+      WHERE c.id=1 GROUP BY c.batch_id,b.queued_count,b.started_at""") or {}
     for key in ("queued_count", "active_count", "reset_count"):
         result[key] = int(progress.get(key) or 0)
     result["seen"] = bool(int(progress.get("seen") or 0))
+    started_at = int(progress.get("started_at") or result["requested_at"] or 0)
     if result["active_count"] or result["queued_count"] < result["bot_count"]:
         result["state"] = "active"
     elif result["batch_id"]:
         result["state"] = "complete"
+
+    # Progress percentage
+    bot_target = max(1, result["bot_count"])
+    result["progress_pct"] = min(100, int(round((result["reset_count"] / bot_target) * 100)))
+
+    # ETA calculation
+    if result["state"] == "active" and started_at > 0:
+        total_span_sec = (result["window_minutes"] + result["shop_minutes"]) * 60
+        elapsed = max(0, int(time.time() - started_at))
+        rem = max(0, total_span_sec - elapsed)
+        result["eta_seconds"] = rem
+        if rem >= 3600:
+            result["eta_text"] = f"ok. {rem // 3600}h {(rem % 3600) // 60} min"
+        elif rem >= 60:
+            result["eta_text"] = f"ok. {rem // 60} min"
+        elif rem > 0:
+            result["eta_text"] = f"{rem} sek"
+        else:
+            result["eta_text"] = "kończenie ostatnich sklepów..."
+    elif result["state"] == "complete":
+        result["progress_pct"] = 100
+        result["eta_text"] = "Zakończono"
+
     # MT2009_PLUS_BOT_RETIREMENT_FIX_V1: the core writes the batch row the
     # moment it takes a batch up. None two minutes after the click means no
     # core is picking (server down, or a core older than the fix on a world
@@ -7671,8 +8379,39 @@ def retired_bots():
       GROUP BY b.id,b.queued_count,b.started_at ORDER BY b.started_at DESC""")
     requested_batch = request.args.get("batch", "").strip()
     batch_id = int(requested_batch) if requested_batch.isdigit() else None
-    # Batch 0 is the world reset's (m2-world-reset): every bot, not a retirement.
-    where, params = ("WHERE p.batch_id=%s", (batch_id,)) if batch_id is not None else ("WHERE p.batch_id<>0", ())
+
+    # Search & filters
+    search_q = request.args.get("q", "").strip()
+    stage_filter = request.args.get("stage", "").strip()
+
+    where_clauses = ["p.batch_id<>0" if batch_id is None else "p.batch_id=%s"]
+    params = [batch_id] if batch_id is not None else []
+
+    if stage_filter in ("reset", "selling", "shopping", "closing", "aborted"):
+        where_clauses.append("p.stage=%s")
+        params.append(stage_filter)
+
+    if search_q:
+        if search_q.isdigit():
+            where_clauses.append("(p.pid=%s OR p.name LIKE %s)")
+            params.extend([int(search_q), f"%{search_q}%"])
+        else:
+            where_clauses.append("p.name LIKE %s")
+            params.append(f"%{search_q}%")
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    # Count total matching bots for pagination
+    count_row = one(f"SELECT COUNT(*) AS total FROM common.playerbot_retire_pick p {where_sql}", tuple(params))
+    total_bots = int(count_row.get("total") or 0) if count_row else 0
+
+    page = max(1, int(request.args.get("page", 1) if str(request.args.get("page", "1")).isdigit() else 1))
+    per_page = 30
+    total_pages = max(1, (total_bots + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+
     bots = rows(f"""SELECT p.pid,p.batch_id,p.name,p.level,p.stage,
         FROM_UNIXTIME(p.picked_at) AS picked_at,FROM_UNIXTIME(p.reset_at) AS reset_at,
         COUNT(i.item_id) AS listed_lines,COALESCE(SUM(i.listed_count),0) AS listed_units,
@@ -7681,9 +8420,9 @@ def retired_bots():
         COALESCE(SUM(i.sold_yang),0) AS audit_sold_yang
       FROM common.playerbot_retire_pick p
       LEFT JOIN common.playerbot_retire_item i ON i.batch_id=p.batch_id AND i.pid=p.pid
-      {where}
+      {where_sql}
       GROUP BY p.pid,p.batch_id,p.name,p.level,p.stage,p.picked_at,p.reset_at
-      ORDER BY p.picked_at DESC,p.pid DESC LIMIT 250""", params)
+      ORDER BY p.picked_at DESC,p.pid DESC LIMIT %s OFFSET %s""", tuple(params) + (per_page, offset))
     bot_keys = {(int(bot["batch_id"]), int(bot["pid"])): bot for bot in bots}
     for bot in bots:
         bot["items"], bot["events"] = [], []
@@ -7746,16 +8485,39 @@ def retired_bots():
             bot = bot_keys.get((int(event["batch_id"]), int(event["pid"])))
             if bot:
                 bot["events"].append(event)
+    # Calculate economy sink metrics (Yang sunk and items destroyed)
+    sink_where = "WHERE p.batch_id=%s" if batch_id is not None else "WHERE p.batch_id<>0"
+    sink_params = (batch_id,) if batch_id is not None else ()
+    sink_row = one(f"""
+        SELECT 
+            COALESCE(SUM(CASE WHEN p.stage='reset' AND i.status='sold' THEN i.sold_yang ELSE 0 END), 0) AS yang_sunk_reset,
+            COALESCE(SUM(CASE WHEN i.status='sold' THEN i.sold_yang ELSE 0 END), 0) AS yang_sunk_all,
+            COALESCE(SUM(CASE WHEN p.stage='reset' AND i.status='unsold' THEN 1 ELSE 0 END), 0) AS destroyed_lines,
+            COALESCE(SUM(CASE WHEN p.stage='reset' AND i.status='unsold' THEN i.listed_count ELSE 0 END), 0) AS destroyed_units,
+            COALESCE(SUM(CASE WHEN p.stage='reset' AND i.status='unsold' THEN i.listed_price ELSE 0 END), 0) AS destroyed_yang_value
+        FROM common.playerbot_retire_item i
+        JOIN common.playerbot_retire_pick p ON p.batch_id=i.batch_id AND p.pid=i.pid
+        {sink_where}
+    """, sink_params) or {}
+
     kpi = {
-        "bots": len(bots), "reset": sum(bot["stage"] == "reset" for bot in bots),
+        "bots": total_bots,
+        "reset": sum(bot["stage"] == "reset" for bot in bots),
         "selling": sum(bot["stage"] == "selling" for bot in bots),
         "sold_lines": sum(int(bot["engine_sold_lines"]) for bot in bots),
         "sold_units": sum(int(bot["engine_sold_units"]) for bot in bots),
         "sold_yang": sum(int(bot["engine_sold_yang"]) for bot in bots),
         "listed_units": sum(int(bot["listed_units"] or 0) for bot in bots),
+        "yang_sunk_reset": int(sink_row.get("yang_sunk_reset") or 0),
+        "yang_sunk_all": int(sink_row.get("yang_sunk_all") or 0),
+        "destroyed_lines": int(sink_row.get("destroyed_lines") or 0),
+        "destroyed_units": int(sink_row.get("destroyed_units") or 0),
+        "destroyed_yang_value": int(sink_row.get("destroyed_yang_value") or 0),
     }
     return render_template("retired_bots.html", bots=bots, batches=batches,
-                           selected_batch=batch_id, kpi=kpi,
+                           selected_batch=batch_id, search_q=search_q, stage_filter=stage_filter,
+                           page=page, total_pages=total_pages, total_bots=total_bots,
+                           kpi=kpi,
                            retirement=retirement_control_status(),
                            retirement_csrf=update_csrf_token())
 
@@ -7776,6 +8538,8 @@ def item_name_search(query):
     return "(" + clause + ")", params
 
 
+_ITEM_TYPES_CACHE = {"ts": 0, "types": None}
+
 @app.route("/items")
 @login_required
 def items_database():
@@ -7791,14 +8555,27 @@ def items_database():
         params.append(int(item_type))
     predicate = " WHERE " + " AND ".join(where) if where else ""
     total = one("SELECT COUNT(*) AS count FROM player.item_proto p" + predicate, params).get("count", 0)
-    records = rows("SELECT p.vnum,p.name,p.locale_name,p.type,p.subtype,p.size,p.gold,p.shop_buy_price FROM player.item_proto p" + predicate + " ORDER BY p.vnum", params)
+    
+    # Optymalizacja: ograniczamy renderowanie do pierwszych 500 wierszy na starcie,
+    # aby uniknąć przesyłania 5.2 MB HTML (30 000 kart DOM) do przeglądarki użytkownika.
+    limit_clause = " LIMIT 500" if (not query and not item_type) else (" LIMIT 500" if total > 500 else "")
+    records = rows("SELECT p.vnum,p.name,p.locale_name,p.type,p.subtype,p.size,p.gold,p.shop_buy_price FROM player.item_proto p" + predicate + " ORDER BY p.vnum" + limit_clause, params)
     for item in records:
         item["name"] = game_text(item.get("locale_name") or item.get("name"))
-    types = rows("SELECT type,COUNT(*) AS count,MIN(vnum) AS icon_vnum FROM player.item_proto GROUP BY type ORDER BY type")
-    for category in types:
-        index = int(category["type"])
-        category["label"] = ITEM_TYPE_NAMES[index] if 0 <= index < len(ITEM_TYPE_NAMES) else f"ITEM_TYPE_{index}"
+
+    now_ts = time.time()
+    if _ITEM_TYPES_CACHE["types"] and (now_ts - _ITEM_TYPES_CACHE["ts"]) < 3600:
+        types = _ITEM_TYPES_CACHE["types"]
+    else:
+        types = rows("SELECT type,COUNT(*) AS count,MIN(vnum) AS icon_vnum FROM player.item_proto GROUP BY type ORDER BY type")
+        for category in types:
+            index = int(category["type"])
+            category["label"] = ITEM_TYPE_NAMES[index] if 0 <= index < len(ITEM_TYPE_NAMES) else f"ITEM_TYPE_{index}"
+        _ITEM_TYPES_CACHE["ts"] = now_ts
+        _ITEM_TYPES_CACHE["types"] = types
+
     return render_template("items.html", items=records, types=types, selected_type=item_type, query=query, total=total)
+
 
 
 @app.get("/api/items")

@@ -30,7 +30,12 @@ var FIELDS = ['q','cat','sub','pmin','pmax','unit','lmin','lmax','rmin','rmax','
 var DEFAULTS = D.defaults;
 var state = {};
 function readUrl(){
-  var p = new URLSearchParams(location.search); state = {};
+  var s = location.search;
+  if (!s && location.hash) {
+    var h = location.hash.replace(/^#/, '');
+    if (h.indexOf('=') >= 0) s = '?' + h;
+  }
+  var p = new URLSearchParams(s); state = {};
   FIELDS.forEach(function(k){ var v = p.get(k); state[k] = (v === null ? DEFAULTS[k] : v); });
 }
 function writeUrl(push){

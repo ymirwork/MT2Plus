@@ -1,1 +1,501 @@
-{% extends 'base.html' %}{% block content %}<p class="eyebrow">GOSPODARKA</p><h1>Przedmioty i balans dropu</h1><p class="muted">Ostatni pełny odczyt kolektora (co 5 minut): {{latest or 'kolektor jeszcze nie wykonał odczytu'}}. Kliknij przedmiot, aby zobaczyć historię.</p>{% if trend %}{% set chart_line = '#e8b93f' if settings.theme=='empire' else '#60a5fa' %}{% set chart_tick = '#c9b699' if settings.theme=='empire' else '#8fa5c1' %}<section class="panel economy-yang-chart"><h2>Yang w obiegu · 7 dni</h2><canvas id="yang"></canvas></section><script>new Chart(document.getElementById('yang'),{type:'line',data:{labels:{{trend|map(attribute='captured_at')|list|tojson}},datasets:[{label:'Yang',data:{{trend|map(attribute='value')|list|tojson}},borderColor:'{{chart_line}}',backgroundColor:'{{chart_line}}22',fill:true,tension:.3,pointRadius:0}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'{{chart_tick}}'}},y:{ticks:{color:'{{chart_tick}}'}}}}});</script>{% endif %}<form class="search"><input name="q" value="{{query}}" placeholder="Nazwa lub VNUM przedmiotu"><button>Szukaj</button></form><section class="panel"><h2>{% if query %}Wyniki wyszukiwania{% else %}Najczęstsze przedmioty{% endif %}</h2><table><thead><tr><th>Przedmiot</th><th>VNUM</th><th>Łączna ilość</th></tr></thead><tbody>{% for i in items %}<tr><td class="item-cell"><a href="{{url_for('economy_item',vnum=i.vnum)}}">{% if item_icon(i.vnum) %}<img src="{{item_icon(i.vnum)}}" loading="lazy" alt="">{% endif %}{{i.item_name}}</a></td><td>{{i.vnum}}</td><td>{{'{:,}'.format(i.amount).replace(',', ' ')}}</td></tr>{% else %}<tr><td colspan="3" class="muted">Brak wyników albo pierwszy odczyt jeszcze trwa.</td></tr>{% endfor %}</tbody></table></section><script>document.body.dataset.ajaxForms='1';</script>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Gospodarka i Rynek · {{ panel_brand }}{% endblock %}
+{% block content %}
+<p class="eyebrow">GOSPODARKA</p>
+<h1>Centrum Gospodarki i Obiegu Dóbr</h1>
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px">
+  <p class="muted" style="margin:0">Ostatni pełny odczyt kolektora (co 5 minut): {{ latest or 'kolektor jeszcze nie wykonał odczytu' }}. Kompleksowy monitoring podaży, popytu, inflacji, majątku świata oraz obrotu surowcami.</p>
+  <div style="display:flex; gap:8px; align-items:center">
+    <a href="{{ url_for('economy_export', format='csv') }}" class="button" style="text-decoration:none; padding:6px 12px; font-size:12px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid var(--edge); color:inherit">
+      📥 Eksportuj CSV
+    </a>
+    <a href="{{ url_for('economy_export', format='json') }}" class="button" style="text-decoration:none; padding:6px 12px; font-size:12px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid var(--edge); color:inherit">
+      { } JSON
+    </a>
+    <button type="button" id="openDiscordBtn" onclick="document.getElementById('discordModal').showModal()" class="button" style="cursor:pointer; padding:6px 12px; font-size:12px; border-radius:4px; background:#5865f2; color:#fff; border:none; font-weight:600">
+      📢 Raport Discord
+    </button>
+  </div>
+</div>
+
+{# ========================================================== #}
+{# MODUŁ 1: KARTY KLUCZOWYCH WSKAŹNIKÓW (KPI)               #}
+{# ========================================================== #}
+<section class="cards">
+  <article>
+    <span>Yang w sakwach postaci</span>
+    <strong title="{{ '{:,}'.format(kpi.total_yang).replace(',', ' ') }} Yang">{{ format_yang(kpi.total_yang) }}</strong>
+    <small>
+      {% if kpi.inflation_pct > 0 %}
+        <span style="color:#ef4444">▲ +{{ kpi.inflation_pct }}%</span> przyrost 24h
+      {% elif kpi.inflation_pct < 0 %}
+        <span style="color:#39e890">▼ {{ kpi.inflation_pct }}%</span> spadek 24h
+      {% else %}
+        <span>– 0.0%</span> stabilnie 24h
+      {% endif %}
+    </small>
+  </article>
+  <article title="Jak interpretować mnożnik cen botów (WorldYangFactor):&#10;• x0.40 - x0.60: Wczesny rozwój (Early Game) - ceny niższe o 40-50%, bezpieczny start.&#10;• x0.65 - x0.85: Średni rozwój (Mid Game) - dynamiczny wzrost gospodarki.&#10;• x0.90 - x1.05: Wartość docelowa / IDEAŁ - 10 mld Yang na świecie, pełna równowaga.&#10;• x1.15 - x1.30: Lekkie przegrzanie - boty podnoszą ceny, aby ściągać nadmiar Yang.&#10;• > x1.50: Hiperinflacja - sygnał do aktywacji emerytury botów / zwiększenia podatków.">
+    <span style="display:inline-flex; align-items:center; gap:4px;">
+      Mnożnik Cen Botów (Inflacja)
+      <span style="cursor:help; font-size:11px; color:var(--muted); border:1px solid var(--edge); border-radius:50%; width:15px; height:15px; display:inline-flex; align-items:center; justify-content:center;" title="Kliknij lub najedź, aby przeczytać przewodnik interpretacji">?</span>
+    </span>
+    <strong style="color:#f6c85f">x{{ '%.4f'|format(kpi.engine_inflation_factor) }}</strong>
+    <small>{{ kpi.engine_inflation_pct }}% bazy cennika (baza: 10 mld Yang = x1.0)</small>
+  </article>
+  <article>
+    <span>Średnia zamożność</span>
+    <strong title="{{ '{:,}'.format(kpi.avg_yang).replace(',', ' ') }} Yang">{{ format_yang(kpi.avg_yang) }}</strong>
+    <small>średnio / postać ({{ kpi.total_players }} postaci)</small>
+  </article>
+  <article>
+    <span>Wartość rynku offline</span>
+    <strong title="{{ '{:,}'.format(kpi.shop_val).replace(',', ' ') }} Yang">{{ format_yang(kpi.shop_val) }}</strong>
+    <small>{{ '{:,}'.format(kpi.shop_offers).replace(',', ' ') }} aktywnych ofert</small>
+  </article>
+  <article style="cursor:help;" title="Pula Bonusów (Zaczarowania i Wzmocnienia):&#10;Łączny zasób Zaczarowań Przedmiotu (mixy, vnum 71084 / 71284) oraz Wzmocnień Przedmiotu (dodania 1-4, vnum 71085 / 71285) znajdujących się obecnie w ekwipunkach i magazynach wszystkich graczy oraz botów.&#10;Kluczowy miernik nasycenia rynku ulepszaczami premium.">
+    <span>Pula Bonusów (71284/71285)</span>
+    <strong>{{ kpi.bonus_pool }}</strong>
+    <small>Zaczarowania i Wzmocnienia w grze</small>
+  </article>
+</section>
+
+{# ========================================================== #}
+{# MODUŁ 2: BAROMETR KLUCZOWYCH SUROWCÓW (WATCHLIST)         #}
+{# ========================================================== #}
+<section class="panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px">
+    <div>
+      <h2 style="margin:0">💎 Barometr Rynku i Kluczowych Surowców</h2>
+      <p class="muted" style="margin:2px 0 0 0">Bieżący stan najważniejszych dóbr w obiegu oraz ich aktualna wycena na straganach.</p>
+    </div>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px">
+    {% for w in watchlist %}
+    <a href="{{ url_for('economy_item', vnum=w.vnum) }}" class="panel" style="padding:10px 12px; text-decoration:none; color:inherit; border:1px solid var(--edge); border-radius:6px; display:flex; flex-direction:column; justify-content:space-between; transition:transform .15s, border-color .15s">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px">
+        {% if w.icon %}<img src="{{ w.icon }}" style="width:28px; height:28px" loading="lazy" alt="">{% endif %}
+        <div style="min-width:0">
+          <div style="font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="{{ w.label }}">{{ w.label }}</div>
+          <span style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px">{{ w.tag }} · VNUM {{ w.vnum }}</span>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:baseline; border-top:1px dashed rgba(255,255,255,0.08); padding-top:6px">
+        <div>
+          <span style="font-size:11px; color:var(--muted)">W grze:</span>
+          <b style="font-size:13px; color:#ffe28a">{{ '{:,}'.format(w.amount).replace(',', ' ') }}</b>
+        </div>
+        <div style="text-align:right">
+          <span style="font-size:11px; color:var(--muted)">Śr. cena:</span>
+          <b style="font-size:12px; color:{% if w.avg_price %}#39e890{% else %}var(--muted){% endif %}" title="{{ '{:,}'.format(w.avg_price).replace(',', ' ') }} Yang">
+            {% if w.avg_price %}{{ format_yang(w.avg_price) }}{% else %}brak ofert{% endif %}
+          </b>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{# ========================================================== #}
+{# MODUŁ 3: STRUKTURA MAJĄTKU I WYKRES YANG                   #}
+{# ========================================================== #}
+<section class="grid two">
+  {# Wykres Yang w czasie #}
+  <article class="panel">
+    <h2>📈 Yang w obiegu · Ostatnie 7 dni</h2>
+    <p class="muted">Całkowita masa monetarna w sakiewkach postaci regularnych.</p>
+    {% if trend %}
+      {% set chart_line = '#e8b93f' if settings.theme=='empire' else '#60a5fa' %}
+      {% set chart_tick = '#c9b699' if settings.theme=='empire' else '#8fa5c1' %}
+      <div style="height:260px"><canvas id="yangChart"></canvas></div>
+    {% else %}
+      <p class="muted">Brak wystarczającej liczby odczytów metryki total_yang.</p>
+    {% endif %}
+  </article>
+
+  {# Podział majątku: Gracze vs Boty & Top 8 #}
+  <article class="panel">
+    <h2>💰 Struktura Majątku: Gracze vs Boty</h2>
+    <div style="display:flex; gap:12px; margin-bottom:12px">
+      <div style="flex:1; background:rgba(0,0,0,0.2); padding:10px; border-radius:6px; border:1px solid var(--edge)">
+        <span style="font-size:11px; color:var(--muted)">Majątek graczy ({{ wealth.player_count }} postaci)</span>
+        <div style="font-size:16px; font-weight:700; color:#39e890" title="{{ '{:,}'.format(wealth.player_gold).replace(',', ' ') }} Yang">{{ format_yang(wealth.player_gold) }}</div>
+      </div>
+      <div style="flex:1; background:rgba(0,0,0,0.2); padding:10px; border-radius:6px; border:1px solid var(--edge)">
+        <span style="font-size:11px; color:var(--muted)">Majątek botów ({{ wealth.bot_count }} botów)</span>
+        <div style="font-size:16px; font-weight:700; color:#60a5fa" title="{{ '{:,}'.format(wealth.bot_gold).replace(',', ' ') }} Yang">{{ format_yang(wealth.bot_gold) }}</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:13px; margin:10px 0 6px 0; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px">Top 8 Najbogatszych Postaci</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Postać</th>
+          <th>Poziom</th>
+          <th>Królestwo</th>
+          <th style="text-align:right">Złoto (Yang)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in wealth.top_richest %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>
+            <a href="{{ url_for('player', pid=p.id) }}" style="text-decoration:none; color:inherit; font-weight:600">
+              {% if p.is_person %}<span title="Postać gracza" style="color:#39e890">👤</span>{% else %}<span title="Bot" style="color:var(--muted)">🤖</span>{% endif %}
+              {{ p.name }}
+            </a>
+          </td>
+          <td>{{ p.level }}</td>
+          <td>
+            {% if empire_flag(p.empire) %}
+              <img class="empire-flag-inline" src="{{ empire_flag(p.empire) }}" alt="{{ empire_info(p.empire).name }}" title="{{ empire_info(p.empire).name }}">
+            {% else %}
+              {{ empire_info(p.empire).name }}
+            {% endif %}
+          </td>
+          <td style="text-align:right; font-weight:600; color:#ffe28a" title="{{ '{:,}'.format(p.gold).replace(',', ' ') }} Yang">
+            {{ format_yang(p.gold) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+
+{# ========================================================== #}
+{# BILANS WALUTOWY: FAUCET VS SINK (GENEROWANIE VS NISZCZENIE) #}
+{# ========================================================== #}
+{% if faucet_sink.available %}
+<section class="panel" style="border-left: 3px solid #60a5fa">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px">
+    <div>
+      <h2 style="margin:0">⚖️ Bilans Walutowy Świata (Dopływ vs Niszczenie Yang · 24h)</h2>
+      <p class="muted" style="margin:2px 0 0 0">Analiza przepływów pieniężnych: źródła kreacji waluty (drop, sprzedaż NPC) vs mechanizmy niszczenia (Kowal, prowizje rynku).</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center">
+      <span class="badge" style="background:{% if faucet_sink.net_delta >= 0 %}rgba(57,232,144,0.15){% else %}rgba(239,68,68,0.15){% endif %}; color:{% if faucet_sink.net_delta >= 0 %}#39e890{% else %}#ef4444{% endif %}; border:1px solid currentColor; padding:4px 10px; border-radius:4px; font-weight:700; cursor:help;" title="Net Delta (Bilans netto 24h):&#10;Różnica: Dopływ Yang (Faucet) minus Niszczenie Yang (Sink).&#10;• Wartość dodatnia (+): W świecie przybywa waluty (inflacja).&#10;• Wartość ujemna (-): Więcej waluty jest niszczone niż wydropione (deflacja / odsysanie Yang).&#10;• Wartość bliska zera: Stan idealnej równowagi rynkowej.&#10;&#10;Dokładna kwota: {{ '{:,}'.format(faucet_sink.net_delta).replace(',', ' ') }} Yang">
+        Net Delta: {% if faucet_sink.net_delta >= 0 %}+{% endif %}{{ format_yang(faucet_sink.net_delta) }}
+      </span>
+      <span class="badge" style="background:rgba(255,255,255,0.08); color:var(--muted); padding:4px 8px; border-radius:4px; font-size:12px; cursor:help;" title="Burn Rate (Wskaźnik niszczenia Yang):&#10;Stosunek zniszczonego Yang do wydropionego w ciągu 24h.&#10;• 100%: Idealna równowaga (dokładnie tyle samo waluty znika, ile powstało).&#10;• Ponad 100%: Silne odsysanie Yang (waluta zyskuje na wartości).&#10;• Poniżej 100%: Napływ gotówki przewyższa koszty niszczenia.">
+        Burn Rate: {{ faucet_sink.burn_rate_pct }}%
+      </span>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:14px">
+    <div style="background:rgba(57,232,144,0.06); padding:12px; border-radius:6px; border:1px solid rgba(57,232,144,0.25); cursor:help;" title="Dopływ Yang (Faucet 24h):&#10;Całkowita ilość nowo wygenerowanej waluty, która wpadła do gospodarki w ciągu ostatnich 24 godzin z dropu mobów, podniesień z ziemi oraz sprzedaży śmieci u handlarzy NPC.&#10;&#10;Dokładnie: {{ '{:,}'.format(faucet_sink.faucet_total).replace(',', ' ') }} Yang">
+      <span style="font-size:11px; color:#39e890; font-weight:600; text-transform:uppercase">🌊 Dopływ Yang (Faucet 24h)</span>
+      <div style="font-size:18px; font-weight:700; color:#39e890; margin:4px 0">+{{ format_yang(faucet_sink.faucet_total) }}</div>
+      <div style="font-size:11px; color:var(--muted); line-height:1.5">
+        • Drop z mobów: <b>{{ format_yang(faucet_sink.monster_drop) }}</b><br>
+        • Ziemia / Inne: <b>{{ format_yang(faucet_sink.ground_drop) }}</b><br>
+        • Sprzedaż u NPC: <b>{{ format_yang(faucet_sink.npc_sales) }}</b>
+      </div>
+    </div>
+
+    <div style="background:rgba(239,68,68,0.06); padding:12px; border-radius:6px; border:1px solid rgba(239,68,68,0.25); cursor:help;" title="Niszczenie Yang (Sink 24h):&#10;Ilość waluty trwale usunięta z obiegu w ciągu 24 godzin przez opłaty u Kowala, ulepszanie ekwipunku oraz prowizje podatkowe od sprzedaży w IkarusShop.&#10;&#10;Dokładnie: {{ '{:,}'.format(faucet_sink.sink_total).replace(',', ' ') }} Yang">
+      <span style="font-size:11px; color:#ef4444; font-weight:600; text-transform:uppercase">🔥 Niszczenie Yang (Sink 24h)</span>
+      <div style="font-size:18px; font-weight:700; color:#ef4444; margin:4px 0">-{{ format_yang(faucet_sink.sink_total) }}</div>
+      <div style="font-size:11px; color:var(--muted); line-height:1.5">
+        • Kowal & Ulepszanie: <b>{{ format_yang(faucet_sink.blacksmith_sink) }}</b><br>
+        • Prowizje rynku offline: <b>{{ format_yang(faucet_sink.shop_tax_sink) }}</b>
+      </div>
+    </div>
+
+    <div style="background:rgba(96,165,250,0.06); padding:12px; border-radius:6px; border:1px solid rgba(96,165,250,0.25); cursor:help;" title="Zasilenie z Rynku Botów (24h):&#10;Łączna suma Yang wprowadzona w obieg rynkowy przez algorytmy botów skupujących towary z wystawionych sklepów graczy i innych postaci.&#10;&#10;Dokładnie: {{ '{:,}'.format(faucet_sink.bot_market_spent).replace(',', ' ') }} Yang">
+      <span style="font-size:11px; color:#60a5fa; font-weight:600; text-transform:uppercase">🤖 Zasilenie z Rynku Botów (24h)</span>
+      <div style="font-size:18px; font-weight:700; color:#60a5fa; margin:4px 0">{{ format_yang(faucet_sink.bot_market_spent) }}</div>
+      <div style="font-size:11px; color:var(--muted); line-height:1.5">
+        Wykupione przez boty: <b>{{ faucet_sink.bot_market_buys }}</b> ofert ze straganów gracza/innych botów.
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ========================================================== #}
+{# MODUŁ 6: SYSTEMY SPECJALNE (M1/M2 LIQUIDATION & SP+)       #}
+{# ========================================================== #}
+{% if special_systems.available %}
+<section class="panel" style="border-left: 3px solid #f6c85f">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0">⚙️ Upłynnianie Ulepszaczy M1/M2 i Balans Rynku (YmirWork / Krystian mod-50)</h2>
+      <p class="muted" style="margin:2px 0 0 0">Wewnętrzny moduł gospodarczy bota zamieniający nadmiar pospolitych ulepszaczy M1/M2 na handlowalne bonusy oraz skupujący oferty z rynku.</p>
+    </div>
+    <span class="badge" style="background:#f6c85f22; color:#f6c85f; border:1px solid #f6c85f44; padding:3px 8px; border-radius:4px; font-size:11px">MODUŁ YMIRWORK (KRYSTIAN) AKTYWNY</span>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-bottom:12px">
+    <div style="background:rgba(0,0,0,0.18); padding:8px 12px; border-radius:6px; border:1px solid var(--edge)">
+      <span style="font-size:11px; color:var(--muted)">Przetopienia łącznie</span>
+      <div style="font-size:16px; font-weight:700; color:#ffe28a">{{ special_systems.total_liquidations }} operacji</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.18); padding:8px 12px; border-radius:6px; border:1px solid var(--edge)">
+      <span style="font-size:11px; color:var(--muted)">Wytworzone Wzmocnienia (71285)</span>
+      <div style="font-size:16px; font-weight:700; color:#39e890">+{{ special_systems.adds_created }} szt.</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.18); padding:8px 12px; border-radius:6px; border:1px solid var(--edge)">
+      <span style="font-size:11px; color:var(--muted)">Wytworzone Zaczarowania (71284)</span>
+      <div style="font-size:16px; font-weight:700; color:#60a5fa">+{{ special_systems.switches_created }} szt.</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.18); padding:8px 12px; border-radius:6px; border:1px solid var(--edge)">
+      <span style="font-size:11px; color:var(--muted)">Boty skupujące z tobołków (15%)</span>
+      <div style="font-size:16px; font-weight:700; color:#f6c85f">{{ special_systems.buyer_bots_count }} botów</div>
+    </div>
+  </div>
+
+  {% if special_systems.recent %}
+  <h3 style="font-size:12px; margin:8px 0; color:var(--muted); text-transform:uppercase">Ostatnie Przetopienia Nadmiaru Dropu</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Czas</th>
+        <th>Bot</th>
+        <th>Królestwo</th>
+        <th>Otrzymany Bonus</th>
+        <th>VNUM</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in special_systems.recent %}
+      <tr>
+        <td>{{ r.time_str }}</td>
+        <td><a href="{{ url_for('player', pid=r.who) }}" style="text-decoration:none; color:inherit">{{ r.name }}</a></td>
+        <td>
+          {% if empire_flag(r.empire) %}
+            <img class="empire-flag-inline" src="{{ empire_flag(r.empire) }}" alt="{{ empire_info(r.empire).name }}">
+          {% endif %}
+          {{ empire_info(r.empire).name }}
+        </td>
+        <td class="item-cell">
+          {% if r.icon_url %}<img src="{{ r.icon_url }}" loading="lazy" alt="">{% endif %}
+          <a href="{{ url_for('economy_item', vnum=r.vnum) }}">{{ r.item_name }}</a>
+        </td>
+        <td><code>{{ r.vnum }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ========================================================== #}
+{# MODUŁ 4 & 5: KATALOG PRZEDMIOTÓW W OBIEGU I FILTRY         #}
+{# ========================================================== #}
+<section class="panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px">
+    <div>
+      <h2 style="margin:0">📦 Przedmioty w Obiegu i Rozkład Lokalizacji</h2>
+      <p class="muted" style="margin:2px 0 0 0">Szczegółowy wykaz przedmiotów z podziałem na ekwipunki postaci, magazyny Dozorcy oraz stragany rynku.</p>
+    </div>
+    <span class="muted" style="font-size:12px">Pozycji w widoku: {{ items|length }} z {{ total_items_count }}</span>
+  </div>
+
+  {# Filtry kategorii #}
+  <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">
+    {% set cat_defs = [
+      ('all', 'Wszystkie', cat_counts.all),
+      ('materials', 'Ulepszacze', cat_counts.materials),
+      ('skillbooks', 'Księgi', cat_counts.skillbooks),
+      ('stones', 'Kamienie Duszy', cat_counts.stones),
+      ('equipment', 'Ekwipunek', cat_counts.equipment),
+      ('alchemy', 'Alchemia', cat_counts.alchemy),
+      ('chests', 'Szkatułki', cat_counts.chests),
+      ('other', 'Inne', cat_counts.other)
+    ] %}
+    {% for c_key, c_label, c_num in cat_defs %}
+    <a href="{{ url_for('economy', cat=c_key, q=query) }}" 
+       style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:6px; font-size:12px; text-decoration:none; border:1px solid {% if cat_filter==c_key %}#ffe28a{% else %}var(--edge){% endif %}; background:{% if cat_filter==c_key %}rgba(255,226,138,0.15){% else %}rgba(0,0,0,0.2){% endif %}; color:{% if cat_filter==c_key %}#ffe28a{% else %}inherit{% endif %}">
+      <span>{{ c_label }}</span>
+      <b style="font-size:10px; background:rgba(255,255,255,0.1); padding:1px 5px; border-radius:10px">{{ c_num }}</b>
+    </a>
+    {% endfor %}
+  </div>
+
+  {# Wyszukiwarka #}
+  <form class="search" style="margin-bottom:12px" action="{{ url_for('economy') }}" method="get">
+    <input type="hidden" name="cat" value="{{ cat_filter }}">
+    <input name="q" value="{{ query }}" placeholder="Szukaj przedmiotu (nazwa lub VNUM)…" style="flex:1">
+    <button type="submit">Szukaj</button>
+    {% if query or cat_filter != 'all' %}
+      <a href="{{ url_for('economy') }}" class="quiet" style="display:inline-flex; align-items:center; padding:0 12px; text-decoration:none; font-size:13px; color:var(--muted)">Wyczyść filtry</a>
+    {% endif %}
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Przedmiot</th>
+        <th>VNUM</th>
+        <th>Kategoria</th>
+        <th style="text-align:right">Ekwipunek</th>
+        <th style="text-align:right">Magazyn</th>
+        <th style="text-align:right">Rynek</th>
+        <th style="text-align:right">Łącznie</th>
+        <th style="text-align:center">Akcja</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr>
+        <td class="item-cell">
+          <a href="{{ url_for('economy_item', vnum=i.vnum) }}">
+            {% if i.icon_url %}<img src="{{ i.icon_url }}" loading="lazy" alt="">{% endif %}
+            <span style="font-weight:600">{{ i.item_name }}</span>
+          </a>
+        </td>
+        <td><code>{{ i.vnum }}</code></td>
+        <td>
+          <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.06); color:var(--muted)">
+            {{ i.cat_name }}
+          </span>
+        </td>
+        <td style="text-align:right; font-size:12px; color:#8fa5c1">{{ '{:,}'.format(i.inv_count).replace(',', ' ') }}</td>
+        <td style="text-align:right; font-size:12px; color:#c9b699">{{ '{:,}'.format(i.safebox_count).replace(',', ' ') }}</td>
+        <td style="text-align:right; font-size:12px; color:#39e890">{{ '{:,}'.format(i.shop_count).replace(',', ' ') }}</td>
+        <td style="text-align:right; font-weight:700; color:#ffe28a">
+          {{ '{:,}'.format(i.amount).replace(',', ' ') }}
+        </td>
+        <td style="text-align:center">
+          <a href="{{ url_for('economy_item', vnum=i.vnum) }}" class="quiet" style="font-size:11px; padding:3px 8px; border:1px solid var(--edge); border-radius:4px; text-decoration:none; color:inherit">
+            Historia →
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="muted" style="text-align:center; padding:24px">
+          Brak wyników dla podanych kryteriów wyszukiwania.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# Paginacja #}
+  {% if total_pages > 1 %}
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--edge)">
+    <div>
+      <span class="muted" style="font-size:12px">Strona {{ page }} z {{ total_pages }} ({{ total_items_count }} pozycji)</span>
+    </div>
+    <div style="display:flex; gap:6px">
+      {% if page > 1 %}
+        <a href="{{ url_for('economy', page=page-1, cat=cat_filter, q=query) }}" class="quiet" style="padding:4px 10px; border:1px solid var(--edge); border-radius:4px; font-size:12px; text-decoration:none; color:inherit">‹ Poprzednia</a>
+      {% endif %}
+      {% if page < total_pages %}
+        <a href="{{ url_for('economy', page=page+1, cat=cat_filter, q=query) }}" class="quiet" style="padding:4px 10px; border:1px solid var(--edge); border-radius:4px; font-size:12px; text-decoration:none; color:inherit">Następna ›</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<script>
+document.body.dataset.ajaxForms='1';
+{% if trend %}
+const ctx = document.getElementById('yangChart');
+if (ctx) {
+  const chartLine = '{{ chart_line }}';
+  const chartTick = '{{ chart_tick }}';
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ trend|map(attribute='captured_at')|list|tojson }},
+      datasets: [{
+        label: 'Yang w obiegu',
+        data: {{ trend|map(attribute='value')|list|tojson }},
+        borderColor: chartLine,
+        backgroundColor: chartLine + '22',
+        fill: true,
+        tension: .3,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(c) { 
+              const v = Number(c.raw);
+              let shortStr = v + ' Yang';
+              if (v >= 1e9) shortStr = (v / 1e9).toFixed(2) + ' kkk';
+              else if (v >= 1e6) shortStr = (v / 1e6).toFixed(2) + ' kk';
+              else if (v >= 1e3) shortStr = (v / 1e3).toFixed(2) + ' k';
+              return shortStr + ' (' + v.toLocaleString('pl-PL') + ' Yang)'; 
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: chartTick, maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { 
+          ticks: { 
+            color: chartTick,
+            callback: function(v) {
+              if (v >= 1e9) return (v / 1e9).toFixed(1) + ' kkk';
+              if (v >= 1e6) return (v / 1e6).toFixed(1) + ' kk';
+              if (v >= 1e3) return (v / 1e3).toFixed(0) + ' k';
+              return v;
+            }
+          },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        }
+      }
+    }
+  });
+}
+{% endif %}
+
+</script>
+
+{# Modal konfiguracji i wysyłania raportu na Discord #}
+<dialog id="discordModal" style="border:1px solid var(--edge); border-radius:8px; padding:20px; max-width:480px; width:90%; background:var(--bg-panel, #1e232d); color:inherit; box-shadow:0 10px 30px rgba(0,0,0,0.5)">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+    <h3 style="margin:0; font-size:16px; color:#fff">📢 Raport Gospodarki na Discord</h3>
+    <button type="button" onclick="document.getElementById('discordModal').close()" style="background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer">&times;</button>
+  </div>
+  <p class="muted" style="font-size:12px; margin-bottom:14px">
+    Wyślij aktualne podsumowanie gospodarki (masę Yang, inflację, bilans Faucet/Sink oraz rynek offline) na kanał Discorda za pomocą webhooka.
+  </p>
+  <form method="post" action="{{ url_for('economy_discord_report') }}" data-ajax-ignore>
+    <div style="margin-bottom:12px">
+      <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--muted)">Discord Webhook URL</label>
+      <input type="text" name="webhook_url" placeholder="https://discord.com/api/webhooks/..." value="{{ settings.discord_webhook_url or '' }}" style="width:100%; box-sizing:border-box; padding:8px 10px; font-size:13px; border-radius:4px; border:1px solid var(--edge); background:rgba(0,0,0,0.3); color:#fff">
+      <small style="font-size:11px; color:var(--muted); display:block; margin-top:4px">
+        Możesz wkleić tutaj bezpośrednio link z Discorda (np. Kanał -> Integracje -> Webhooki).
+      </small>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:6px; border:1px solid var(--edge); margin-bottom:14px">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#fff">
+        <input type="checkbox" name="hourly_enabled" value="1" {% if settings.discord_hourly_report == '1' %}checked{% endif %} style="cursor:pointer; width:16px; height:16px">
+        <b>Wysyłaj automatyczny raport cyklicznie co 1h</b>
+      </label>
+      <small style="display:block; font-size:11px; color:var(--muted); margin-top:4px; margin-left:24px">
+        Gdy zaznaczone, serwer sam wyśle świeży raport dobowy kondycji gospodarki co pełną godzinę.
+      </small>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <button type="submit" name="action" value="save_only" class="button" style="padding:6px 12px; font-size:12px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid var(--edge); color:inherit; cursor:pointer">
+        💾 Zapisz ustawienia
+      </button>
+      <div style="display:flex; gap:8px">
+        <button type="button" onclick="document.getElementById('discordModal').close()" class="button" style="padding:6px 12px; font-size:12px; border-radius:4px; background:none; border:1px solid var(--edge); color:inherit; cursor:pointer">Anuluj</button>
+        <button type="submit" name="action" value="send" class="button" style="padding:6px 14px; font-size:12px; border-radius:4px; background:#5865f2; color:#fff; border:none; font-weight:600; cursor:pointer">🚀 Wyślij Teraz</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+{% endblock %}

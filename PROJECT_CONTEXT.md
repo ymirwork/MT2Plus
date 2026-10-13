@@ -4,6 +4,80 @@ Dokumentacja techniczna, struktura środowisk i stan projektu Metin2 opartego na
 
 ---
 
+## 0. Szybki System Tagów i Dyrektyw (Komunikacja z Asystentem)
+
+Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniższe prefiksy tagów na początku wiadomości:
+
+| Tag | Znaczenie i Cel | Zachowanie i Rola Asystenta |
+| :--- | :--- | :--- |
+| **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z oficjalnego repozytorium `mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Krok 1–5): analiza diffa, adaptacja na `dev`, a następnie **bezwzględne ponowne wgranie i zintegrowanie wszystkich naszych autorskich modyfikacji/addonów** z rejestru `Server/addons/` (Krok 3). Weryfikacja ewentualnych kolizji z upstreamem i bezpieczne usunięcie tylko tych addonów, które oficjalny kod sam wdrożył. |
+| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie paczki w `Server/addons/`, testy w `mt2dev`. |
+| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. |
+| **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa analiza logów (`syserr`, `syslog`, `docker logs`), identyfikacja przyczyny źródłowej (*root cause*), minimalny bezpieczny patch bez psucia logiki upstreamu. |
+| **`[DISCORD]`** | Przygotowanie materiałów, ogłoszeń i instrukcji dla społeczności graczy na Discordzie. | Przejście na język gracza: brak zbędnego żargonu kompilacji, zwięzły opis zmian oraz jasna instrukcja instalacji krok po kroku (patrz szablony poniżej). |
+| **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika) oraz sformatowanego Changelogu z kropkami i podsumowaniami. |
+
+---
+
+### 0.1. Szybka Mapa Ścieżek i Komend (Quick Reference)
+
+| Zasób / Zadanie | Ścieżka / Komenda | Uwagi |
+| :--- | :--- | :--- |
+| **Logi błędów gry (syserr)** | `Server/linux-port/docker/game/logs/syserr` | Pierwsze miejsce diagnozy crashy i błędów silnika |
+| **Źródła silnika C++ gry** | `Server/linux-port/docker/game/src/server/` | Rdzeń MartySama r41023 (i386 C++20) |
+| **Kod C++ Playerbots AI** | `Server/linux-port/overlays/playerbot/src/game/src/` | Moduły `playerbot_*.cpp / .h` |
+| **Skrypty i interfejsy klienta** | `Klient/pack/root/` oraz `Klient/pack/uiscript/` | Rozpakowane źródła Pythona klienta |
+| **Pakowanie paczek klienta** | `Klient/Kompiluj-Paczki.bat` / `Klient/Compile-ClientPack.ps1` | PackMakerLite-RS (klucz `22srh2fgh3`) |
+| **Katalog paczek dodatków** | `Server/addons/` | Wewnętrzne spakowane zipy modyfikacji i fixów |
+| **Kopie zapasowe bazy SQL** | `Server/backups/` | Zrzuty bazy przed zmianami w serwerze |
+| **Panele administracyjne** | Tieru: `http://localhost:7788` \| Seban: `http://localhost:7790` \| IS: `http://localhost:7791` | Login / zarządzanie / gospodarka botów |
+
+---
+
+### 0.2. Standardowe Szablony Publikacji
+
+#### Szablon A: Ogłoszenie / Fix na Discordzie (`[DISCORD]`)
+```markdown
+> 🛠️ **Poprawka błędu: [Nazwa Funkcji / Błędu]**
+> 
+> **Co naprawia ten fix:**
+> - [Krótki i jasny opis dla gracza, co znowu działa poprawnie]
+> 
+> **Dlaczego funkcja wcześniej nie działała (przyczyna):**
+> - [Proste wyjaśnienie problemu bez nadmiernego żargonu]
+> 
+> **Instrukcja instalacji:**
+> 1. Pobierz załączone archiwum `.zip` / `.rar`.
+> 2. Wypakuj zawartość do głównego folderu gry (zastąp istniejące pliki, jeśli zapyta).
+> 3. Zrestartuj grę (lub serwer poleceniem `stop.bat` -> `start.bat`).
+```
+
+#### Szablon B: Changelog Wydania (`[DOCS]` / `[RELEASE]`)
+```markdown
+# 📦 MT2Plus Wydanie [Wersja, np. v2.31.0-mod51]
+
+### [Nazwa Głównego Systemu, np. Dom Aukcyjny]
+• [Główny punkt opisujący co system robi, kogo zastępuje, gdzie się znajduje]
+• [Szczegółowy podpunkt z kategoriami, usprawnieniami UI, filtrami, itp.]
+
+### [Kolejny System / Usprawnienie, np. Gospodarka Botów & Recykling]
+• [Opis zachowania modułu, np. boty przetapiają nadmiar ulepszaczy na bonusy]
+• [Szczegóły techniczne istotne dla balansu gry]
+
+### 🐛 Poprawki Błędów (Fixes)
+• [Punkt 1: Co naprawiono]
+• [Punkt 2: Co naprawiono]
+
+---
+📥 **Instrukcja Uruchomienia (Ready-to-Play dla Każdego):**
+1. Pobierz paczkę wydania `MT2Plus-Server-[wersja].zip` oraz `MT2Plus-Client-[wersja].zip`.
+2. Wypakuj paczkę Serwera i uruchom `start.bat` (wymagany zainstalowany Docker Desktop).
+3. Wypakuj paczkę Klienta i uruchom grę przez `metin2client.exe`.
+```
+
+---
+
+
 ## 1. Wersjonowanie i Identyfikacja
 
 - **Wersja serwera (`Server/VERSION`):** `2.31.0`
@@ -53,14 +127,16 @@ Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-et
    - `Server/linux-port/docker/panel/app/VERSION` oraz `Server/linux-port/docker/seban-panel/VERSION`.
    - `Server/update-manifest-mt2009.json` oraz `Server/CHANGELOG.md`.
 
-### Krok 3: Dodanie naszych modyfikacji z `Server/addons/` (bezinwazyjnie dla Upstream)
-1. Zaaplikowanie naszych autorskich systemów i modułów umieszczonych w `Server/addons/` oraz własnych komponentów:
-   - System recyklingu bonów u Dozorcy (`recykling_bonusow.quest`, rejestracja w `Dockerfile`, paczka w `Server/addons/`).
-   - Naprawa pętli wędkowania towarzysza (`playerbot_sidekick.h` – bezpośrednie sterowanie `rt.bFishing`).
-   - Rozszerzony Pierścień Teleportacji (`teleport_ring.quest` – lochy, miasta).
-   - Dom Aukcyjny / AH_V1 (`auction_house.cpp`, `cmd.cpp`, `ikarus_shop_manager.cpp`, `flea_market.quest`).
-2. **Bezpieczne usuwanie zaadoptowanych modyfikacji (Addon Cleanup):** Jeżeli Upstream oficjalnie wprowadził fixa lub system, który dotychczas utrzymywaliśmy jako naszą modyfikację w `Server/addons/`, wówczas naszą paczkę/patch **bezpiecznie usuwamy z `Server/addons/`**, przechodząc na oficjalne rozwiązanie z Upstream i eliminując duplikację kodu.
-3. Bezwzględny warunek: implementacja musi być bezinwazyjna – żadna nasza modyfikacja nie może usunąć ani zepsuć nowego kodu ani logiki wprowadzonej przez Upstream.
+### Krok 3: Ponowne wdrożenie wszystkich naszych modyfikacji i addonów z `Server/addons/`
+1. **Dynamiczne wgrywanie z Rejestru Addonów (`Server/addons/`):**
+   - Po udanym naniesieniu zmian z oficjalnego repozytorium (Krok 2), asystent i deweloper **nie polegają na sztywnej liście**, lecz dynamicznie sprawdzają **Rejestr Paczek (Sekcja 5.1)** oraz zawartość folderu `Server/addons/`.
+   - **Wszystkie aktywne paczki i moduły** znajdujące się w `Server/addons/` (zarówno obecne, jak i nowo dodane w przyszłości) są sekwencyjnie aplikowane na gałąź `dev`.
+   - **Zasada Dodawania Nowego Modułu:** Każda nowa modyfikacja autorska tworzona w projekcie musi:
+     1. Posiadać spakowane archiwum `.zip` / skrypt w `Server/addons/`.
+     2. Zostać dopisana do tabeli w **Sekcji 5.1** wraz z informacją o modyfikowanych plikach i statusie `Aktywny`.
+     Dzięki temu podczas kolejnego `[AKTUALIZUJ]` nowy moduł zostanie automatycznie uwzględniony i ponownie wdrożony!
+2. **Bezpieczne usuwanie zaadoptowanych modyfikacji (Addon Cleanup):** Jeżeli Upstream w nowej wersji oficjalnie wprowadził identycznego fixa lub system, który dotychczas utrzymywaliśmy jako addon w `Server/addons/`, wówczas naszą paczkę/patch **bezpiecznie usuwamy z `Server/addons/`**, usuwamy wpis z Sekcji 5.1, przechodząc na oficjalne rozwiązanie z Upstream i eliminując duplikację kodu.
+3. **Zasada Bezinwazyjności i Integralności:** Żadna nasza modyfikacja nie może usunąć ani zepsuć nowego kodu ani logiki wprowadzonej przez Upstream. Wszelkie nakładające się fragmenty są harmonijnie integrowane w Kroku 4.
 
 ### Krok 4: Rozwiązanie kolizji i weryfikacja w kontenerach (`dev`)
 1. Jeżeli dochodzi do kolizji między naszym kodem a zmianami Upstream (np. nakładające się linie w C++, zmiany sygnatur funkcji w silniku, zmodyfikowane pętle questów):
@@ -106,7 +182,13 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 4. **`panel` (Port 7788)**:
    - Tieru Classic Admin Panel w Pythonie 3.12 (Flask + Waitress).
 5. **`seban-panel` (Port 7790)**:
-   - Zaawansowany panel Seban latino (Flask + Gunicorn), edytor bazy danych `dbeditor`, kompilator `m2clientpack` (EterPack/LZO/XTEA w Pythonie), Live Heatmap.
+   - Zaawansowany panel Seban latino (Flask + Gunicorn), edytor bazy danych `dbeditor`, kompilator `m2clientpack` (EterPack/LZO/XTEA w Pythonie), Live Heatmap oraz rozszerzone Centrum Gospodarki i Obiegu Dóbr:
+     - **Wskaźnik Inflacji:** `WorldYangFactor` (wzór silnika C++ z `playerbot_town.h`), całkowita masa Yang, średnia zamożność, podaż Zaczarowań/Wzmocnień.
+     - **Bilans Walutowy (Faucet vs Sink · 24h):** Dobowy bilans kreacji waluty (drop mobów, drop ziemi, sprzedaż NPC) vs niszczenia (Kowal, podatki offline shopów `TAX`). Wskaźniki Net Delta oraz Net Burn Rate, zasilenie rynku z zakupów botów.
+     - **Wycena Rynkowa i Płynność (`/economy/item/<vnum>`):** Cena Godziwa (Fair Value / Mediana), rozstęp cen (Spread %) oraz dobowy wolumen transakcji i odznaka płynności (Bardzo Wysoka, Umiarkowana, Niska, Zastój).
+     - **Eksport Danych:** Eksport zestawień przedmiotów w obiegu do `.csv` oraz `.json`.
+     - **Raporty Discord:** Wysyłanie dobowych raportów embed na skonfigurowany Webhook Discorda.
+     - **Telemetria Modułu YmirWork (Krystian):** Statystyki przetapiania ulepszaczy M1/M2 i skupu ofert przez boty z pełnym graceful fallback.
 6. **`seban-collector` & `seban-item-grants`**:
    - Demony tła odpowiedzialne za telemetrię, ogłoszenia ulepszeń +9 i transakcyjne nadawanie przedmiotów.
 7. **`itemshop` (Port 7791)**:
@@ -134,11 +216,12 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Pełne Zdrowie po Odrodzeniu (100% HP Revive):** Po śmierci postaci i wybraniu opcji odrodzenia w mieście (`SCMD_RESTART_TOWN`) lub w miejscu zgonu (`SCMD_RESTART_HERE`), a także po wznowieniu gry z ekranu wyboru postaci, postać odradza się natychmiast z pełnym 100% paskiem HP (`ch->GetMaxHP() - ch->GetHP()`), eliminując mozolne leczenie z 50 HP.
 - **Szybkie Zbieranie w Autołowach (Fast Area Pickup in Auto Hunt):** Moduł Autołowów (`uiautohunt.py`) podczas zbierania dropu z ziemi korzysta natychmiastowo z mechanizmu szybkiego zbierania obszarowego (`/pickup_nearby`) zamiast powolnego pojedynczego podnoszenia każdego przedmiotu z osobna.
 - **Skrócony Czas Oczekiwania po Zamknięciu Okien (3s Portal/Safebox/Trade/Logout Cooldown):** Zredukowany z 10 sekund do 3 sekund (`g_nPortalLimitTime = 3` w `char_item.cpp`, `cmd_general.cpp`, `char.cpp`, `ikarus_shop_manager.cpp`) po zamknięciu handlu, magazynu (IS i zwykłego) lub tobołka/sklepu przed przejściem przez portal, wylogowaniem czy zmianą postaci. Usunięto mylący komunikat o magazynie przy zamykaniu tobołka na rzecz prawidłowego komunikatu o handlu.
-- **Upłynnianie Ulepszaczy M1/M2 przez Boty (Bot-Only M1/M2 Liquidation & Market Balance):** Wewnętrzny mechanizm symulacji gospodarki botów w `playerbot_bonus.h` / `playerbot_market.h` / `playerbot_types.h`:
+- **Moduł YmirWork (Krystian) – Upłynnianie Ulepszaczy M1/M2 przez Boty i Balans Rynku (MODUŁ YMIRWORK (KRYSTIAN) AKTYWNY):** Wewnętrzny mechanizm symulacji gospodarki botów w `playerbot_bonus.h` / `playerbot_market.h` / `playerbot_types.h`:
   - Przetapianie nadmiaru ulepszaczy M1/M2 (50 szt. pospolitych lub 25 szt. rzadkich + opłata Yang skalowana inflacją) na handlowalne Zaczarowania (`71284`) i Wzmocnienia (`71285`).
   - Priorytet zużycia na własne uzbrojenie bota (do 4–5 bonusów i rollowanie statystyk).
   - Nadwyżki wystawiane w tobołkach z twardym limitem maks. 20% sklepów na rynku i do 3 slotów na sklep (`PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS`), analogicznie do szarf i Cor Draconis.
   - **Skup z tobołków (15% botów):** 15% puli botów aktywnie skupuje ulepszacze M1/M2 z rynku graczy/botów po uczciwych cenach rynkowych (do 120% cennika, maks. 20% sakiewki bota), aby zamieniać je na bonusy, zapewniając stały popyt na drop z początkowych map i stabilizując gospodarkę Hard.
+  - **Telemetria w panelu Seban:** Dynamiczne śledzenie mnożnika inflacji silnika (`WorldYangFactor`, skalowanie od 40% do 100% przy 10 mld Yang w świecie), liczby wykonanych przetopień, wytworzonych bonusów oraz botów skupujących pod odznaką **MODUŁ YMIRWORK (KRYSTIAN) AKTYWNY**.
   - *Uwaga:* Emerytury botów pozostają domyślnie wyłączone do późniejszej konfiguracji przez operatora.
 - **Świątynia Zodiaku (Zodiac Temple) & Towarzysz (v2.29.1):** Mapa 358 (`metin2_12zi_stage`), 12 portali, Kule Animy, broń/zbroje Zodiaku, instancje pięter; pełna obsługa Towarzysza (wskrzeszanie Pryzmatami Ożywienia, automatyczne czyszczenie flag Zodiaku i autowstanie po 30s).
 - **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu dla gracza. Paczka instalacyjna w `Server/addons/Paczka_Recykling_Bonusow.zip`.
@@ -153,6 +236,21 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Alchemia Smoczych Kamieni (Dragon Soul):** Mityczna alchemia, pełny obieg uszlachetniania.
 - **Auto Hunting (Klawisz K):** Zautomatyzowane expienie dla gracza.
 - **Szybkie ulepszanie (Enter-refine) & TAB Minimap Warp.**
+
+### 5.1. Rejestr Paczek i Modułów w `Server/addons/`
+
+Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z **Zasadą nr 8**, jeśli dany fix/mod zostanie oficjalnie dodany w Upstream, jego paczka jest bezpiecznie usuwana.
+
+| Nazwa Pliku / Archiwum | Typ / Zawartość | Pliki i Obszary Modyfikacji | Status |
+| :--- | :--- | :--- | :--- |
+| `Szybkie_Zbieranie_Autolowy.zip` | Klient (Python) | `Klient/pack/root/uiautohunt.py` (obszarowe podnoszenie dropu) | **Aktywny** |
+| `Ukrycie_Wartosci_HP_Celu.zip` | Klient (Python) | `Klient/pack/root/uitarget.py` (usunięcie cyfrowego HP innych graczy/mobów) | **Aktywny** |
+| `Wstawanie_100_Procent_HP.zip` | Serwer (C++) | `game/src/cmd_general.cpp`, `char.cpp` (100% HP po ożywieniu) | **Aktywny** |
+| `Fix_Boty_Gildia_Exp_Party.zip` | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Aktywny** |
+| `Seban_Panel_Rozszerzona_Ekonomia_V2.zip` | Web / Panel Seban | `Server/linux-port/docker/seban-panel/` (Centrum Gospodarki, YmirWork telemetria) | **Aktywny** |
+| `MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip` | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
+| `Paczka_Recykling_Bonusow.zip` | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |
+| `teleport_ring.quest` | Serwer (Quest) | Quest z dodatkowymi lochami i mapami Arezzo | **Aktywny** |
 
 ---
 

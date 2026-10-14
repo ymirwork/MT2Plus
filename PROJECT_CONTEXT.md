@@ -216,12 +216,12 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Pełne Zdrowie po Odrodzeniu (100% HP Revive):** Po śmierci postaci i wybraniu opcji odrodzenia w mieście (`SCMD_RESTART_TOWN`) lub w miejscu zgonu (`SCMD_RESTART_HERE`), a także po wznowieniu gry z ekranu wyboru postaci, postać odradza się natychmiast z pełnym 100% paskiem HP (`ch->GetMaxHP() - ch->GetHP()`), eliminując mozolne leczenie z 50 HP.
 - **Szybkie Zbieranie w Autołowach (Fast Area Pickup in Auto Hunt):** Moduł Autołowów (`uiautohunt.py`) podczas zbierania dropu z ziemi korzysta natychmiastowo z mechanizmu szybkiego zbierania obszarowego (`/pickup_nearby`) zamiast powolnego pojedynczego podnoszenia każdego przedmiotu z osobna.
 - **Skrócony Czas Oczekiwania po Zamknięciu Okien (3s Portal/Safebox/Trade/Logout Cooldown):** Zredukowany z 10 sekund do 3 sekund (`g_nPortalLimitTime = 3` w `char_item.cpp`, `cmd_general.cpp`, `char.cpp`, `ikarus_shop_manager.cpp`) po zamknięciu handlu, magazynu (IS i zwykłego) lub tobołka/sklepu przed przejściem przez portal, wylogowaniem czy zmianą postaci. Usunięto mylący komunikat o magazynie przy zamykaniu tobołka na rzecz prawidłowego komunikatu o handlu.
-- **Moduł YmirWork (Krystian) – Upłynnianie Ulepszaczy M1/M2 przez Boty i Balans Rynku (MODUŁ YMIRWORK (KRYSTIAN) AKTYWNY):** Wewnętrzny mechanizm symulacji gospodarki botów w `playerbot_bonus.h` / `playerbot_market.h` / `playerbot_types.h`:
-  - Przetapianie nadmiaru ulepszaczy M1/M2 (50 szt. pospolitych lub 25 szt. rzadkich + opłata Yang skalowana inflacją) na handlowalne Zaczarowania (`71284`) i Wzmocnienia (`71285`).
-  - Priorytet zużycia na własne uzbrojenie bota (do 4–5 bonusów i rollowanie statystyk).
-  - Nadwyżki wystawiane w tobołkach z twardym limitem maks. 20% sklepów na rynku i do 3 slotów na sklep (`PLAYERBOT_RARE_GOODS_TRADEABLE_BONUS`), analogicznie do szarf i Cor Draconis.
-  - **Skup z tobołków (15% botów):** 15% puli botów aktywnie skupuje ulepszacze M1/M2 z rynku graczy/botów po uczciwych cenach rynkowych (do 120% cennika, maks. 20% sakiewki bota), aby zamieniać je na bonusy, zapewniając stały popyt na drop z początkowych map i stabilizując gospodarkę Hard.
-  - **Telemetria w panelu Seban:** Dynamiczne śledzenie mnożnika inflacji silnika (`WorldYangFactor`, skalowanie od 40% do 100% przy 10 mld Yang w świecie), liczby wykonanych przetopień, wytworzonych bonusów oraz botów skupujących pod odznaką **MODUŁ YMIRWORK (KRYSTIAN) AKTYWNY**.
+- **Moduł YmirWork (Krystian) – Płynne Upłynnianie Ulepszaczy M1/M2(+) i Dynamiczny Balans Rynku (MODUŁ YMIRWORK (KRYSTIAN) V2 AKTYWNY):** Wewnętrzny mechanizm symulacji gospodarki botów w `playerbot_bonus.h` / `playerbot_market.h` / `playerbot_types.h`:
+  - Przetapianie nadmiaru ulepszaczy M1/M2 oraz wszystkich materiałów z plusem (+) na handlowalne Zaczarowania (`71284`) i Wzmocnienia (`71285`).
+  - **Płynne progi wymaganych sztuk ulepszaczy:** Baza wynosi 50 szt. (pospolite) / 25 szt. (rzadkie/z plusem), z automatyczną zniżką hurtową u Kolekcjonera w przypadku powodzi rynkowej aż do 25 szt. (pospolite) / 12 szt. (rzadkie) + opłata Yang skalowana inflacją (`ScalePlayerBotIwakuraPrice`).
+  - **Płynny wskaźnik skupu botów (1% – 35%):** Zamiast sztywnego 15%, odsetek botów skupujących towary z tobołków gracza i rynku skaluje się dynamicznie na podstawie aktualnej podaży ulepszaczy w sklepach (od 3% przy niskiej podaży do 35% przy powodzi towarowej).
+  - Priorytet zużycia na własne uzbrojenie bota (do 4–5 bonusów i rollowanie statystyk), a nadwyżki wystawiane w tobołkach (maks. 20% sklepów na rynku, do 3 slotów na sklep).
+  - **Telemetria w panelu Seban:** Dynamiczne śledzenie mnożnika inflacji, aktualnego wskaźnika skupu botów (płynne %), zliczonej podaży ulepszaczy oraz historii przetopień.
   - *Uwaga:* Emerytury botów pozostają domyślnie wyłączone do późniejszej konfiguracji przez operatora.
 - **Świątynia Zodiaku (Zodiac Temple) & Towarzysz (v2.29.1):** Mapa 358 (`metin2_12zi_stage`), 12 portali, Kule Animy, broń/zbroje Zodiaku, instancje pięter; pełna obsługa Towarzysza (wskrzeszanie Pryzmatami Ożywienia, automatyczne czyszczenie flag Zodiaku i autowstanie po 30s).
 - **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu dla gracza. Paczka instalacyjna w `Server/addons/Paczka_Recykling_Bonusow.zip`.
@@ -236,7 +236,6 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Alchemia Smoczych Kamieni (Dragon Soul):** Mityczna alchemia, pełny obieg uszlachetniania.
 - **Auto Hunting (Klawisz K):** Zautomatyzowane expienie dla gracza.
 - **Szybkie ulepszanie (Enter-refine) & TAB Minimap Warp.**
-- **Tracker Bossów i Kamieni Metin (Boss & Metin Tracker, v2.33.0):** Zintegrowany system śledzenia respów bossów i kamieni metin w czasie rzeczywistym. Silnik C++ (`char.h`, `cmd.cpp`, `cmd_general.cpp`, `regen.h`, `regen.cpp`) udostępnia komendy `/boss_tracker` (odpytywanie ze stanem żywy/czas do respu/koordynaty na mapach publicznych z uwzględnieniem `regen_list` i `SpecialSpawnManager`) oraz `/boss_tracker_tp <slot>` (bezpieczny teleport do żywego celu z 5-sekundowym cooldownem). Po stronie klienta zwijany panel pod minimapą (`uibosstracker.py`, `uiminimap.py`, `game.py`) z filtrami (Wszystkie / Bossy / Metiny), stronicowaniem, odliczaniem czasu i przyciskiem TP.
 
 ### 5.1. Rejestr Paczek i Modułów w `Server/addons/`
 
@@ -250,7 +249,6 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
 | `Fix_Boty_Gildia_Exp_Party.zip` | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Włączony w Upstream 2.32.0** |
 | `Seban_Panel_Rozszerzona_Ekonomia_V2.zip` | Web / Panel Seban | `Server/linux-port/overlays/seban-panel/` -> `docker/seban-panel/` (Centrum Gospodarki, YmirWork telemetria, interpretacja inflacji, bilans emerytur botów, zachowywane automatycznie po aktualizacjach z upstream) | **Aktywny (Auto-Overlay)** |
 | `MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip` | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
-| `MT2009-PLUS-TRACKER-BOSSOW-2.33.0.zip` | Serwer (C++) + Klient (Python) | `char.h`, `cmd.cpp`, `cmd_general.cpp`, `regen.h`, `regen.cpp`, `uibosstracker.py`, `uiminimap.py`, `game.py` | **Aktywny** |
 | `Paczka_Recykling_Bonusow.zip` | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |
 | `teleport_ring.quest` | Serwer (Quest) | Quest z dodatkowymi lochami i mapami Arezzo | **Aktywny** |
 

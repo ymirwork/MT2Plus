@@ -2011,6 +2011,8 @@ namespace
 		const int surplus = std::max(0, GetPlayerBotExchangeSurplus(ch, offer->GetVnum()));
 		return surplus < want && surplus + (int)offer->GetCount() <= want &&
 				(long long)ch->GetGold() > GetPlayerBotExchangeFee() * 2;
+	}
+
 	// =========================================================================
 	// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V1 (Autor: YmirWork / Krystian):
 	// Bot-only simulation of turning excess M1/M2 upgrade materials into tradeable adds / changes
@@ -2099,11 +2101,11 @@ namespace
 		return 0;
 	}
 
+	const DWORD PLAYERBOT_LIQUIDATE_BASE_FEE = 150000;
+
 	long long GetPlayerBotLiquidationFee()
 	{
-		const double yf = GetPlayerBotWorldYangFactor();
-		const long long fee = (long long)std::floor(300000.0 * (0.40 + 0.60 * yf));
-		return std::max(120000LL, fee);
+		return (long long)ScalePlayerBotIwakuraPrice(PLAYERBOT_LIQUIDATE_BASE_FEE);
 	}
 
 	bool ManagePlayerBotLiquidationM1M2(LPCHARACTER ch)

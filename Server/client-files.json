@@ -1,0 +1,271 @@
+{
+  "schema": 1,
+  "version": "2.0.64",
+  "files": [
+    {
+      "path": "Dolacz.bat",
+      "size": 92,
+      "sha256": "CAD0B604D8CC39C7475F3D4FF8F29E76C4F7FA4F7713A4032F9D208C6931A8E8"
+    },
+    {
+      "path": "Dolacz.ps1",
+      "size": 6038,
+      "sha256": "9CDB49ADB74E4EA740C8DB0150987F2DB48F64A8973C1BB4C26FE82CE6C9DDD2"
+    },
+    {
+      "path": "metin2client.exe",
+      "size": 13697024,
+      "sha256": "14934516DDD97B398F2A684B369C90B56DA277B4B7022A22929614B4391FFBF0"
+    },
+    {
+      "path": "MT2009-Patcher.exe",
+      "size": 37409280,
+      "sha256": "0983D8E60F302F08C0A8271684BE70F85B5EDE61A5C15A10A0CD9ABA4C8E2FE8"
+    },
+    {
+      "path": "MT2009-Patcher.exe.config",
+      "size": 2150,
+      "sha256": "7D9638D69D7F28FEFEE922A4397724AA38B0E221F8FB1354F51644C81EB9DBD2"
+    },
+    {
+      "path": "pack/at_maps.index",
+      "size": 3756,
+      "sha256": "66EA17A62E5E085EAC7B092D483339394B8906402EF286060A0A9DEFFD5775B6"
+    },
+    {
+      "path": "pack/at_mobs.index",
+      "size": 9484,
+      "sha256": "9BFD7D714F207B4C64FBD01D1CCBD6C31BC5E40912BC6811836F106C5C29A8FE"
+    },
+    {
+      "path": "pack/az_cost01.index",
+      "size": 1804,
+      "sha256": "C71BEE059723AFB50A0560FC7275C0D3BA85AD3898014EA4B05B1C601D732ED9"
+    },
+    {
+      "path": "pack/az_cost02.index",
+      "size": 1364,
+      "sha256": "9F67C1EA956D71D4E0CE1D1777816C7ED26D8DAAC4C11E012FC36715B3BD71ED"
+    },
+    {
+      "path": "pack/az_cost03.index",
+      "size": 332,
+      "sha256": "0BAA98A319D1F929179D46FDA0B689532DCA9587C224D8705BD68FD79BCB283F"
+    },
+    {
+      "path": "pack/az_cost04.index",
+      "size": 2804,
+      "sha256": "2F6110C726A3365B43C57EE1D9359DF7A379AD0C22DC514C25A5197389E32B10"
+    },
+    {
+      "path": "pack/az_cost05.index",
+      "size": 6092,
+      "sha256": "28B769386EA1EFEE4211A5C3BF43684224EA501B698C34D1AEFD5B1C2C08F439"
+    },
+    {
+      "path": "pack/az_cost06.index",
+      "size": 4156,
+      "sha256": "95632C3A1C1F566968BC9B328E4D5D4EA24A629EDB9741E40AA7809C4A8CF8D2"
+    },
+    {
+      "path": "pack/az_cost07.index",
+      "size": 2644,
+      "sha256": "0B6FDBD284CFF109B0D1B48A549F2B6E0BB4593A464EEF78EB0DFEAFFF90C6E8"
+    },
+    {
+      "path": "pack/az_cost08.index",
+      "size": 2140,
+      "sha256": "E2104AFCDBA18FF4911CBACBBDC6691A95F91A36098D21C41F959AD19E896C5A"
+    },
+    {
+      "path": "pack/az_cost09.index",
+      "size": 5524,
+      "sha256": "209B7FC0BBAB59599C9477AD525FCC02F5B36A41C8BB563525BFDFDC081B95CC"
+    },
+    {
+      "path": "pack/az_cost10.index",
+      "size": 4932,
+      "sha256": "808ECE1B3D7FA570F3F2D989231CAA9F25CA3895DDCC5BC3612C9B74A05DF0A8"
+    },
+    {
+      "path": "pack/az_cost11.index",
+      "size": 3452,
+      "sha256": "DAE7F489DDE1F1567249A9A21F953DAA6343F10837DC3036DAAF021D65105C00"
+    },
+    {
+      "path": "pack/az_cost12.index",
+      "size": 3092,
+      "sha256": "F3D4C08AC4B3EA107A1D823D9DF13CED316EB55EFF986A9C8AB809ABD7904E29"
+    },
+    {
+      "path": "pack/az_cost13.index",
+      "size": 5324,
+      "sha256": "83AC4180DDE2DE0D4CB4F314708FED42CAD944FA269B758DC0554F9E8FD06465"
+    },
+    {
+      "path": "pack/az_cost14.index",
+      "size": 4756,
+      "sha256": "F99E8337E2887A3763CDF21D0BBD92F813DA34381CD294015E6F0565FE073F82"
+    },
+    {
+      "path": "pack/az_cost15.index",
+      "size": 8932,
+      "sha256": "35FC869225945609E327058AA50A93D496455E8C133E88FDBDEEED3FC8844DDA"
+    },
+    {
+      "path": "pack/az_fix1.index",
+      "size": 2620,
+      "sha256": "04BF6F7401240E189BD76B313B885DD44FFEFA4E430000A389E389698ADF4787"
+    },
+    {
+      "path": "pack/az_maps.index",
+      "size": 7988,
+      "sha256": "23FA75282DFA8156937A3168E7C5874F0D2DC137D6387B62A0BE6980B3670F78"
+    },
+    {
+      "path": "pack/az_maps2.index",
+      "size": 4900,
+      "sha256": "140AB99245B49FCD064B8ED1EF03F264652707E461023425EB62E80F1AE0762F"
+    },
+    {
+      "path": "pack/az_maps3.index",
+      "size": 4980,
+      "sha256": "249DF3E839F5BD868CDB28CEEAF0949496BC9BC66BDE99F665AE9DE938069202"
+    },
+    {
+      "path": "pack/az_mobs.index",
+      "size": 3628,
+      "sha256": "C0BD4B26228D4BCAA824C286372C8D1F546AED3EC5079B12346054C7F66CBA6D"
+    },
+    {
+      "path": "pack/az_mobs2.index",
+      "size": 7052,
+      "sha256": "465726644D909468751D2C9C9D229F13DB1621437F736AE6B2936E8A7CF566EB"
+    },
+    {
+      "path": "pack/az_mobs3.index",
+      "size": 8332,
+      "sha256": "C25708CC957A5BBB05D941BF991912911E84F298A1859BB0D3929B404E4C0BA2"
+    },
+    {
+      "path": "pack/az_mobs4.index",
+      "size": 10740,
+      "sha256": "63AA5BB3E6016E421C2CE6E7BBA19DABA6AC896C6B65F55DF1F2A632B53B6B0C"
+    },
+    {
+      "path": "pack/az_ui.index",
+      "size": 1764,
+      "sha256": "2A9E4BE66E3620CD71DB9570BB7FFCA500B94A40ACC675F2A8B7C40C91466F2D"
+    },
+    {
+      "path": "pack/bd_maps.index",
+      "size": 3620,
+      "sha256": "3A3D82F74F6B555296524FB6924A1349E16673FEC0456A6ED9436B0B9D06F54C"
+    },
+    {
+      "path": "pack/catacomb_map.index",
+      "size": 45540,
+      "sha256": "91FFE0D65191E053B5938EB63E94426B10A34CB19DA54BE70294A8CD46CF2ED9"
+    },
+    {
+      "path": "pack/gamedata.index",
+      "size": 4092,
+      "sha256": "5D435110CB195542FE526EF83BEB73DED02EEF7709813E41C1146C81B26BD6F1"
+    },
+    {
+      "path": "pack/gf_misc.index",
+      "size": 8108,
+      "sha256": "1EA2DE044A03B56DCFF1A84C4CC5F6C8721A6AF36A2C5706D85E26062E812121"
+    },
+    {
+      "path": "pack/gf_mobs.index",
+      "size": 49076,
+      "sha256": "5B5A57CCBC7405F8B746D702F302799F742470FA47D60ECCCF3060793845995D"
+    },
+    {
+      "path": "pack/gf_nemere.index",
+      "size": 19876,
+      "sha256": "4074BFC37D08C2FCEDA98C0C8B715937CB796FE00F3E26AE4CFFC30804E7AFFD"
+    },
+    {
+      "path": "pack/gf_ore.index",
+      "size": 564,
+      "sha256": "B785A870895FB1CED2A7B8AD6D3E705A40B8FE513295B95BB8FF86AAC2902501"
+    },
+    {
+      "path": "pack/gf_razador.index",
+      "size": 25036,
+      "sha256": "6422924DF4585FF8ECA410226264C95F4C07758D323212B53F5C1BEFC1B8950D"
+    },
+    {
+      "path": "pack/goblin.index",
+      "size": 5956,
+      "sha256": "B6B5149B314DBB7EC0E714E6535E2920008E3F9990FD3EC03E6D809AA2B7DA76"
+    },
+    {
+      "path": "pack/icon.index",
+      "size": 78548,
+      "sha256": "2D5B64DB0325B098B06937AF45D7CAAE895AC19D65D0C80DA6D46045E873C6F1"
+    },
+    {
+      "path": "pack/Index",
+      "size": 1014,
+      "sha256": "84A0F82F48B8064F9680FA2CC8C1054BD7D3CF570E43B16A995630ED56FF4321"
+    },
+    {
+      "path": "pack/locale.index",
+      "size": 23500,
+      "sha256": "DAA01D77CCCA6F4D30BC11261581491359D8B855249FD9A168F7D9774B04BF05"
+    },
+    {
+      "path": "pack/maps.index",
+      "size": 90452,
+      "sha256": "5EA3E272D302863399DD666CBFC4F6CCC1548EAD73DAEBE27099EE252DF49B30"
+    },
+    {
+      "path": "pack/minigames.index",
+      "size": 10164,
+      "sha256": "A678706546B7AD3B722BC270B75C984414259956567E389EFA8E747A7991C9E5"
+    },
+    {
+      "path": "pack/newpet.index",
+      "size": 5828,
+      "sha256": "380AD994503E1155A88C56928A2C07275CE84B20D5D735DB39235E5C6F91BB84"
+    },
+    {
+      "path": "pack/ochao.index",
+      "size": 19556,
+      "sha256": "619DEAFF5F30D5DA5D0BF2A782C7640EAE2BCC36D2910E43A3CB728281748A9F"
+    },
+    {
+      "path": "pack/property.index",
+      "size": 56252,
+      "sha256": "64FB923FEB9A72CB1379FF932770A0A6BE6C018A381945239B4BF90F492B2326"
+    },
+    {
+      "path": "pack/root.index",
+      "size": 32940,
+      "sha256": "3BCA637B24F2D873619DF52FBFA00BE03C9E99B825F728742EB86EF3566135FB"
+    },
+    {
+      "path": "pack/wiki_nowe.index",
+      "size": 1140,
+      "sha256": "E85D9513B81A65816E2CB611B47B0C70510397112E58CC0DFAC6ACDCFC593F32"
+    },
+    {
+      "path": "pack/zodiak_maps.index",
+      "size": 16964,
+      "sha256": "A5955CFEC62DAFAC05AFB9FD85328FB87356411AE0212E74D715E1159E10F8CF"
+    },
+    {
+      "path": "pack/zodiak_mobs.index",
+      "size": 9780,
+      "sha256": "848D0FE006581A89490723C1BE4FC06E0263634D82C2B0945E2946A506F21806"
+    },
+    {
+      "path": "pack/zodiak_mobs2.index",
+      "size": 27860,
+      "sha256": "18573A388EDAFEF1205FF1A58EDF6DFCB9A3FFCDBB2D6CF6BFBB2A8763576590"
+    }
+  ]
+}

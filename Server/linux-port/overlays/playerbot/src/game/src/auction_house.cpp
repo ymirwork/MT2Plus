@@ -213,6 +213,9 @@ namespace
 		// Klient pokazuje je w panelu tam, gdzie staly w Domu Towarowym (CATEGORY_VISIBLE).
 		/* 31 Smocza Alchemia     */ { -1, ITEM_DS, -1, 0 },		// + ITEM_SPECIAL_DS i Cory Draconis (GetCategoryOverride)
 		/* 32 Polimorfia          */ { -1, ITEM_POLYMORPH, -1, 0 },
+		// AH_V1 [Autor: Vekirion]: ziola do mikstur (Pokrzywa, Kwiat Kaki...) maja w item_proto
+		// typ ITEM_MATERIAL jak ulepszacze - trafiaja tu wylacznie przez GetCategoryOverride.
+		/* 33 Ziola               */ { -1, AH_TYPE_OTHER, -1, 0 },
 	};
 	constexpr int AH_CATEGORY_COUNT = sizeof(s_categories) / sizeof(s_categories[0]);
 	constexpr int AH_CAT_ALL = 0;
@@ -220,6 +223,7 @@ namespace
 	constexpr int AH_CAT_UPGRADES = 29;
 	constexpr int AH_CAT_OTHER = 30;
 	constexpr int AH_CAT_DRAGON_ALCHEMY = 31;	// MT2009_PLUS_AUCTION_HOUSE_FILTERS_V1
+	constexpr int AH_CAT_HERBS = 33;			// AH_V1 [Autor: Vekirion]
 
 	// Przedmioty, ktorych typ w item_proto jest wspolny z mnostwem niezwiazanych
 	// rzeczy: tu wpis wygrywa z dopasowaniem typu (jak w Domu Towarowym).
@@ -242,6 +246,10 @@ namespace
 
 		if (vnum >= 50601 && vnum <= 50638)		// rudy i przetopy pod ITEM_SPECIAL
 			return AH_CAT_ORES;
+
+		// AH_V1 [Autor: Vekirion]: ziola do mikstur (Kwiat Brzoskwini .. Jaskiniowy Grzyb)
+		if (vnum >= 50721 && vnum <= 50736)
+			return AH_CAT_HERBS;
 
 		// MT2009_PLUS_AUCTION_HOUSE_FILTERS_V1: Cory Draconis (kazdy stopien i rodzaj) to
 		// w silniku zwykle przedmioty - ida do "Smocza Alchemia" jak w Domu Towarowym.
@@ -381,6 +389,20 @@ namespace
 	bool IsSkillBook(DWORD vnum)
 	{
 		return vnum == 50300 || vnum == 70037 || vnum == 70055;
+	}
+
+	// antyflaga klasy, ktora uczy sie tej umiejetnosci (0: wspolna albo nieznana)
+	DWORD SkillClassAntiFlag(long skillVnum)
+	{
+		if ((skillVnum >= 1 && skillVnum <= 5) || (skillVnum >= 16 && skillVnum <= 20))
+			return ITEM_ANTIFLAG_WARRIOR;
+		if ((skillVnum >= 31 && skillVnum <= 35) || (skillVnum >= 46 && skillVnum <= 50))
+			return ITEM_ANTIFLAG_ASSASSIN;
+		if ((skillVnum >= 61 && skillVnum <= 66) || (skillVnum >= 76 && skillVnum <= 81))
+			return ITEM_ANTIFLAG_SURA;
+		if ((skillVnum >= 91 && skillVnum <= 96) || (skillVnum >= 106 && skillVnum <= 111))
+			return ITEM_ANTIFLAG_SHAMAN;
+		return 0;
 	}
 
 	// ----------------------------------------------------------------- filtr
@@ -588,6 +610,15 @@ namespace
 		if (filter.classAntiFlag != 0 && (info.antiFlags & filter.classAntiFlag) != 0)
 			return false;
 
+		// MT2009_PLUS_AUCTION_HOUSE_CLASS_BOOKS_V1: ksiegi nie maja antyflag klasy -
+		// klase mowi umiejetnosc z socketu 0 (wspolne umiejetnosci zostaja dla wszystkich)
+		if (filter.classAntiFlag != 0 && IsSkillBook(item.vnum))
+		{
+			const DWORD bookFlag = SkillClassAntiFlag(item.alSockets[0]);
+			if (bookFlag != 0 && bookFlag != filter.classAntiFlag)
+				return false;
+		}
+
 		// MT2009_PLUS_AUCTION_HOUSE_FILTERS_V1: plec mowi cos tylko o tym, co sie zaklada
 		if (filter.sexAntiFlag != 0)
 		{
@@ -639,6 +670,16 @@ namespace
 				return false;
 			else if (std::find(filter.skills.begin(), filter.skills.end(), static_cast<long>(item.alSockets[0])) == filter.skills.end())
 				return false;
+			// MT2009_PLUS_AUCTION_HOUSE_BOOK_KIND_V1: klient dopasowuje umiejetnosc do
+			// "<umiejetnosc> - <ksiega>" kazdej ksiegi, wiec "Czarowane Ostrze - Ksiega
+			// Umiejetnosci" znajdowalo tez ksiege zapomnienia. Tekst po " - " musi byc
+			// poczatkiem nazwy tej ksiegi.
+			else
+			{
+				const size_t dash = filter.query.rfind(" - ");
+				if (dash != std::string::npos && info.lowerName.compare(0, filter.query.size() - dash - 3, filter.query, dash + 3, std::string::npos) != 0)
+					return false;
+			}
 		}
 
 		return MatchBonuses(filter, item);
@@ -673,7 +714,10 @@ namespace
 	void CollectOffers(LPCHARACTER ch, const TAhFilter& filter, std::vector<TAhOffer>& offers, bool trim = false, bool uniqueVnum = false)
 	{
 		const DWORD pid = ch->GetPlayerID();
-		std::unordered_set<DWORD> seenVnums;	// MT2009_PLUS_AUCTION_HOUSE_BOUND_V1 (names)
+		// MT2009_PLUS_AUCTION_HOUSE_BOUND_V1 (names). AH_V1 [Autor: Vekirion]: ksiega liczy
+		// sie osobno dla kazdej umiejetnosci (vnum i socket 0), zeby podpowiedzi mialy
+		// wszystkie wystawione umiejetnosci, a nie tylko pierwsza znaleziona.
+		std::unordered_set<unsigned long long> seenVnums;
 		for (const auto& [ownerId, shop] : ikashop::GetManager().GetPlayerBotOfflineShops())
 		{
 			if (!shop || ownerId == pid)
@@ -692,8 +736,14 @@ namespace
 				const auto& info = shopItem->GetInfo();
 				if (!MatchItem(filter, info))
 					continue;
-				if (uniqueVnum && !seenVnums.insert(info.vnum).second)
-					continue;	// MT2009_PLUS_AUCTION_HOUSE_BOUND_V1 (names)
+				if (uniqueVnum)
+				{
+					unsigned long long key = info.vnum;
+					if (IsSkillBook(info.vnum))
+						key |= static_cast<unsigned long long>(static_cast<DWORD>(info.alSockets[0])) << 32;
+					if (!seenVnums.insert(key).second)
+						continue;	// MT2009_PLUS_AUCTION_HOUSE_BOUND_V1 (names)
+				}
 
 				TAhOffer& offer = offers.emplace_back();
 				offer.owner = ownerId;
@@ -715,10 +765,32 @@ namespace
 		}
 	}
 
-	// Wpisana nazwa, ktora jest dokladnie nazwa ktoregos ze znalezionych przedmiotow
-	// ("zolc niedzwiedzia"), pokazuje tylko ten przedmiot - bez odmian z dopiskiem
-	// ("Zolc Niedzwiedzia+"). Gdy zaden nie nazywa sie dokladnie tak, zostaje zwykle
-	// dopasowanie fragmentu nazwy.
+	// MT2009_PLUS_AUCTION_HOUSE_EXACT_NAME_V1 [Autor: Vekirion]: nazwy wszystkich
+	// przedmiotow z item_proto (male litery). Zyja tyle co cache przedmiotow.
+	std::unordered_set<std::string> s_protoLowerNames;
+	DWORD s_protoLowerNamesTime = 0;
+
+	bool IsItemProtoName(const std::string& lowerName)
+	{
+		const DWORD now = get_dword_time();
+		if (s_protoLowerNames.empty() || now - s_protoLowerNamesTime > AH_VNUM_CACHE_TTL_MS)
+		{
+			s_protoLowerNames.clear();
+			for (const TItemTable& table : ITEM_MANAGER::instance().GetTable())
+				s_protoLowerNames.insert(StringToLower(table.szLocaleName, strnlen(table.szLocaleName, ITEM_NAME_MAX_LEN)));
+			s_protoLowerNamesTime = now;
+		}
+		return s_protoLowerNames.count(lowerName) != 0;
+	}
+
+	// Wpisana nazwa, ktora jest dokladnie nazwa przedmiotu ("zolc niedzwiedzia"),
+	// pokazuje tylko ten przedmiot - bez odmian z dopiskiem ("Zolc Niedzwiedzia+").
+	// Gdy zaden przedmiot nie nazywa sie dokladnie tak, zostaje zwykle dopasowanie
+	// fragmentu nazwy.
+	// MT2009_PLUS_AUCTION_HOUSE_EXACT_NAME_V1 [Autor: Vekirion]: "przedmiot" to kazdy
+	// z item_proto, nie tylko wystawiony. Wczesniej nazwa przedmiotu, ktorego nikt nie
+	// sprzedaje (wybrana z podpowiedzi "wszystkie nazwy"), pokazywala oferty innych
+	// przedmiotow z ta nazwa w srodku ("Zab Orka" -> "Zab Orka+", "Zloty Zab Orka").
 	void ApplyExactName(const TAhFilter& filter, std::vector<TAhOffer>& offers)
 	{
 		if (filter.query.empty() || filter.vnum != 0)
@@ -728,7 +800,7 @@ namespace
 			return GetVnumInfo(offer.vnum).lowerName == filter.query;
 		};
 
-		if (std::none_of(offers.begin(), offers.end(), isExact))
+		if (std::none_of(offers.begin(), offers.end(), isExact) && !IsItemProtoName(filter.query))
 			return;
 
 		std::erase_if(offers, [&](const TAhOffer& offer) { return !isExact(offer); });
@@ -1321,6 +1393,9 @@ ACMD(do_ah_search)
 // wystawione, pasuja do wpisanego tekstu oraz do kategorii, klasy i poziomu
 // ulepszenia z filtra. Bonusy z filtra nie maja tu znaczenia. Odpowiedz to lista
 // vnumow (nazwy zna klient): najpierw nazwy zaczynajace sie od tekstu, potem reszta.
+// AH_V1 [Autor: Vekirion]: ksiega znaleziona po nazwie umiejetnosci idzie na koncu jako
+// "vnum:umiejetnosc" - klient sklada z tego "<umiejetnosc> - <ksiega>". Starszy klient
+// takiego wpisu nie rozpozna i go pominie.
 ACMD(do_ah_names)
 {
 	if (!ch || !ch->GetDesc())
@@ -1343,7 +1418,6 @@ ACMD(do_ah_names)
 	filter.minBonusCount = 0;
 	filter.vnum = 0;
 	filter.socket0 = -1;
-	filter.skills.clear();		// ksiegi po nazwie umiejetnosci nie maja wlasnej nazwy do podpowiedzi
 
 	const DWORD now = get_dword_time();
 	TAhState& state = GetState(ch->GetPlayerID());
@@ -1355,9 +1429,17 @@ ACMD(do_ah_names)
 	CollectOffers(ch, filter, offers, false, true);	// MT2009_PLUS_AUCTION_HOUSE_BOUND_V1 (names)
 
 	std::vector<DWORD> vnums;
+	std::vector<std::pair<DWORD, long>> books;		// AH_V1 [Autor: Vekirion]
 	vnums.reserve(offers.size());
 	for (const TAhOffer& offer : offers)
-		vnums.push_back(offer.vnum);
+	{
+		if (IsSkillBook(offer.vnum) && GetVnumInfo(offer.vnum).lowerName.find(filter.query) == std::string::npos)
+			books.emplace_back(offer.vnum, offer.socket0);
+		else
+			vnums.push_back(offer.vnum);
+	}
+	std::sort(books.begin(), books.end());
+	books.erase(std::unique(books.begin(), books.end()), books.end());
 	std::sort(vnums.begin(), vnums.end());
 	vnums.erase(std::unique(vnums.begin(), vnums.end()), vnums.end());
 
@@ -1376,6 +1458,15 @@ ACMD(do_ah_names)
 	for (DWORD vnum : vnums)
 	{
 		const std::string token = std::to_string(vnum);
+		if (list.size() + token.size() + 1 > 440)
+			break;
+		if (!list.empty())
+			list += ',';
+		list += token;
+	}
+	for (const auto& [bookVnum, skillVnum] : books)
+	{
+		const std::string token = std::to_string(bookVnum) + ":" + std::to_string(skillVnum);
 		if (list.size() + token.size() + 1 > 440)
 			break;
 		if (!list.empty())

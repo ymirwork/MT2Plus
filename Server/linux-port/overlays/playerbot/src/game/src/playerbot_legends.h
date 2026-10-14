@@ -323,17 +323,22 @@ namespace
 			const BYTE tier = GetPlayerBotLegendDrawnTier(pid);
 			if (tier == BOT_LEGEND_NONE)
 				continue;
+			// MT2009_PLUS_LEGEND_SEED_BATCH_V1: DBManager::Query formats into 4096 bytes and cuts
+			// the rest, so a batch flushed at 6000 characters (a new world's first boot seeds
+			// thousands of bots) reached MariaDB cut mid-row - a syntax error and those rows
+			// never written. A batch now stays under 3500 characters with the statement's head.
 			char one[64];
-			snprintf(one, sizeof(one), "%s(%u,%u,%u,NOW(),NOW())", values.empty() ? "" : ",",
-					pid, (unsigned int)tier, empire);
-			values += one;
-			++seeded;
-			if (values.size() > 6000)
+			snprintf(one, sizeof(one), "(%u,%u,%u,NOW(),NOW())", pid, (unsigned int)tier, empire);
+			if (!values.empty() && values.size() + 1 + strlen(one) > 3500)
 			{
 				DBManager::instance().Query("INSERT IGNORE INTO player.playerbot_legend (pid, tier, empire, since, tier_since) VALUES %s",
 						values.c_str());
 				values.clear();
 			}
+			if (!values.empty())
+				values += ',';
+			values += one;
+			++seeded;
 		}
 		if (!values.empty())
 			DBManager::instance().Query("INSERT IGNORE INTO player.playerbot_legend (pid, tier, empire, since, tier_since) VALUES %s",
@@ -983,18 +988,38 @@ namespace
 	// fiftieth (a level, an armour).
 	void SyncPlayerBotLegendHealth(LPCHARACTER ch, BYTE tier)
 	{
+		// MT2009_PLUS_LEGEND_HP_SINGLE_V1: not before the affects came from the DB (the same race as the
+		// weekly ranking's - an early copy plus the stored one made two), and every copy counts; more
+		// than one are all taken off and one is put back.
+		if (!ch->IsLoadedAffect())
+			return;
 		CAffect* aff = ch->FindAffect(PLAYERBOT_LEGEND_HP_AFFECT);
-		const long current = aff ? aff->lApplyValue : 0;
+		long current = 0;
+		int copies = 0;
+		for (CAffect* a : ch->GetAffectContainer())
+			if (a && a->dwType == PLAYERBOT_LEGEND_HP_AFFECT)
+			{
+				current += a->lApplyValue;
+				++copies;
+			}
+		if (copies > 1)
+		{
+			ch->RemoveAffect(PLAYERBOT_LEGEND_HP_AFFECT);
+			sys_log(0, "PLAYERBOT_LEGEND: %s had %d HP affect copies (sum %ld) - one left", ch->GetName(), copies, current);
+			aff = NULL;
+			current = 0;
+		}
 		const int permille = PLAYERBOT_LEGEND_HP_PERMILLE[ClampPlayerBotLegendTier(tier)];
 		const long base = (long)ch->GetMaxHP() - current;
-		const long want = permille > 0 && base > 0 ? base * permille / 1000 : 0;
-		if (want <= 0)
+		// MT2009_PLUS_LEGEND_HP_HALF_V1: the permille may be negative (a cut), so only zero means none
+		const long want = permille != 0 && base > 0 ? base * permille / 1000 : 0;
+		if (want == 0)
 		{
 			if (aff)
 				ch->RemoveAffect(PLAYERBOT_LEGEND_HP_AFFECT);
 			return;
 		}
-		if (aff && labs(want - current) <= std::max(20L, want / 50))
+		if (aff && labs(want - current) <= std::max(20L, labs(want) / 50))
 			return;
 		ch->AddAffect(PLAYERBOT_LEGEND_HP_AFFECT, POINT_MAX_HP, want, 0, INFINITE_AFFECT_DURATION, 0, true);
 	}

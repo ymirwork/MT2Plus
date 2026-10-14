@@ -322,5 +322,71 @@
   "marker": "MT2009_PLUS_AREZZO_ENCHANT_PERMIT_V1",
   "old": "\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n\n\tfor (itertype(vec_item) it = vec_item.begin(); it != vec_item.end(); ++it)\n",
   "new": "\tCreateQuestDropItem(pkChr, pkKiller, vec_item, iDeltaPercent, iRandRange);\n\n\t// MT2009_PLUS_AREZZO_ENCHANT_PERMIT_V1 (the owner, 7 October: \"na nowych mapach Arezzo pozwolenie na\n\t// zaczarowanie przedmiotow leci za czesto, ustaw 1/4\"): on Dolina Cyklopow (360), Pustkowie Faraona (361)\n\t// and Zaczarowany Las (362) a Pozwolenie na Zaczar. Przedmiotu (30370) - Metin Cienia's - stays at 1 in 4;\n\t// the same stones elsewhere drop as before.\n\t{\n\t\tconst long lMapIndex = pkChr->GetMapIndex();\n\t\tif (lMapIndex == 360 || lMapIndex == 361 || lMapIndex == 362)\n\t\t{\n\t\t\tfor (std::vector<LPITEM>::iterator it = vec_item.begin(); it != vec_item.end(); )\n\t\t\t{\n\t\t\t\tif (*it && (*it)->GetVnum() == 30370 && number(1, 4) != 1)\n\t\t\t\t{\n\t\t\t\t\tM2_DESTROY_ITEM(*it);\n\t\t\t\t\tit = vec_item.erase(it);\n\t\t\t\t}\n\t\t\t\telse\n\t\t\t\t\t++it;\n\t\t\t}\n\t\t}\n\t}\n\n\tfor (itertype(vec_item) it = vec_item.begin(); it != vec_item.end(); ++it)\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (struct)",
+  "old": "\tint\t\tm_iPriorityOrder = 0;\n",
+  "new": "\tint\t\tm_iPriorityOrder = 0;\n\t// MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (struct) (server-patches/enginefixes): a target behind a wall, a rock or a\n\t// building (AutoHuntSegmentBlocked from the hunter) is ranked after every target of\n\t// its own kind with a clear line - the mounted hunter ran into the wall at the\n\t// nearest one while another stood in the open. Taken only when nothing of its kind\n\t// is in the open; the client then asks /autohunt_path for the way round. The\n\t// penalty is less than the steps between the kinds (500000 and more), so the\n\t// window's order (stone, boss, priority) stays as it was. Tested only for one that\n\t// would win without it - a few cells of the map's grid each.\n\tbool\t\tm_bBestBlocked = false;\n\tvoid Mt2009PlusOffer(LPCHARACTER victim, int score)\n\t{\n\t\tif (score >= m_iBestScore)\n\t\t\treturn;\n\t\tconst bool blocked = Mt2009PlusAutoHuntBlocked(m_ch, victim);\n\t\tif (blocked)\n\t\t{\n\t\t\tscore += 250000;\n\t\t\tif (score >= m_iBestScore)\n\t\t\t\treturn;\n\t\t}\n\t\tm_iBestScore = score;\n\t\tm_pkBest = victim;\n\t\tm_bBestBlocked = blocked;\n\t}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (declare)",
+  "old": "// The answer is \"AutoHuntTarget <vid>\", zero for nothing.\nstruct FAutoHuntTarget\n{\n",
+  "new": "// The answer is \"AutoHuntTarget <vid>\", zero for nothing.\n// MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (declare): the straight line from the hunter to a monster crosses a wall\n// (AutoHuntSegmentBlocked, below).\nstatic bool Mt2009PlusAutoHuntBlocked(LPCHARACTER ch, LPCHARACTER victim);\nstruct FAutoHuntTarget\n{\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (priority)",
+  "old": "\t\t\t\t\tscore += rank * 1000000;\n\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\tif (score < m_iBestScore)\n\t\t\t{\n\t\t\t\tm_iBestScore = score;\n\t\t\t\tm_pkBest = victim;\n\t\t\t}\n\t\t\treturn;\n",
+  "new": "\t\t\t\t\tscore += rank * 1000000;\n\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\tMt2009PlusOffer(victim, score); // MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (priority)\n\t\t\treturn;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (nearest)",
+  "old": "\t\tif (m_bNearest)\n\t\t{\n\t\t\tif (score < m_iBestScore)\n\t\t\t{\n\t\t\t\tm_iBestScore = score;\n\t\t\t\tm_pkBest = victim;\n\t\t\t}\n\t\t\treturn;\n",
+  "new": "\t\tif (m_bNearest)\n\t\t{\n\t\t\tMt2009PlusOffer(victim, score); // MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (nearest)\n\t\t\treturn;\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (score)",
+  "old": "\t\t\tscore -= 1500000;\n\t\tif (score < m_iBestScore)\n\t\t{\n\t\t\tm_iBestScore = score;\n\t\t\tm_pkBest = victim;\n\t\t}\n",
+  "new": "\t\t\tscore -= 1500000;\n\t\tMt2009PlusOffer(victim, score); // MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (score)\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (blocked)",
+  "old": "\t\tif (!SECTREE_MANAGER::instance().IsMovablePosition(lMapIndex, x, y))\n\t\t\treturn true;\n\t}\n\treturn false;\n}\n",
+  "new": "\t\tif (!SECTREE_MANAGER::instance().IsMovablePosition(lMapIndex, x, y))\n\t\t\treturn true;\n\t}\n\treturn false;\n}\n\n// MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (blocked)\nstatic bool Mt2009PlusAutoHuntBlocked(LPCHARACTER ch, LPCHARACTER victim)\n{\n\treturn AutoHuntSegmentBlocked(ch->GetMapIndex(), ch->GetX(), ch->GetY(), victim->GetX(), victim->GetY());\n}\n"
+ },
+ {
+  "file": "cmd_general.cpp",
+  "marker": "MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (reply)",
+  "old": "\t\t\t(f.m_pkBest && AutoHuntSegmentBlocked(ch->GetMapIndex(), ch->GetX(), ch->GetY(),\n\t\t\t\t\tf.m_pkBest->GetX(), f.m_pkBest->GetY())) ? 1 : 0);\n",
+  "new": "\t\t\t(f.m_pkBest && f.m_bBestBlocked) ? 1 : 0); // MT2009_PLUS_AUTOHUNT_CLEAR_LINE_V1 (reply): tested once, while ranking\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_RAZADOR_GATE_V1 (helper)",
+  "old": "void CInputMain::Move(LPCHARACTER ch, const char * data)\n{\n",
+  "new": "// MT2009_PLUS_RAZADOR_GATE_V1 (helper) (server-patches/enginefixes): the gates of\n// Razador's dungeon (map 351 and its instances) - Zamek Przeznaczenia (20387, the\n// chains on a bridge) and Smocza Brama (20388) - are quest NPCs, not map objects,\n// and the map's attributes are shared by every instance, so nothing in\n// server_attr can close one instance's passage. While such a gate stands (the\n// quest kills it with d.kill_unique when its task starts) a player's move may\n// not come nearer than RAZADOR_GATE_RADIUS to it: a move whose line enters the\n// circle is refused and the player stays where the core has him. A player who is\n// inside already may only move away from the gate. 650 units cover the widest\n// passage at a gate (5.5 m, server_attr of metin2_map_n_flame_dungeon_01) with a\n// margin and match the gate's own collision sphere in the client (6.8 m).\nnamespace\n{\n\tconst double RAZADOR_GATE_RADIUS = 650.0;\n\n\tstruct FRazadorGateBlock\n\t{\n\t\tdouble m_sx, m_sy, m_dx, m_dy;\n\t\tbool m_bBlocked;\n\n\t\tFRazadorGateBlock(long sx, long sy, long dx, long dy)\n\t\t\t: m_sx(sx), m_sy(sy), m_dx(dx), m_dy(dy), m_bBlocked(false)\n\t\t{\n\t\t}\n\n\t\tvoid operator () (LPENTITY ent)\n\t\t{\n\t\t\tif (m_bBlocked || !ent || !ent->IsType(ENTITY_CHARACTER))\n\t\t\t\treturn;\n\n\t\t\tLPCHARACTER gate = (LPCHARACTER) ent;\n\t\t\tif (gate->IsPC() || gate->IsDead())\n\t\t\t\treturn;\n\n\t\t\tconst DWORD race = gate->GetRaceNum();\n\t\t\tif (race != 20388)\t// 13 October (owner): the chains (20387) do not block\n\t\t\t\treturn;\n\n\t\t\tconst double cx = gate->GetX(), cy = gate->GetY();\n\t\t\tconst double ex = m_dx - m_sx, ey = m_dy - m_sy;\n\t\t\tconst double len2 = ex * ex + ey * ey;\n\t\t\tdouble t = 0.0;\n\t\t\tif (len2 > 0.0)\n\t\t\t{\n\t\t\t\tt = ((cx - m_sx) * ex + (cy - m_sy) * ey) / len2;\n\t\t\t\tif (t < 0.0)\n\t\t\t\t\tt = 0.0;\n\t\t\t\telse if (t > 1.0)\n\t\t\t\t\tt = 1.0;\n\t\t\t}\n\n\t\t\tconst double px = m_sx + t * ex - cx, py = m_sy + t * ey - cy;\n\t\t\tconst double near2 = px * px + py * py;\n\t\t\tconst double cur2 = (m_sx - cx) * (m_sx - cx) + (m_sy - cy) * (m_sy - cy);\n\t\t\tconst double r2 = RAZADOR_GATE_RADIUS * RAZADOR_GATE_RADIUS;\n\n\t\t\t// Into the circle, or deeper into it than the player is now.\n\t\t\tif (near2 < r2 && near2 + 1.0 < cur2)\n\t\t\t\tm_bBlocked = true;\n\t\t}\n\t};\n\n\tbool RazadorGateBlocks(LPCHARACTER ch, long lX, long lY)\n\t{\n\t\tconst long lMapIndex = ch->GetMapIndex();\n\t\tif (lMapIndex != 351 && lMapIndex / 10000 != 351)\n\t\t\treturn false;\n\n\t\tLPSECTREE pSec = ch->GetSectree();\n\t\tif (!pSec)\n\t\t\treturn false;\n\n\t\tFRazadorGateBlock f(ch->GetX(), ch->GetY(), lX, lY);\n\t\tpSec->ForEachAround(f);\n\t\treturn f.m_bBlocked;\n\t}\n}\n\nvoid CInputMain::Move(LPCHARACTER ch, const char * data)\n{\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_RAZADOR_GATE_V1 (move)",
+  "old": "\t\t// end mt2009 cheatwarden\n",
+  "new": "\t\t// end mt2009 cheatwarden\n\n\t\t// MT2009_PLUS_RAZADOR_GATE_V1 (move): a closed gate of Razador's dungeon\n\t\t// (RazadorGateBlocks above) - the move is refused like a too long one.\n\t\tif (ch->IsPC() && RazadorGateBlocks(ch, pinfo->lX, pinfo->lY))\n\t\t{\n\t\t\tch->ChatDebug(\"MOVE: a closed gate of Razador's dungeon\");\n\t\t\tch->Show(ch->GetMapIndex(), ch->GetX(), ch->GetY(), ch->GetZ());\n\t\t\tch->Stop();\n\t\t\treturn;\n\t\t}\n"
+ },
+ {
+  "file": "exchange.cpp",
+  "marker": "MT2009_PLUS_EXCHANGE_DS_V1 (add)",
+  "old": "\tif (item->GetCell() >= m_pOwner->GetInventoryMaxCount())\n\t{\n\t\tm_pOwner->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Summon your horse to get access to horse inventory.\"));\n\t\treturn false;\n\t}\n",
+  "new": "\t// MT2009_PLUS_EXCHANGE_DS_V1 (add) (server-patches/enginefixes): only an INVENTORY cell past the bag is the horse's\n\t// saddlebag - a Dragon Soul stone (its own window, cells far above the bag's) was refused with the saddlebag text.\n\tif (m_pOwner->IsHorseInventory(item->GetItemPos()) && item->GetCell() >= m_pOwner->GetInventoryMaxCount())\n\t{\n\t\tm_pOwner->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Summon your horse to get access to horse inventory.\"));\n\t\treturn false;\n\t}\n"
+ },
+ {
+  "file": "exchange.cpp",
+  "marker": "MT2009_PLUS_EXCHANGE_DS_V1 (check)",
+  "old": "\t\tif (item->GetCell() >= m_pOwner->GetInventoryMaxCount())\n\t\t{\n\t\t\tGetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Summon your horse to get access to horse inventory.\"));\n\t\t\treturn false;\n\t\t}\n",
+  "new": "\t\t// MT2009_PLUS_EXCHANGE_DS_V1 (check) (server-patches/enginefixes): only an INVENTORY cell past the bag is the horse's\n\t\t// saddlebag - a Dragon Soul stone (its own window, cells far above the bag's) was refused with the saddlebag text.\n\t\tif (m_pOwner->IsHorseInventory(item->GetItemPos()) && item->GetCell() >= m_pOwner->GetInventoryMaxCount())\n\t\t{\n\t\t\tGetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Summon your horse to get access to horse inventory.\"));\n\t\t\treturn false;\n\t\t}\n"
  }
 ]

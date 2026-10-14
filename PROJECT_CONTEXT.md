@@ -236,6 +236,7 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Alchemia Smoczych Kamieni (Dragon Soul):** Mityczna alchemia, pełny obieg uszlachetniania.
 - **Auto Hunting (Klawisz K):** Zautomatyzowane expienie dla gracza.
 - **Szybkie ulepszanie (Enter-refine) & TAB Minimap Warp.**
+- **Tracker Bossów i Kamieni Metin (Boss & Metin Tracker, v2.33.0):** Zintegrowany system śledzenia respów bossów i kamieni metin w czasie rzeczywistym. Silnik C++ (`char.h`, `cmd.cpp`, `cmd_general.cpp`, `regen.h`, `regen.cpp`) udostępnia komendy `/boss_tracker` (odpytywanie ze stanem żywy/czas do respu/koordynaty na mapach publicznych z uwzględnieniem `regen_list` i `SpecialSpawnManager`) oraz `/boss_tracker_tp <slot>` (bezpieczny teleport do żywego celu z 5-sekundowym cooldownem). Po stronie klienta zwijany panel pod minimapą (`uibosstracker.py`, `uiminimap.py`, `game.py`) z filtrami (Wszystkie / Bossy / Metiny), stronicowaniem, odliczaniem czasu i przyciskiem TP.
 
 ### 5.1. Rejestr Paczek i Modułów w `Server/addons/`
 
@@ -249,6 +250,7 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
 | `Fix_Boty_Gildia_Exp_Party.zip` | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Włączony w Upstream 2.32.0** |
 | `Seban_Panel_Rozszerzona_Ekonomia_V2.zip` | Web / Panel Seban | `Server/linux-port/overlays/seban-panel/` -> `docker/seban-panel/` (Centrum Gospodarki, YmirWork telemetria, interpretacja inflacji, bilans emerytur botów, zachowywane automatycznie po aktualizacjach z upstream) | **Aktywny (Auto-Overlay)** |
 | `MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip` | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
+| `MT2009-PLUS-TRACKER-BOSSOW-2.33.0.zip` | Serwer (C++) + Klient (Python) | `char.h`, `cmd.cpp`, `cmd_general.cpp`, `regen.h`, `regen.cpp`, `uibosstracker.py`, `uiminimap.py`, `game.py` | **Aktywny** |
 | `Paczka_Recykling_Bonusow.zip` | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |
 | `teleport_ring.quest` | Serwer (Quest) | Quest z dodatkowymi lochami i mapami Arezzo | **Aktywny** |
 

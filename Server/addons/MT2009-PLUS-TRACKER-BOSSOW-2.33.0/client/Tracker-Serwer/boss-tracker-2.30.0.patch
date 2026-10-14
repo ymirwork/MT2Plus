@@ -1,0 +1,362 @@
+--- a/linux-port/docker/game/src/server/game/src/char.h
++++ b/linux-port/docker/game/src/server/game/src/char.h
+@@ -1690,6 +1690,7 @@ class CHARACTER : public CEntity, public CFSM, public CHorseRider
+ 		// Regen
+ 	public:
+ 		void				SetRegen(LPREGEN pkRegen);
++		LPREGEN				GetRegen() const { return m_pkRegen; }
+ 
+ 	protected:
+ 		PIXEL_POSITION			m_posRegen;
+--- a/linux-port/docker/game/src/server/game/src/cmd.cpp
++++ b/linux-port/docker/game/src/server/game/src/cmd.cpp
+@@ -297,6 +297,8 @@ ACMD(do_flea_filter);
+ #endif
+ ACMD(do_flea_price);
+ ACMD(do_special_spawn_info);
++ACMD(do_boss_tracker); // MT2009_BOSS_TRACKER_V1
++ACMD(do_boss_tracker_tp);
+ ACMD(do_set_special_flag);
+ ACMD(do_get_special_flag);
+ ACMD(do_maintenance);
+@@ -746,6 +748,8 @@ struct command_info cmd_info[] =
+ #endif
+ 
+ 	{ "special_spawn_info", do_special_spawn_info, 	0, POS_DEAD,		GM_HIGH_WIZARD },
++	{ "boss_tracker", do_boss_tracker, 0, POS_DEAD, GM_PLAYER },
++	{ "boss_tracker_tp", do_boss_tracker_tp, 0, POS_DEAD, GM_PLAYER },
+ 	{ "set_special_flag", do_set_special_flag, 	0, POS_DEAD,		GM_IMPLEMENTOR },
+ 	{ "get_special_flag", do_get_special_flag, 	0, POS_DEAD,		GM_IMPLEMENTOR },
+ 	{ "maintenance", do_maintenance, 	0, POS_DEAD,		GM_IMPLEMENTOR },
+--- a/linux-port/docker/game/src/server/game/src/cmd_general.cpp
++++ b/linux-port/docker/game/src/server/game/src/cmd_general.cpp
+@@ -50,6 +50,7 @@
+ #include <sys/stat.h>
+ const std::vector<CUBE_DATA*>& Cube_GetRecipesForWiki();	// cube.cpp
+ #include "battle.h"
++#include "regen.h"
+ #include "playerbot_arrange.h"
+ #include "../../common/VnumHelper.h"
+ #include "../../common/PulseManager.h"
+@@ -57,6 +58,54 @@ const std::vector<CUBE_DATA*>& Cube_GetRecipesForWiki();	// cube.cpp
+ #	include "playerbot_zodiac_temple.h"
+ #endif
+ 
++// MT2009_BOSS_TRACKER_V1: rate-limit each map, while a new map gets its
++// first snapshot immediately. The client polls every fifteen seconds.
++ACMD(do_boss_tracker)
++{
++	if (!ch || !ch->IsPC())
++		return;
++	static std::map<DWORD, std::pair<long, DWORD>> lastRequest;
++	const DWORD now = get_global_time();
++	const DWORD pid = ch->GetPlayerID();
++	const long mapIndex = ch->GetMapIndex();
++	auto it = lastRequest.find(pid);
++	if (it != lastRequest.end() && it->second.first == mapIndex &&
++		now >= it->second.second && now - it->second.second < 2)
++		return;
++	lastRequest[pid] = std::make_pair(mapIndex, now);
++	regen_send_boss_tracker(ch);
++}
++
++ACMD(do_boss_tracker_tp)
++{
++	if (!ch || !ch->IsPC())
++		return;
++	static std::map<DWORD, DWORD> lastTeleport;
++	const DWORD now = get_global_time();
++	const DWORD pid = ch->GetPlayerID();
++	auto it = lastTeleport.find(pid);
++	if (it != lastTeleport.end() && now >= it->second && now - it->second < 5)
++	{
++		ch->ChatPacket(CHAT_TYPE_INFO, "Kolejny teleport za %u s.", 5 - (now - it->second));
++		return;
++	}
++	if (ch->IsDead() || ch->IsStun() || ch->IsBusy() ||
++		ch->GetDungeon() || ch->GetWarMap() || !ch->CanWarp())
++	{
++		ch->ChatPacket(CHAT_TYPE_INFO, "Teleport jest teraz niedostepny.");
++		return;
++	}
++	char slotText[16];
++	one_argument(argument, slotText, sizeof(slotText));
++	unsigned int slot = 0;
++	if (!str_to_number(slot, slotText) || slot < 1 || slot > 180)
++		return;
++	if (regen_boss_tracker_teleport(ch, slot))
++		lastTeleport[pid] = now;
++	else
++		ch->ChatPacket(CHAT_TYPE_INFO, "Ten resp nie jest juz aktywny lub brak bezpiecznego miejsca TP.");
++}
++
+ ACMD(do_user_horse_ride)
+ {
+ 	if (ch->IsObserverMode())
+--- a/linux-port/docker/game/src/server/game/src/regen.h
++++ b/linux-port/docker/game/src/server/game/src/regen.h
+@@ -33,6 +33,7 @@ typedef struct regen
+ 	bool	is_first_spawn_delayed;
+ 
+ 	bool	is_boss_or_stone;
++	BYTE	tracker_kind; // 0=ordinary mob, 1=boss file/elite, 2=Metin file/stone
+ 	// MT2009_PLUS_REGEN_METIN_SPLIT_V1 (member) (server-patches/regenmetin): the line puts down a
+ 	// Metin stone (CHAR_TYPE_STONE) - its respawn reads fastMetinSpawn and
+ 	// m2_metin_count, a boss's line fastBossSpawn and m2_boss_count.
+@@ -60,9 +61,10 @@ typedef struct regen
+ 		is_aggressive(0),
+ 		is_high_traffic_hours(0),
+ 		is_first_spawn_delayed(0),
++		is_boss_or_stone(false),
++		tracker_kind(0),
+ 		event(NULL),
+-		id(0),
+-		is_boss_or_stone(false)
++		id(0)
+ 	{}
+ 
+ 	DWORD GetSpawnDelay()
+@@ -123,6 +125,8 @@ extern void	regen_free();
+ 
+ extern bool	is_regen_exception(long x, long y);
+ extern void	regen_reset(int x, int y);
++extern void regen_send_boss_tracker(LPCHARACTER ch);
++extern bool regen_boss_tracker_teleport(LPCHARACTER ch, unsigned int slot);
+ //martysama0134's 4e4e75d8b719b9240e033009cf4d7b0f
+ 
+ // Files shared by GameCore.top
+--- a/linux-port/docker/game/src/server/game/src/regen.cpp
++++ b/linux-port/docker/game/src/server/game/src/regen.cpp
+@@ -9,6 +9,9 @@
+ #include "questmanager.h"
+ #include "mob_manager.h"
+ #include "constants.h"
++#include "SpecialSpawnManager.h"
++#include "special_spawn.h"
++#include "event.h"
+ 
+ LPREGEN	regen_list = NULL;
+ LPREGEN_EXCEPTION regen_exception_list = NULL;
+@@ -849,6 +852,10 @@ bool regen_load(const char* filename, long lMapIndex, int base_x, int base_y)
+ 
+ 			regen = M2_NEW REGEN;
+ 			*regen = tmp;
++			if (strstr(filename, "/boss.txt"))
++				regen->tracker_kind = 1;
++			else if (strstr(filename, "/stone.txt"))
++				regen->tracker_kind = 2;
+ 			INSERT_TO_TW_LIST(regen, regen_list, prev, next);
+ 
+ 			regen->lMapIndex = lMapIndex;
+@@ -981,6 +988,211 @@ void regen_reset(int x, int y)
+ 			event_reset_time(regen->event, 1);
+ 	}
+ }
++
++// MT2009_BOSS_TRACKER_V1: read-only snapshot for the minimap panel.
++// Explicit map whitelist; include the four requested ordinary cave floors.
++static bool tracker_public_map(long mapIndex)
++{
++	switch (mapIndex)
++	{
++		case 1: case 3: case 4: case 21: case 23: case 24:
++		case 41: case 43: case 44: case 61: case 62: case 63:
++		case 64: case 65: case 67: case 68: case 70:
++		case 71: case 72: case 73: case 104:
++		case 301: case 302: case 303: case 304:
++		case 360: case 361: case 362:
++			return true;
++		default:
++			return false;
++	}
++}
++
++static DWORD tracker_mob_vnum(LPREGEN regen, int& kind)
++{
++	std::vector<DWORD> members;
++	regen_member_vnums(regen, members);
++	for (DWORD vnum : members)
++	{
++		const CMob* mob = CMobManager::instance().Get(vnum);
++		if (!mob)
++			continue;
++		if (mob->m_table.bType == CHAR_TYPE_STONE &&
++			((vnum >= 8000 && vnum < 9000) || vnum == 9677 || vnum == 9678))
++		{
++			kind = 2;
++			return vnum;
++		}
++		if (mob->m_table.bType == CHAR_TYPE_MONSTER &&
++			(mob->m_table.bRank >= MOB_RANK_BOSS || IsMiniBoss(vnum) || vnum == 2491))
++			return vnum;
++	}
++	return 0;
++}
++
++struct BossTrackerRow
++{
++	int kind;
++	DWORD vnum;
++	int alive;
++	DWORD target;
++	long seconds;
++	long x;
++	long y;
++};
++
++struct TrackerLivePositions
++{
++	std::map<std::pair<LPREGEN, DWORD>, std::pair<long, long>> byRegenRace;
++	void operator()(LPENTITY entity)
++	{
++		if (!entity || !entity->IsType(ENTITY_CHARACTER))
++			return;
++		LPCHARACTER mob = (LPCHARACTER)entity;
++		if (mob->IsDead() || !mob->GetRegen())
++			return;
++		byRegenRace[std::make_pair(mob->GetRegen(), mob->GetRaceNum())] =
++			std::make_pair(mob->GetX(), mob->GetY());
++	}
++};
++
++static void tracker_collect_rows(long mapIndex, std::vector<BossTrackerRow>& rows)
++{
++	if (!tracker_public_map(mapIndex))
++		return;
++	TrackerLivePositions live;
++	SECTREE_MANAGER::instance().for_each(mapIndex, live);
++	for (LPREGEN regen = regen_list; regen && rows.size() < 180; regen = regen->next)
++	{
++		if (regen->lMapIndex != mapIndex)
++			continue;
++		int kind = regen->tracker_kind;
++		if (!kind && !regen->is_boss_or_stone)
++			continue;
++		DWORD vnum = tracker_mob_vnum(regen, kind);
++		if (!kind || !vnum)
++			continue;
++		const DWORD target = regen_target_count(regen, false);
++		const int alive = MAX(0, regen->count);
++		const long seconds = regen->event ? MAX(0L, event_time(regen->event) / passes_per_sec) : -1;
++		long x = (regen->sx + regen->ex) / 2;
++		long y = (regen->sy + regen->ey) / 2;
++		auto liveIt = live.byRegenRace.find(std::make_pair(regen, vnum));
++		if (alive && liveIt != live.byRegenRace.end())
++		{
++			x = liveIt->second.first;
++			y = liveIt->second.second;
++		}
++		rows.push_back({kind, vnum, alive, target, seconds, x, y});
++	}
++	for (const auto& pair : SpecialSpawnManager::instance().m_map_specialSpawns)
++	{
++		if (rows.size() >= 180)
++			break;
++		const LPSPECIAL_SPAWN special = pair.second;
++		if (!special || special->mapIndex != (DWORD)mapIndex ||
++			(special->channel && special->channel != (DWORD)g_bChannel))
++			continue;
++		if (!special->reqEventFlag.empty() &&
++			quest::CQuestManager::instance().GetEventFlag(special->reqEventFlag.c_str()) < 1)
++			continue;
++		DWORD vnum = special->vnum;
++		if (special->spawnType == SPECIAL_SPAWN_GROUP)
++		{
++			CMobGroup* group = CMobManager::instance().GetGroup(vnum);
++			if (!group || group->GetMemberVector().empty())
++				continue;
++			vnum = 0;
++			for (DWORD member : group->GetMemberVector())
++			{
++				const CMob* candidate = CMobManager::instance().Get(member);
++				if (candidate &&
++					((candidate->m_table.bType == CHAR_TYPE_STONE &&
++						((member >= 8000 && member < 9000) || member == 9677 || member == 9678)) ||
++					 (candidate->m_table.bType == CHAR_TYPE_MONSTER &&
++						(candidate->m_table.bRank >= MOB_RANK_BOSS || IsMiniBoss(member) || member == 2491))))
++				{
++					vnum = member;
++					break;
++				}
++			}
++			if (!vnum)
++				continue;
++		}
++		int kind = 1;
++		const CMob* mob = CMobManager::instance().Get(vnum);
++		if (!mob)
++			continue;
++		if (mob->m_table.bType == CHAR_TYPE_STONE &&
++			((vnum >= 8000 && vnum < 9000) || vnum == 9677 || vnum == 9678))
++			kind = 2;
++		else if (mob->m_table.bType != CHAR_TYPE_MONSTER ||
++			(mob->m_table.bRank < MOB_RANK_BOSS && !IsMiniBoss(vnum) && vnum != 2491))
++			continue;
++		const int alive = (int)special->GetSpawnCount();
++		const DWORD now = get_global_time();
++		const long seconds = alive ? 0 :
++			(special->end_event_time > now ? special->end_event_time - now : 0);
++		if (special->m_vec_spawnPositions.empty())
++			continue;
++		long x = special->m_vec_spawnPositions.front().pos.x;
++		long y = special->m_vec_spawnPositions.front().pos.y;
++		if (alive)
++		{
++			for (const auto& spawn : special->m_vec_spawnPositions)
++			{
++				LPCHARACTER current = CHARACTER_MANAGER::instance().Find(spawn.spawnVID);
++				if (current && !current->IsDead() && current->GetRaceNum() == vnum)
++				{
++					x = current->GetX();
++					y = current->GetY();
++					break;
++				}
++			}
++		}
++		rows.push_back({kind, vnum, alive, special->maxSpawnCount, seconds, x, y});
++	}
++}
++
++void regen_send_boss_tracker(LPCHARACTER ch)
++{
++	if (!ch || !ch->IsPC())
++		return;
++	const long mapIndex = ch->GetMapIndex();
++	ch->ChatPacket(CHAT_TYPE_COMMAND, "BTRACK begin %ld %d", mapIndex, g_bChannel);
++	std::vector<BossTrackerRow> rows;
++	tracker_collect_rows(mapIndex, rows);
++	LPSECTREE_MAP map = SECTREE_MANAGER::instance().GetMap(mapIndex);
++	if (map)
++	{
++		for (size_t i = 0; i < rows.size(); ++i)
++		{
++			const BossTrackerRow& row = rows[i];
++			ch->ChatPacket(CHAT_TYPE_COMMAND, "BTRACK row %d %u %d %u %ld %ld %ld %u",
++				row.kind, row.vnum, row.alive, row.target, row.seconds,
++				(row.x - map->m_setting.iBaseX) / 100,
++				(row.y - map->m_setting.iBaseY) / 100, (unsigned int)(i + 1));
++		}
++	}
++	ch->ChatPacket(CHAT_TYPE_COMMAND, "BTRACK end");
++}
++
++bool regen_boss_tracker_teleport(LPCHARACTER ch, unsigned int slot)
++{
++	if (!ch || !ch->IsPC() || !slot || slot > 180)
++		return false;
++	std::vector<BossTrackerRow> rows;
++	const long mapIndex = ch->GetMapIndex();
++	tracker_collect_rows(mapIndex, rows);
++	if (slot > rows.size())
++		return false;
++	const BossTrackerRow& row = rows[slot - 1];
++	if (row.alive < 1)
++		return false;
++	PIXEL_POSITION safe = {};
++	if (!SECTREE_MANAGER::instance().GetMovablePosition(mapIndex, row.x + 200, row.y + 200, safe))
++		return false;
++	return ch->WarpSet(safe.x, safe.y, mapIndex);
++}
+ //martysama0134's 4e4e75d8b719b9240e033009cf4d7b0f
+ 
+ // Files shared by GameCore.top

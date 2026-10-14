@@ -1622,6 +1622,28 @@ function Sync-M2PlayerbotOverlay {
             }
         }
     }
+    # Custom overlay for seban-panel (preserving custom templates, inflation tooltips, retired-bots statistics)
+    $sebanOverlaySource = Join-Path $ServerRoot 'linux-port\overlays\seban-panel'
+    $sebanPanelTarget = Join-Path $ServerRoot 'linux-port\docker\seban-panel'
+    if ((Test-Path -LiteralPath $sebanOverlaySource -PathType Container) -and (Test-Path -LiteralPath $sebanPanelTarget -PathType Container)) {
+        foreach ($file in Get-ChildItem -LiteralPath $sebanOverlaySource -Recurse -File) {
+            $relative = $file.FullName.Substring($sebanOverlaySource.Length).TrimStart('\')
+            $targetPath = Join-Path $sebanPanelTarget $relative
+            $targetParent = Split-Path -Parent $targetPath
+            if (-not (Test-Path -LiteralPath $targetParent -PathType Container)) {
+                New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
+            }
+            $targetHash = $null
+            if (Test-Path -LiteralPath $targetPath -PathType Leaf) {
+                $targetHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash
+            }
+            if ($targetHash -ne (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash) {
+                Copy-Item -LiteralPath $file.FullName -Destination $targetPath -Force
+                $copied++
+            }
+        }
+    }
+
 
     return $copied
 }

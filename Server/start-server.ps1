@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [ValidateRange(30, 600)]
     [int]$DockerTimeoutSeconds = 180,
@@ -1345,6 +1345,28 @@ if ((Test-Path -LiteralPath $overlaySource -PathType Container) -and
                "Paczka jest niekompletna - uruchom aktualizacje z launchera albo " +
                "rozpakuj archiwum serwera ponownie. Bez tego pliku playerbot-migrate " +
                "konczy sie bledem exit 1 przy kazdym starcie.")
+    }
+
+    # Custom overlay for seban-panel (preserving custom templates, inflation tooltips, retired-bots statistics)
+    $sebanOverlaySource = Join-Path $PSScriptRoot 'linux-port\overlays\seban-panel'
+    $sebanPanelTarget = Join-Path $PSScriptRoot 'linux-port\docker\seban-panel'
+    if ((Test-Path -LiteralPath $sebanOverlaySource -PathType Container) -and (Test-Path -LiteralPath $sebanPanelTarget -PathType Container)) {
+        foreach ($file in Get-ChildItem -LiteralPath $sebanOverlaySource -Recurse -File) {
+            $relative = $file.FullName.Substring($sebanOverlaySource.Length).TrimStart('\')
+            $targetPath = Join-Path $sebanPanelTarget $relative
+            $targetParent = Split-Path -Parent $targetPath
+            if (-not (Test-Path -LiteralPath $targetParent -PathType Container)) {
+                New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
+            }
+            $targetHash = $null
+            if (Test-Path -LiteralPath $targetPath -PathType Leaf) {
+                $targetHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash
+            }
+            if ($targetHash -ne (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash) {
+                Copy-Item -LiteralPath $file.FullName -Destination $targetPath -Force
+                $syncedFiles++
+            }
+        }
     }
 
     if ($syncedFiles -gt 0) {

@@ -715,6 +715,9 @@ stage_panel_context() {
         mkdir -p "$_panel/app/static" || return 1
         cp -R "$ROOT/files/static/." "$_panel/app/static/" || return 1
     fi
+    if [ -d "$ROOT/linux-port/overlays/seban-panel" ] && [ -d "$COMPOSE_DIR/seban-panel" ]; then
+        cp -R "$ROOT/linux-port/overlays/seban-panel/." "$COMPOSE_DIR/seban-panel/" 2>/dev/null || true
+    fi
     return 0
 }
 

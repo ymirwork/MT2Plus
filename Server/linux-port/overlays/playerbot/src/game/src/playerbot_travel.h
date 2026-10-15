@@ -390,17 +390,54 @@ namespace
 		return true;
 	}
 
-	bool NeedsPlayerBotM1OnlyServices(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
+	// MT2009_PLUS_M1_LOOP_FIX_V1: the M1 loop report of 15 October - ~300 of
+	// ~790 bots went frontier -> M2 -> M1 (ten minutes held) -> frontier for
+	// good, 12 479 releases in thirteen hours. Which need it was could only be
+	// guessed by elimination, because the hold's line said "m1_services=1"
+	// and nothing more; each branch below now names itself, and the name goes
+	// into the hold's lines and the M2 -> M1 reason ("m1_only_service:<key>").
+	// After a release from the hold the bot stops asking for M1 at all for
+	// PLAYERBOT_M1_SERVICES_IGNORE_MS: the ten minutes there did not meet the
+	// need, and the next ten would not either.
+	const DWORD PLAYERBOT_M1_SERVICES_IGNORE_MS = 60 * 60 * 1000;
+	std::map<DWORD, DWORD> s_mapPlayerBotM1ServicesIgnoreUntil;
+
+	bool IsPlayerBotM1ServicesIgnored(LPCHARACTER ch, DWORD dwNow)
 	{
-		if (ShouldPlayerBotVisitProgressionMarket(ch, state, dwNow)) return true;
 		if (!ch)
 			return false;
+		std::map<DWORD, DWORD>::iterator it = s_mapPlayerBotM1ServicesIgnoreUntil.find(ch->GetPlayerID());
+		if (it == s_mapPlayerBotM1ServicesIgnoreUntil.end())
+			return false;
+		if ((int)(it->second - dwNow) > 0)
+			return true;
+		s_mapPlayerBotM1ServicesIgnoreUntil.erase(it);
+		return false;
+	}
+
+	void IgnorePlayerBotM1Services(LPCHARACTER ch, DWORD dwNow)
+	{
+		if (!ch)
+			return;
+		DWORD until = dwNow + PLAYERBOT_M1_SERVICES_IGNORE_MS;
+		if (until == 0)
+			until = 1;
+		s_mapPlayerBotM1ServicesIgnoreUntil[ch->GetPlayerID()] = until;
+	}
+
+	// The need itself, by name, or NULL. The keys: market, no_skill_group,
+	// herbalist, skill_reset, angler, biologist_hand_in, biologist_hunt.
+	const char* GetPlayerBotM1OnlyServiceReason(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
+	{
+		if (ShouldPlayerBotVisitProgressionMarket(ch, state, dwNow)) return "market";
+		if (!ch)
+			return NULL;
 		// Bokjung has no profession trainers, no Biologist and no old woman.
 		// Everything else can be handled locally in M2, so only these real
 		// activities justify M2 -> M1.
 		if (ch->GetLevel() >= 5 && ch->GetSkillGroup() == 0 &&
 				ch->GetJob() <= JOB_SHAMAN)
-			return true;
+			return "no_skill_group";
 		// Baek-Go stands in the first villages too, and a bot that already has
 		// everything a row needs is the cheapest possible traveller: it knows
 		// the recipe, the bag holds the herbs and the purse the fee, and the
@@ -415,12 +452,12 @@ namespace
 		// is a brewer now, and one with herbs left over after a visit would
 		// otherwise be called back to the first village for the whole gap.
 		if (dwNow >= state.dwNextHerbalistCheckTime && PlayerBotHasReadyCraftRow(ch))
-			return true;
+			return "herbalist";
 		// Her too: a skill stuck at seventeen with no points left to try
 		// anything else is worth a trip to Joan while the character is still
 		// young enough for her to serve it.
 		if (ShouldPlayerBotResetSkills(ch, state, dwNow))
-			return true;
+			return "skill_reset";
 		// Iwakura's Rybak: a bot back in a second village in a mood for the
 		// water gives up the grind for the bank ("po powrocie do miasta
 		// zrezygnuje z dalszego grindu"), and the banks are the first villages'.
@@ -429,7 +466,7 @@ namespace
 				IsPlayerBotVillageMap(ch->GetMapIndex()) && !IsPlayerBotM1Map(ch->GetMapIndex()) &&
 				!state.bFishingSession && dwNow >= state.dwNextFishingCheckTime &&
 				IsPlayerBotAngler(ch, state))
-			return true;
+			return "angler";
 
 		size_t missionIndex = 0;
 		// One of the two owners of the errand queue: this is where a trip is
@@ -437,11 +474,11 @@ namespace
 		const TPlayerBotBiologistMission* mission =
 				GetActivePlayerBotBiologistMission(ch, &missionIndex, true);
 		if (!mission)
-			return false;
+			return NULL;
 		// The hand-in: same threshold as the hand-in itself, or the trip would
 		// never start for a bot the Biologist would happily serve.
 		if (PlayerBotBiologistHoldsHandIn(ch, mission, missionIndex))
-			return true;
+			return "biologist_hand_in";
 		// The hunt for a first-village row: the six herb rows' monsters stand
 		// in Joan and its two mirrors and nowhere else, so a bot anywhere else
 		// with such a row open goes there for them - at seventy-eight as at
@@ -451,8 +488,17 @@ namespace
 		// MT2009_PLUS_PROGRESSION_V3: not for a bot a gate holds at work on
 		// the gate (PlayerBotHuntsVillageHerbs) - "m1_only_service" was 34.5k
 		// of 89k map changes on the fresh test world.
-		return huntMob != 0 && huntMob < 500 && !IsPlayerBotM1Map(ch->GetMapIndex()) &&
-				GetPlayerBotProgressionFarmGoal(ch, dwNow) == PLAYERBOT_PROGRESS_FARM_NONE;
+		return (huntMob != 0 && huntMob < 500 && !IsPlayerBotM1Map(ch->GetMapIndex()) &&
+				GetPlayerBotProgressionFarmGoal(ch, dwNow) == PLAYERBOT_PROGRESS_FARM_NONE)
+				? "biologist_hunt" : NULL;
+	}
+
+	bool NeedsPlayerBotM1OnlyServices(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
+	{
+		// MT2009_PLUS_M1_LOOP_FIX_V1: not for an hour after the hold let it go.
+		if (IsPlayerBotM1ServicesIgnored(ch, dwNow))
+			return false;
+		return GetPlayerBotM1OnlyServiceReason(ch, state, dwNow) != NULL;
 	}
 
 	// Above this level Bokjung has nothing left to offer, so nothing there is
@@ -2035,6 +2081,65 @@ namespace
 	const DWORD PLAYERBOT_PORTAL_STALL_WAIT_MS = 30000;
 	std::map<DWORD, DWORD> s_mapPlayerBotPortalStallUntil;
 
+	// MT2009_PLUS_M1_LOOP_FIX_V1 (status): what the bot is walking for, by pid,
+	// for the line over its head. A walk to a gate or the Teleporter and the
+	// material errand (StartPlayerBotMaterialHunt) both run under
+	// BOT_ACTION_TRAVEL, and with the Biologist as the planner's goal both
+	// read "Zbieram dla Biologa: Zab Orka" - 53 bots in the first villages,
+	// against 24 in the valley where the teeth drop (loop report, 15 October).
+	struct TPlayerBotWalkNote { DWORD dwAt; long lMap; DWORD dwVnum; bool bTeleporter; };
+	std::map<DWORD, TPlayerBotWalkNote> s_mapPlayerBotPortalWalkNote;
+	std::map<DWORD, TPlayerBotWalkNote> s_mapPlayerBotMaterialErrandNote;
+	const DWORD PLAYERBOT_STATUS_PORTAL_NOTE_MS = 5000;
+	const DWORD PLAYERBOT_STATUS_MATERIAL_NOTE_MS = 30000;
+
+	void NotePlayerBotWalk(std::map<DWORD, TPlayerBotWalkNote>& notes, LPCHARACTER ch, DWORD dwNow,
+			long lMap, DWORD dwVnum, bool bTeleporter)
+	{
+		if (!ch)
+			return;
+		TPlayerBotWalkNote& note = notes[ch->GetPlayerID()];
+		note.dwAt = dwNow;
+		note.lMap = lMap;
+		note.dwVnum = dwVnum;
+		note.bTeleporter = bTeleporter;
+	}
+
+	// The note if it is younger than maxAgeMs, else NULL (and dropped).
+	const TPlayerBotWalkNote* GetPlayerBotWalkNote(std::map<DWORD, TPlayerBotWalkNote>& notes,
+			DWORD pid, DWORD dwNow, DWORD maxAgeMs)
+	{
+		std::map<DWORD, TPlayerBotWalkNote>::iterator it = notes.find(pid);
+		if (it == notes.end())
+			return NULL;
+		if (dwNow - it->second.dwAt > maxAgeMs)
+		{
+			notes.erase(it);
+			return NULL;
+		}
+		return &it->second;
+	}
+
+	// The material the errand set off after, while it is still what the bot
+	// does: younger than PLAYERBOT_STATUS_MATERIAL_NOTE_MS, on this map, and
+	// no other action begun since.
+	const TItemTable* GetPlayerBotMaterialErrandProto(LPCHARACTER ch, const TPlayerBotAIState& state, DWORD dwNow)
+	{
+		if (!ch || state.bCurrentAction != BOT_ACTION_TRAVEL)
+			return NULL;
+		const TPlayerBotWalkNote* hunt = GetPlayerBotWalkNote(s_mapPlayerBotMaterialErrandNote,
+				ch->GetPlayerID(), dwNow, PLAYERBOT_STATUS_MATERIAL_NOTE_MS);
+		if (!hunt || hunt->dwVnum == 0 || hunt->lMap != ch->GetMapIndex() ||
+				(int)(state.dwActionChangedTime - hunt->dwAt) > 0)
+			return NULL;
+		// Nor once it has turned for a gate since.
+		const TPlayerBotWalkNote* portal = GetPlayerBotWalkNote(s_mapPlayerBotPortalWalkNote,
+				ch->GetPlayerID(), dwNow, PLAYERBOT_STATUS_PORTAL_NOTE_MS);
+		if (portal && (int)(portal->dwAt - hunt->dwAt) > 0)
+			return NULL;
+		return ITEM_MANAGER::instance().GetTable(hunt->dwVnum);
+	}
+
 	bool MovePlayerBotToWorldPortal(LPCHARACTER ch, TPlayerBotAIState& state,
 			long portalX, long portalY, long targetMap, long targetX, long targetY,
 			DWORD dwNow, const char* reason)
@@ -2112,6 +2217,8 @@ namespace
 				portalY = gateY;
 			}
 		}
+		// MT2009_PLUS_M1_LOOP_FIX_V1 (status): "Ide przez portal do Joan".
+		NotePlayerBotWalk(s_mapPlayerBotPortalWalkNote, ch, dwNow, targetMap, 0, viaTeleporter);
 
 		// Warp NPCs trigger at 300 units and hand the client to whichever core
 		// hosts the target map, which is not a conversation a bot descriptor can
@@ -2511,7 +2618,11 @@ namespace
 				(IsPlayerBotM3DropperOnFarm(ch) || IsPlayerBotM3TierGrinder(ch) ||
 				 (int)(dwNow - state.dwM3RevisitAfter) >= 0 || state.dwM3RevisitAfter == 0);
 		const bool needsCriticalTownServices = NeedsPlayerBotCriticalTownServices(ch);
-		const bool needsM1OnlyServices = NeedsPlayerBotM1OnlyServices(ch, state, dwNow);
+		// MT2009_PLUS_M1_LOOP_FIX_V1: by name, for the hold's lines and the
+		// M2 -> M1 reason; nothing for an hour after the hold let the bot go.
+		const char* m1ServiceWhy = IsPlayerBotM1ServicesIgnored(ch, dwNow) ? NULL :
+				GetPlayerBotM1OnlyServiceReason(ch, state, dwNow);
+		const bool needsM1OnlyServices = m1ServiceWhy != NULL;
 		// M2 has its own blacksmith. Only the remote M3 farm needs to schedule a
 		// return to town for equipment progression.
 		const bool scheduledRemoteRefine = IsPlayerBotM3Map(mapIndex) &&
@@ -2803,19 +2914,31 @@ namespace
 					why.bWhy = holdsMedalToHandIn ? 0 : fightBlocks ? 1 : bagBlocks ? 2 : needsM1OnlyServices ? 3 :
 							herbs ? 4 : potionsBlock ? 5 : gambler ? 6 : 7;
 					PlayerBotLogThrottled("m1_hold", dwNow,
-							"PLAYERBOT_WORLD: m1 hold pid=%u name=%s level=%u held_s=%u medal=%d fight=%d bag=%d m1_services=%d herbs=%d potions=%d gambler=%d town=%d visited=%d",
+							"PLAYERBOT_WORLD: m1 hold pid=%u name=%s level=%u held_s=%u medal=%d fight=%d bag=%d m1_services=%d herbs=%d potions=%d gambler=%d town=%d visited=%d m1_why=%s free_cells=%d",
 							ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), (dwNow - heldSince) / 1000U,
 							holdsMedalToHandIn ? 1 : 0, fightBlocks ? 1 : 0, bagBlocks ? 1 : 0,
 							needsM1OnlyServices ? 1 : 0, herbs ? 1 : 0, potionsBlock ? 1 : 0,
-							gambler ? 1 : 0, townNeeds ? 1 : 0, townVisitRecentlyCompleted ? 1 : 0);
+							gambler ? 1 : 0, townNeeds ? 1 : 0, townVisitRecentlyCompleted ? 1 : 0,
+							m1ServiceWhy ? m1ServiceWhy : "-", CountPlayerBotFreeInventoryCells(ch));
 					return false;
 				}
 				if (heldSince != 1)
-					sys_log(0, "PLAYERBOT_WORLD: m1 hold released pid=%u name=%s level=%u held_s=%u medal=%d fight=%d bag=%d m1_services=%d herbs=%d potions=%d gambler=%d town=%d",
+				{
+					sys_log(0, "PLAYERBOT_WORLD: m1 hold released pid=%u name=%s level=%u held_s=%u medal=%d fight=%d bag=%d m1_services=%d herbs=%d potions=%d gambler=%d town=%d m1_why=%s free_cells=%d",
 							ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), (dwNow - heldSince) / 1000U,
 							holdsMedalToHandIn ? 1 : 0, fightBlocks ? 1 : 0, bagBlocks ? 1 : 0,
 							needsM1OnlyServices ? 1 : 0, herbs ? 1 : 0, potionsBlock ? 1 : 0,
-							gambler ? 1 : 0, townNeeds ? 1 : 0);
+							gambler ? 1 : 0, townNeeds ? 1 : 0, m1ServiceWhy ? m1ServiceWhy : "-",
+							CountPlayerBotFreeInventoryCells(ch));
+					// MT2009_PLUS_M1_LOOP_FIX_V1: ten minutes here did not meet the
+					// need, so the next trip for it is an hour away, and the release
+					// is a town-service exit like the frontier's: a loop of fifteen
+					// minutes was two exits in half an hour, under the fuse's three
+					// (IsPlayerBotServicesExitSuppressed), and it never fired.
+					if (needsM1OnlyServices)
+						IgnorePlayerBotM1Services(ch, dwNow);
+					NotePlayerBotServicesExit(ch, dwNow);
+				}
 				// Released until the bot has left M1 (the entry is dropped off it).
 				heldSince = 1;
 			}
@@ -2904,8 +3027,11 @@ namespace
 				if (!GetPlayerBotKingdomLeg(ch, playerbot_empire_rules::MAP_ROLE_M2,
 							playerbot_empire_rules::MAP_ROLE_M1, gateX, gateY, destMap, destX, destY))
 					return false;
+				// MT2009_PLUS_M1_LOOP_FIX_V1: the need by name ("m1_only_service:herbalist").
+				char m1Reason[64];
+				snprintf(m1Reason, sizeof(m1Reason), "m1_only_service:%s", m1ServiceWhy ? m1ServiceWhy : "?");
 				return MovePlayerBotToWorldPortal(ch, state, gateX, gateY,
-						destMap, destX, destY, dwNow, "m1_only_service");
+						destMap, destX, destY, dwNow, m1Reason);
 			}
 			// Same rule in Bokjung: its own shops own this need, but only until a
 			// visit has actually happened. Otherwise a bot the town cannot equip

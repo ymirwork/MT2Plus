@@ -31,6 +31,12 @@
 // MT2009_PLUS_SALE_TAX_V1 (ikashop include), server-patches/saletax: the panels' sale tax.
 #include "playerbot_sale_tax.h"
 #include "shop.h"
+#include "ikashop_qol.h" // MT2009_PLUS_SHOP_QOL_V2 (include) - Autor: Vekirion (server-patches/shopqol)
+#include "cmd.h"
+
+// AH_V1 [Autor: Vekirion] (decl) (server-patches/auctionhouse, Dom Aukcyjny, auction_house.cpp): zlecenie zakupu czeka na wynik kupna.
+void AuctionHouse_OnBuyLockSent(DWORD buyerid, DWORD itemid);
+void AuctionHouse_OnBuyResult(DWORD buyerid, DWORD itemid, bool success);
 
 // AH_V1 [Autor: Vekirion] (Dom Aukcyjny, auction_house.cpp): zlecenie zakupu czeka na wynik kupna.
 void AuctionHouse_OnBuyLockSent(DWORD buyerid, DWORD itemid);
@@ -1199,6 +1205,7 @@ namespace ikashop
 				}
 				ch->ChatPacket(CHAT_TYPE_COMMAND, "FleaMarketStackUpdate %u %u %u %lld 0",
 					ownerid, itemid, remainingCount, remainingYang);
+				ikashop_qol::OnPartSold(itemid); // MT2009_PLUS_SHOP_QOL_V2 (part sold)
 			}
 
 			partInfo.count = remainingCount;
@@ -1211,7 +1218,7 @@ namespace ikashop
 
 			auto partOwnerCh = CHARACTER_MANAGER::instance().FindByPID(ownerid);
 			if (partOwnerCh)
-				NotifyOwnerItemSold(partOwnerCh, partVnum, quantity, partPaid);
+				NotifyOwnerItemSold(partOwnerCh, partVnum, quantity, partPaid, partInfo.alSockets[0]); // MT2009_PLUS_SHOP_SOLD_BOOK_NAME_V1 (part)
 			// A bot's line sold in part stays on its counter (playerbot_offline::NoteSold).
 			playerbot_offline::NoteSold(partOwnerCh ? ownerid : 0, itemid, partVnum, quantity, partPaid, true);
 			playerbot_offline::Complete(buyerid, playerbot_offline::Buy, itemid);
@@ -1258,6 +1265,7 @@ namespace ikashop
 
 			shop->BuyItem(shopItem->GetID());
 			SendSearchResultDeleteClientPacket(ch, itemid);
+			ikashop_qol::OnRemoved(itemid); // MT2009_PLUS_SHOP_QOL_V2 (removed 1)
 		}
 
 		else
@@ -1274,7 +1282,7 @@ namespace ikashop
 		auto ownerCh = CHARACTER_MANAGER::instance().FindByPID(ownerid);
 		if (ownerCh)
 		{
-			NotifyOwnerItemSold(ownerCh, shopItem->GetVnum(), shopItem->GetInfo().count, shopItem->GetPrice().GetTotalYangAmount());
+			NotifyOwnerItemSold(ownerCh, shopItem->GetVnum(), shopItem->GetInfo().count, shopItem->GetPrice().GetTotalYangAmount(), shopItem->GetInfo().alSockets[0]); // MT2009_PLUS_SHOP_SOLD_BOOK_NAME_V1 (whole)
 		}
 
 		// The one place that knows a line has gone. A playerbot keeper is off
@@ -1369,6 +1377,7 @@ namespace ikashop
 
 		ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("Item price edited successfully."));
 		SendShopEditItemDBPacket(shop->GetOwnerPID(), itemid, price);
+		ikashop_qol::OnPriceEdited(itemid); // MT2009_PLUS_SHOP_QOL_V2 (price edited)
 		return true;
 	}
 
@@ -1636,6 +1645,7 @@ namespace ikashop
 	void CShopManager::SendShopLockBuyItemDBPacket(LPCHARACTER buyer, DWORD ownerid, ITEM_HANDLE item, long long TotalPriceSeen, DWORD quantity) //patch seen price check
 	{
 		playerbot_offline::Sent(buyer->GetPlayerID(), playerbot_offline::Buy, item->GetID());
+		AuctionHouse_OnBuyLockSent(buyer->GetPlayerID(), item->GetID()); // AH_V1 [Autor: Vekirion] (lock sent)
 		AuctionHouse_OnBuyLockSent(buyer->GetPlayerID(), item->GetID()); // AH_V1 [Autor: Vekirion]
 		TPacketGDNewIkarusShop pack{};
 		pack.bSubHeader = SUBHEADER_GD_BUY_LOCK_ITEM;
@@ -2640,6 +2650,8 @@ namespace ikashop
 		}
 		
 		SendShopCreateNewDBPacket(shopinfo, items);
+		for (size_t i = 0; i < bItemCount; ++i)
+			ikashop_qol::OnListed(ch->GetPlayerID(), items[i].id); // MT2009_PLUS_SHOP_QOL_V2 (listed)
 		return true;
 	}
 
@@ -2867,6 +2879,8 @@ namespace ikashop
 		else
 			SendShopOpenMyShopClientPacket(ch);
 
+		// MT2009_PLUS_SHOP_QOL_V2 (owner meta): the pages and the lines' clocks and drops
+		ikashop_qol::SendOwnerMeta(ch);
 		return true;
 	}
 
@@ -2962,7 +2976,8 @@ namespace ikashop
 		// and the bots buy whole lines, as before.
 		DWORD mt2009PartQuantity = 0;
 		long long mt2009PartYang = 0;
-		if (fleaRemote && g_fleaBuyQuantity != 0 && g_fleaBuyQuantity != pitem->GetInfo().count)
+		// MT2009_PLUS_SHOP_QOL_V2 (buy part): and from the shop's own window (/ikashop_buy_part)
+		if (g_fleaBuyQuantity != 0 && g_fleaBuyQuantity != pitem->GetInfo().count)
 		{
 			if (g_fleaBuyQuantity > pitem->GetInfo().count)
 			{
@@ -3805,6 +3820,13 @@ namespace ikashop
 		// a line on the second is checked against the lines standing there,
 		// and on one page, never across two (playerbot_offline_policy.h).
 		const bool secondPage = destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT;
+		// MT2009_PLUS_SHOP_QOL_V2 (big shop): and a person's too, while the panel's "bigger
+		// shops" switch (event flag m2_shop_big_on) is on, or when unlocked via wooden keys.
+		if (secondPage && !(ch->GetDesc() && ch->GetDesc()->IsBot()) && !ikashop_qol::BigShopsOn() && !ch->CanAddItemToShop(item, destPos))
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("SHOP_ITEM_WRONG_POS"));
+			return false;
+		}
 		// PLAYER_SHOP_TWO_BLOCKS_KEYS2_V1: CanAddItemToShop checks player key progress.
 		bool spaceFree = false;
 		if (secondPage)
@@ -3835,6 +3857,9 @@ namespace ikashop
 		TShopItem sitem{};
 		ProcessAddItemToShop(sitem, ch, item, destPos, price);
 		SendShopAddItemDBPacket(ch->GetPlayerID(), sitem);
+		// MT2009_PLUS_SHOP_QOL_V2 (listed one): the line's clock starts
+		ikashop_qol::OnListed(ch->GetPlayerID(), sitem.id);
+		ikashop_qol::SendMetaLine(ch, sitem.id, ikashop_qol::Now(), 0, 0, 0);
 		return true;
 	}
 
@@ -3900,6 +3925,7 @@ namespace ikashop
 		// patch with warp check
 		ch->SetIkarusShopUseTime();
 		SendShopRemoveItemDBPacket(shop->GetOwnerPID(), itemid);
+		ikashop_qol::OnRemoved(itemid); // MT2009_PLUS_SHOP_QOL_V2 (removed 2)
 		return true;
 	}
 
@@ -4125,7 +4151,29 @@ namespace ikashop
 			if (fleaSkillsIt != g_fleaSkills.end())
 				fleaSkills = fleaSkillsIt->second;
 
+			// MT2009_PLUS_FLEA_MARKET_BOUND_V1 (server-patches/flealimit, 10 October: ch1-game1
+			// aborted twice in this fill - a search by filters alone took every one of the
+			// world's ~230 000 listings into this vector, and the 32-bit core at 3.3 GB had
+			// no room for its next doubling): the list never holds more than twice the
+			// listings sent; past that it keeps the best of them in the order asked for.
+			constexpr size_t FLEA_MARKET_MAX_LISTINGS = 6000;
+			const int fleaSort = fleaFilter.sort;
+			auto fleaBefore = [fleaSort](const TSearchResultInfo& left, const TSearchResultInfo& right) {
+				const long long leftPrice = left.price.GetTotalYangAmount();
+				const long long rightPrice = right.price.GetTotalYangAmount();
+				if (fleaSort == 2)
+				{
+					const long long leftUnit = leftPrice / std::max<long long>(1, left.count);
+					const long long rightUnit = rightPrice / std::max<long long>(1, right.count);
+					if (leftUnit != rightUnit)
+						return leftUnit < rightUnit;
+				}
+				if (fleaSort == 1)
+					return leftPrice == rightPrice ? left.id > right.id : leftPrice > rightPrice;
+				return leftPrice == rightPrice ? left.id < right.id : leftPrice < rightPrice;
+			};
 			std::vector<TSearchResultInfo> matches;
+			matches.reserve(FLEA_MARKET_MAX_LISTINGS * 2);
 			for (auto& [id, shop] : m_mapShops)
 			{
 				if (shop->GetOwnerPID() == ch->GetPlayerID())
@@ -4167,10 +4215,13 @@ namespace ikashop
 							// "Inne": none of the types the window has a tab for, which
 							// are customfleamarket.py's CATEGORY_DEFS, kept in step by hand.
 							const auto groupType = filterTable->bType;
+							// MT2009_PLUS_SHOP_SEARCH_CATS_V1, server-patches/shopsearch2: the window's
+							// Smocza Alchemia (dragon stones) and Polimorfia tabs.
 							if (groupType == ITEM_WEAPON || groupType == ITEM_ARMOR
 									|| groupType == ITEM_SKILLBOOK || groupType == ITEM_SKILLFORGET || groupType == ITEM_METIN
 									|| groupType == ITEM_RESOURCE || groupType == ITEM_POTION
-									|| groupType == ITEM_USE || groupType == ITEM_MATERIAL)
+									|| groupType == ITEM_USE || groupType == ITEM_MATERIAL
+									|| groupType == ITEM_DS || groupType == ITEM_SPECIAL_DS || groupType == ITEM_POLYMORPH)
 								continue;
 						}
 						const long long filterTotal = info.price.GetTotalYangAmount();
@@ -4183,25 +4234,18 @@ namespace ikashop
 					result.auction = false;
 					result.duration = shop->GetDuration();
 					str_to_cstring(result.seller_name, shop->GetOwnerName());
+					if (matches.size() >= FLEA_MARKET_MAX_LISTINGS * 2)	// MT2009_PLUS_FLEA_MARKET_BOUND_V1 (trim)
+					{
+						std::nth_element(matches.begin(), matches.begin() + FLEA_MARKET_MAX_LISTINGS, matches.end(), fleaBefore);
+						matches.resize(FLEA_MARKET_MAX_LISTINGS);
+					}
 				}
 			}
 
-			std::sort(matches.begin(), matches.end(), [](const TSearchResultInfo& left, const TSearchResultInfo& right) {
-				const long long leftPrice = left.price.GetTotalYangAmount();
-				const long long rightPrice = right.price.GetTotalYangAmount();
-				return leftPrice == rightPrice ? left.id < right.id : leftPrice < rightPrice;
-			});
-			if (fleaFilter.sort == 1)
-				std::reverse(matches.begin(), matches.end());
-			else if (fleaFilter.sort == 2)
-				std::stable_sort(matches.begin(), matches.end(), [](const TSearchResultInfo& left, const TSearchResultInfo& right) {
-					return left.price.GetTotalYangAmount() / std::max<long long>(1, left.count)
-							< right.price.GetTotalYangAmount() / std::max<long long>(1, right.count);
-				});
+			std::sort(matches.begin(), matches.end(), fleaBefore);
 
 			// A world can hold tens of thousands of listings: the first ones in
 			// the order asked for.
-			constexpr size_t FLEA_MARKET_MAX_LISTINGS = 6000;
 			if (matches.size() > FLEA_MARKET_MAX_LISTINGS)
 				matches.erase(matches.begin() + FLEA_MARKET_MAX_LISTINGS, matches.end());
 			sys_log(0, "FLEA_MARKET: pid=%u name=%s listings=%u type=%d query=%s",
@@ -5263,10 +5307,23 @@ namespace ikashop
 		ch->GetDesc()->Packet(&subpack, sizeof(subpack));*/
 	}
 
-	void ikashop::CShopManager::NotifyOwnerItemSold(LPCHARACTER ch, DWORD item_vnum, ITEM_COUNT item_count, YANG price)
+	void ikashop::CShopManager::NotifyOwnerItemSold(LPCHARACTER ch, DWORD item_vnum, ITEM_COUNT item_count, YANG price, long socket0) // MT2009_PLUS_SHOP_SOLD_BOOK_NAME_V1 (notify)
 	{
 		if (!ch || !ch->GetDesc())
 			return;
+
+		// MT2009_PLUS_SHOP_SOLD_BOOK_NAME_V1 (the owner, 13 October; Autor: Vekirion): a skill
+		// book or a book of forgetting is one vnum for every skill - the
+		// skill is its socket 0 - so the "sold" notice said only "Ksiega
+		// Umiejetnosci". The skill goes first, as a command (game.py,
+		// IkaShopSoldBook), and the client's notice (OnMyShopBuy, from the
+		// packet below) names the book "<skill> - <book>".
+		if (socket0 > 0)
+		{
+			const TItemTable* proto = ITEM_MANAGER::instance().GetTable(item_vnum);
+			if (proto && (proto->bType == ITEM_SKILLBOOK || proto->bType == ITEM_SKILLFORGET))
+				ch->ChatPacket(CHAT_TYPE_COMMAND, "IkaShopSoldBook %u %ld", (unsigned int) item_vnum, socket0);
+		}
 
 		TSubPacketGCShopNotifyItemSold subpack{};
 
@@ -5283,6 +5340,99 @@ namespace ikashop
 		ch->GetDesc()->Packet(subpack);
 	}
 
+
+	// MT2009_PLUS_SHOP_QOL_V2 (extend): "Przedluz" in the owner's window - a running
+	// shop bought more time with the time options of opening one (price,
+	// premium), up to OFFLINESHOP_DURATION_MAX_MINUTES. The db core owns the
+	// clock: it adds the minutes and tells every core the new duration.
+	bool CShopManager::ExtendShopClient(LPCHARACTER ch, BYTE bTimeIndex)
+	{
+		if (!ch || !ch->GetDesc())
+			return false;
+
+		if (!ch->IsLookingShopOwner())
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("OFFLINE_SHOP_MANAGE_MUST_BE_OPEN"));
+			return false;
+		}
+
+		if (!CheckGMLevel(ch))
+			return false;
+
+		if (!ch->IkarusShopFloodCheck(SHOP_ACTION_WEIGHT_CREATE_NEW))
+			return false;
+
+		auto shop = ch->GetIkarusShop();
+		if (!shop || shop->GetDuration() == 0)
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, "Sklep jest zamkniety - otworz go ponownie zamiast przedluzac.");
+			return false;
+		}
+
+		if (bTimeIndex < 1 || bTimeIndex >= OFFLINESHOP_TIME_OPTION_MAX)
+			return false;
+
+		const auto& shopTime = aOfflineShopTime[bTimeIndex];
+		if (shopTime.duration == 0)
+			return false;
+
+		if (shop->GetDuration() >= OFFLINESHOP_DURATION_MAX_MINUTES)
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, "Sklep ma juz maksymalny czas (%d dni).", OFFLINESHOP_DURATION_MAX_MINUTES / (24 * 60));
+			return false;
+		}
+
+		if (shopTime.isPremium && ch->GetPremiumRemainSeconds(PREMIUM_SHOP) <= 0)
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("SHOP_NO_PREMIUM"));
+			return false;
+		}
+
+		if (ch->GetGold() < shopTime.price)
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("You do not have enough Yang."));
+			return false;
+		}
+
+		if (!PulseManager::Instance().IncreaseClock(ch->GetPlayerID(), ePulse::IkaShopEditMode, std::chrono::milliseconds(1000)))
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("NEXT_ACTION_WAIT_NO_FORMAT"));
+			return false;
+		}
+
+		ch->ChangeGold(-shopTime.price);
+		SendShopExtendDurationDBPacket(ch->GetPlayerID(), shopTime.duration);
+
+		const DWORD after = std::min<DWORD>(OFFLINESHOP_DURATION_MAX_MINUTES, shop->GetDuration() + shopTime.duration);
+		ch->ChatPacket(CHAT_TYPE_INFO, "Sklep przedluzony o %u h (zostalo ok. %u h %u min).",
+			shopTime.duration / 60, after / 60, after % 60);
+		return true;
+	}
+
+	void CShopManager::SendShopExtendDurationDBPacket(DWORD owner, DWORD minutes)
+	{
+		TPacketGDNewIkarusShop pack{};
+		pack.bSubHeader = ikashop::SUBHEADER_GD_SHOP_EXTEND_DURATION;
+
+		ikashop::TSubPacketGDShopExtendDuration subpack{};
+		subpack.owner = owner;
+		subpack.minutes = minutes;
+
+		TEMP_BUFFER buffer;
+		buffer.write(&pack, sizeof(pack));
+		buffer.write(&subpack, sizeof(subpack));
+
+		db_clientdesc->DBPacket(HEADER_GD_NEW_OFFLINESHOP, 0, buffer.read_peek(), buffer.size());
+	}
+
+	void CShopManager::RecvShopSetDurationDBPacket(DWORD owner, DWORD duration)
+	{
+		if (auto shop = GetShopByOwnerID(owner))
+		{
+			shop->SetDuration(duration);
+			shop->RefreshToOwner();
+		}
+	}
 
 	void CShopManager::SendPopupMessage(LPCHARACTER ch, const std::string& message)
 	{
@@ -5306,6 +5456,11 @@ namespace ikashop
 		for(auto& [id, shop] : m_mapShops)
 			if(shop->GetDuration() > 1)
 				shop->DecreaseDuration();
+
+		// MT2009_PLUS_SHOP_QOL_V2 (process): the automatic price drops (the core that stands
+		// the shop) and the stale rows of the lines' clocks
+		ikashop_qol::Process(*this, m_mapShops);
+		ikashop_qol::Cleanup();
 	}
 
 	void CShopManager::UpdateAuctionsDuration()
@@ -5501,4 +5656,58 @@ void do_flea_filter(LPCHARACTER ch, const char* argument, int /*cmd*/, int /*sub
 	filter.maxPrice = std::max<long long>(0, atoll(maxArg));
 	ikashop::g_fleaFilter[ch->GetPlayerID()] = filter;
 }
+// MT2009_PLUS_SHOP_QOL_V2 (commands) ------------------------------------------------------
+// /ikashop_autoprice <item> <pct> <hours> <minYang> - the owner's automatic drop
+ACMD(do_ikashop_autoprice)
+{
+	if (!ch || !ch->GetDesc())
+		return;
+	char a1[32], a2[32], a3[32], a4[64];
+	argument = one_argument(argument, a1, sizeof(a1));
+	argument = one_argument(argument, a2, sizeof(a2));
+	argument = one_argument(argument, a3, sizeof(a3));
+	one_argument(argument, a4, sizeof(a4));
+	if (!*a1 || !*a2 || !*a3 || !*a4)
+		return;
+	// no shop action clock here: the client paces these itself (offlineshopqol.py),
+	// and the fast add's lines must not wait for them
+	ikashop_qol::SetAutoPrice(ch, (DWORD) strtoul(a1, nullptr, 10), atoi(a2), atoi(a3), atoll(a4));
+}
+
+// /ikashop_extend <timeIndex> - a running shop's time extended
+ACMD(do_ikashop_extend)
+{
+	if (!ch)
+		return;
+	char a1[32];
+	one_argument(argument, a1, sizeof(a1));
+	if (!*a1)
+		return;
+	ikashop::GetManager().ExtendShopClient(ch, (BYTE) std::clamp(atoi(a1), 0, 255));
+}
+
+// /ikashop_buy_part <owner> <item> <quantity> <seenLinePrice> - a part of a
+// stack from the shop's own window (the Dom Towarowy's part purchase).
+ACMD(do_ikashop_buy_part)
+{
+	if (!ch || !ch->GetDesc())
+		return;
+	char a1[32], a2[32], a3[32], a4[64];
+	argument = one_argument(argument, a1, sizeof(a1));
+	argument = one_argument(argument, a2, sizeof(a2));
+	argument = one_argument(argument, a3, sizeof(a3));
+	one_argument(argument, a4, sizeof(a4));
+	if (!*a1 || !*a2 || !*a3 || !*a4)
+		return;
+	const DWORD owner = (DWORD) strtoul(a1, nullptr, 10);
+	const DWORD item = (DWORD) strtoul(a2, nullptr, 10);
+	const DWORD quantity = (DWORD) strtoul(a3, nullptr, 10);
+	const long long seen = atoll(a4);
+	if (!owner || !item || !quantity || seen <= 0)
+		return;
+	ikashop::g_fleaBuyQuantity = quantity;
+	ikashop::GetManager().RecvShopBuyItemClientPacket(ch, owner, item, false, seen);
+	ikashop::g_fleaBuyQuantity = 0;
+}
+
 #endif

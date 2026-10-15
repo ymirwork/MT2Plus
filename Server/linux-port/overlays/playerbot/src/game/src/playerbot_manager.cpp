@@ -7043,6 +7043,10 @@ WritePlayerBotGuildStatus(dwNow);
 		// before every errand that ends the tick early.
 		if (d->IsPhase(PHASE_GAME))
 			ManagePlayerBotDsDeckTick(ch, state, dwNow);
+		// MT2009_PLUS_ZODIAC_PETRIFY_END_V1: the temple's statue shape ends off
+		// its floors, and on a floor after a while (playerbot_zodiac_bots.h).
+		if (d->IsPhase(PHASE_GAME))
+			ManagePlayerBotZodiacPetrify(ch, dwNow);
 
 		// Keep expensive decisions staggered over two ticks, but let an already
 		// engaged bot continue its basic combo on the intervening tick.  This makes
@@ -7924,7 +7928,20 @@ WritePlayerBotGuildStatus(dwNow);
 
 		// Baek-Go stands in the same three villages, so his board is the same
 		// kind of local errand as the hand-in above and is gated the same way.
-		if (!bBagFirst && !bServingPerson && !state.bMultiPullActive && !bFightingMetin &&
+		// MT2009_PLUS_M1_LOOP_FIX_V1: but not by the full bag. The trip to the
+		// first village for a ready row (NeedsPlayerBotM1OnlyServices, the
+		// "herbalist" need) asks only for PLAYERBOT_HERBALISM_FREE_CELLS free
+		// cells, the visit asked for a bag under PLAYERBOT_BAG_FULL_PERCENT
+		// too, and a bot with 6-36 free cells - 147 of the 153 bots the loop
+		// report could not explain (15 October) - came to M1 for the board on
+		// every lap and never reached it. A brew takes herbs out of the bag
+		// and puts one potion in - a cell at most, often none once the herb
+		// stack empties - the visit checks the free cells itself, and it is a
+		// minute at a counter in the village the town visit is in anyway; the
+		// full bag still sends the bot to that visit right after. The other
+		// leisure errands keep the gate (the horse, the rod, the pickaxe, the
+		// bushes): they are what fills the bag.
+		if (!bServingPerson && !state.bMultiPullActive && !bFightingMetin &&
 				ManagePlayerBotHerbalist(ch, state, dwNow))
 			continue;
 

@@ -15,7 +15,7 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. |
 | **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa analiza logów (`syserr`, `syslog`, `docker logs`), identyfikacja przyczyny źródłowej (*root cause*), minimalny bezpieczny patch bez psucia logiki upstreamu. |
 | **`[DISCORD]`** | Przygotowanie materiałów, ogłoszeń i instrukcji dla społeczności graczy na Discordzie. | Przejście na język gracza: brak zbędnego żargonu kompilacji, zwięzły opis zmian oraz jasna instrukcja instalacji krok po kroku (patrz szablony poniżej). |
-| **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika) oraz sformatowanego Changelogu z kropkami i podsumowaniami. |
+| **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika), sformatowanego Changelogu z kropkami i podsumowaniami, a **na sam koniec bezwzględne utworzenie GitHub Release i wrzucenie obu paczek (serwera i klienta z naszymi modyfikacjami) na GitHub Releases**. |
 
 ---
 
@@ -156,9 +156,16 @@ Dopiero po pomyślnym przejściu Kroków 1–4:
    - Scalenie zmian: `git merge dev`.
    - Wypchnięcie oficjalnej wersji: `git push origin main`.
    - Powrót do gałęzi roboczej: `git checkout dev`.
-   - Opcjonalnie: Utworzenie taga wydania na GitHub (np. `v2.30.0-mod50`).
-3. **Paczki klienta:**
+   - Utworzenie taga wydania na GitHub (np. `v2.34.0-mod55`) i wypchnięcie go: `git push origin [tag]`.
+3. **Paczki klienta i serwera:**
    - W przypadku modyfikacji plików klienta (`pack/root` itp.): skompilowanie nowej paczki za pomocą `Kompiluj-Paczki.bat` / `Compile-ClientPack.ps1` i wygenerowanie archiwum wydania dla graczy.
+   - Zbudowanie gotowych archiwów Ready-to-Play: serwera (`metin2-server-update-[wersja].zip`) oraz klienta (`metin2-client-update-[wersja].zip` ze zaktualizowanym `pack/root`).
+4. **Bezwzględna Publikacja Wydania na GitHub Releases (Krok Końcowy):**
+   - **Na sam koniec procedury wydania `[DOCS]` / `[RELEASE]` asystent ZAWSZE ma obowiązek utworzyć i opublikować oficjalne wydanie na GitHub Releases** (`https://api.github.com/repos/ymirwork/MT2Plus/releases` przez REST API / curl).
+   - W załącznikach (Release Assets) muszą znaleźć się **obie paczki wydania**:
+     1. Paczka serwera: `metin2-server-update-[wersja].zip`
+     2. Paczka klienta z naszymi modyfikacjami: `metin2-client-update-[wersja].zip`
+   - Opis wydania (Release Body) musi zawierać sformatowany Changelog (Szablon B) oraz sumy kontrolne SHA-256 obu plików.
 
 ---
 
@@ -309,3 +316,7 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
           4. **Uruchomienie i weryfikacja:** Uruchom serwer ponownie (`docker compose up -d`) i zweryfikuj brak błędów w logach `docker logs` oraz `syserr` rdzeni (`all cores up`).
       - **B. ZMIANY PO STRONIE KLIENTA / DOKUMENTACJI (Skrypty Pythona klienta, pakowanie paczek w `Klient/pack/`, edycja `PROJECT_CONTEXT.md`, narzędzia w `Server/tools/`):**
         - **Brak przestojów:** Ponieważ te operacje w ogóle nie ingerują w procesy ani wolumeny bazy danych serwera, **serwera NIE trzeba wyłączać** – może bezpiecznie działać w tle, oszczędzając czas.
+
+13. **Żelazna Zasada Końcowej Publikacji GitHub Release przy `[DOCS]` / `[RELEASE]`:**
+    - Procedura `[DOCS]` / `[RELEASE]` **nigdy nie kończy się** na samym commitowaniu, pushu do gita czy wygenerowaniu tekstu changelogu.
+    - **Na sam koniec każdego wydania asystent ma bezwzględny obowiązek utworzyć i opublikować wydanie na GitHub Releases**, dołączając do niego obie gotowe paczki aktualizacyjne (`metin2-server-update-*.zip` oraz `metin2-client-update-*.zip` ze zintegrowanymi naszymi autorskimi modyfikacjami) oraz udostępniając użytkownikowi bezpośredni link do opublikowanego wydania na GitHubie.

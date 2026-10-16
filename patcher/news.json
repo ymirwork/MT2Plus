@@ -1,0 +1,29 @@
+[
+ {
+  "newsType": 2,
+  "topic": "MT2Plus 2.35.0-mod56",
+  "creator": "16.10.2026",
+  "threadUrl": "https://github.com/ymirwork/MT2Plus",
+  "date": "2026-10-16",
+  "message": "Autorskie modyfikacje MT2Plus: szybkie zbieranie, sklep 160 slotów, balans gospodarki i optymalizacje.",
+  "avatarLink": ""
+ },
+ {
+  "newsType": 2,
+  "topic": "Klient 2.0.66",
+  "creator": "16.10.2026",
+  "threadUrl": "https://github.com/ymirwork/MT2Plus",
+  "date": "2026-10-16",
+  "message": "Zintegrowane modyfikacje klienta z nowościami oficjalnego wydania.",
+  "avatarLink": ""
+ },
+ {
+  "newsType": 1,
+  "topic": "Serwer gry MT2Plus",
+  "creator": "MT2Plus",
+  "threadUrl": "https://github.com/ymirwork/MT2Plus",
+  "date": "",
+  "message": "Patcher automatycznie pobiera oficjalne pliki oraz autorskie modyfikacje projektu MT2Plus.",
+  "avatarLink": ""
+ }
+]

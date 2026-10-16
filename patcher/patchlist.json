@@ -1,0 +1,725 @@
+[
+ {
+  "name": "Dolacz.bat",
+  "size": 92,
+  "md5": "09660D5B6E796B6579C5F0B4358548F8",
+  "uid": "09660d5b6e796b6579c5f0b4358548f8",
+  "delete": 0
+ },
+ {
+  "name": "Dolacz.ps1",
+  "size": 6038,
+  "md5": "D7D92EFE72B3250B3C12052EDD4B1C22",
+  "uid": "d7d92efe72b3250b3c12052edd4b1c22",
+  "delete": 0
+ },
+ {
+  "name": "metin2client.exe",
+  "size": 13697024,
+  "md5": "089383906C73D90CB0224B55753412BF",
+  "uid": "089383906c73d90cb0224b55753412bf",
+  "delete": 0
+ },
+ {
+  "name": "MT2009-Patcher.exe",
+  "size": 37409280,
+  "md5": "1D5FACF6DAFE34DDED04049124D35BAA",
+  "uid": "1d5facf6dafe34dded04049124d35baa",
+  "delete": 0
+ },
+ {
+  "name": "MT2009-Patcher.exe.config",
+  "size": 2208,
+  "md5": "E2A99BE82E18A7885E0462EED7210382",
+  "uid": "e2a99be82e18a7885e0462eed7210382",
+  "delete": 0
+ },
+ {
+  "name": "pack\\at_maps.data",
+  "size": 13937920,
+  "md5": "2890D3A90DC161700F990FF066AB2426",
+  "uid": "2890d3a90dc161700f990ff066ab2426",
+  "delete": 0
+ },
+ {
+  "name": "pack\\at_maps.index",
+  "size": 3756,
+  "md5": "777ED257007005EF7B1CAD5ED7C90E57",
+  "uid": "777ed257007005ef7b1cad5ed7c90e57",
+  "delete": 0
+ },
+ {
+  "name": "pack\\at_mobs.data",
+  "size": 11501824,
+  "md5": "47AF8E1E10C534FE16B4F74E55D66A3F",
+  "uid": "47af8e1e10c534fe16b4f74e55d66a3f",
+  "delete": 0
+ },
+ {
+  "name": "pack\\at_mobs.index",
+  "size": 9484,
+  "md5": "415D350AA6807E9A0FC5A07D20002562",
+  "uid": "415d350aa6807e9a0fc5a07d20002562",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost01.data",
+  "size": 14330624,
+  "md5": "B6A64B32B1524939ECEAD3EAA64813E1",
+  "uid": "b6a64b32b1524939ecead3eaa64813e1",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost01.index",
+  "size": 1804,
+  "md5": "3A20E019AEA2E6C30F9FFED92F22A1A5",
+  "uid": "3a20e019aea2e6c30f9ffed92f22a1a5",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost02.data",
+  "size": 10891776,
+  "md5": "066E505FC5D0D44D9E0EA272C826EB4B",
+  "uid": "066e505fc5d0d44d9e0ea272c826eb4b",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost02.index",
+  "size": 1364,
+  "md5": "9DB18D4E721BF978474270F32DEB92F8",
+  "uid": "9db18d4e721bf978474270f32deb92f8",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost03.data",
+  "size": 9377792,
+  "md5": "68C2996F2BB38A66F15FFD126FCDCB20",
+  "uid": "68c2996f2bb38a66f15ffd126fcdcb20",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost03.index",
+  "size": 332,
+  "md5": "133A3E3501550D0B2BECD5C714A0EAA2",
+  "uid": "133a3e3501550d0b2becd5c714a0eaa2",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost04.data",
+  "size": 13384448,
+  "md5": "50E99D3385C1E3F94A8114D9C13AEDBE",
+  "uid": "50e99d3385c1e3f94a8114d9c13aedbe",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost04.index",
+  "size": 2804,
+  "md5": "BF39C359FD8687358DFEB30C40596B2C",
+  "uid": "bf39c359fd8687358dfeb30c40596b2c",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost05.data",
+  "size": 6110208,
+  "md5": "59FA21A4F676D1D5E6C9EC26E0EBA701",
+  "uid": "59fa21a4f676d1d5e6c9ec26e0eba701",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost05.index",
+  "size": 6092,
+  "md5": "940A8AB106DEFF5FE4253F64A1C071A0",
+  "uid": "940a8ab106deff5fe4253f64a1c071a0",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost06.data",
+  "size": 13708544,
+  "md5": "4924281A086263FEC49529EA6283388A",
+  "uid": "4924281a086263fec49529ea6283388a",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost06.index",
+  "size": 4156,
+  "md5": "9E7AAD63A397FAE6FD4F876551A7DFA9",
+  "uid": "9e7aad63a397fae6fd4f876551a7dfa9",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost07.data",
+  "size": 10988544,
+  "md5": "5FADB29A1D9DEE11B24BA1C28DB243FB",
+  "uid": "5fadb29a1d9dee11b24ba1c28db243fb",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost07.index",
+  "size": 2644,
+  "md5": "95AE5E954738230F4807343DBA438A87",
+  "uid": "95ae5e954738230f4807343dba438a87",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost08.data",
+  "size": 8417536,
+  "md5": "2413BFE59937C00994B48AFEE9ED6468",
+  "uid": "2413bfe59937c00994b48afee9ed6468",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost08.index",
+  "size": 2140,
+  "md5": "C861F2488B28284657A477A9ABEC9C20",
+  "uid": "c861f2488b28284657a477a9abec9c20",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost09.data",
+  "size": 18864128,
+  "md5": "FCAFD87C8D2589D7DD96552638D17C37",
+  "uid": "fcafd87c8d2589d7dd96552638d17c37",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost09.index",
+  "size": 5524,
+  "md5": "E0D461ECB31646475AC98DB7889061F4",
+  "uid": "e0d461ecb31646475ac98db7889061f4",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost10.data",
+  "size": 21669632,
+  "md5": "7C9CB8C61B993B3E111EE57EDCC20C11",
+  "uid": "7c9cb8c61b993b3e111ee57edcc20c11",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost10.index",
+  "size": 4932,
+  "md5": "0918B945133D4D391B650BE810F0956B",
+  "uid": "0918b945133d4d391b650be810f0956b",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost11.data",
+  "size": 20673024,
+  "md5": "33E460EE06A610270B7F8218C57D5E90",
+  "uid": "33e460ee06a610270b7f8218c57d5e90",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost11.index",
+  "size": 3452,
+  "md5": "C229371E8CE160DD55D71B26FE67DEC8",
+  "uid": "c229371e8ce160dd55d71b26fe67dec8",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost12.data",
+  "size": 19584256,
+  "md5": "65D9E8983C093E1D99FBED3400C7C730",
+  "uid": "65d9e8983c093e1d99fbed3400c7c730",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost12.index",
+  "size": 3092,
+  "md5": "DE632996A381436E6C8BCA5EA2066D04",
+  "uid": "de632996a381436e6c8bca5ea2066d04",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost13.data",
+  "size": 23224320,
+  "md5": "99932AA5D99459D614DF2EC882B0D63D",
+  "uid": "99932aa5d99459d614df2ec882b0d63d",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost13.index",
+  "size": 5324,
+  "md5": "ECBF0AF6D171E05BA522604F977D8175",
+  "uid": "ecbf0af6d171e05ba522604f977d8175",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost14.data",
+  "size": 21361152,
+  "md5": "51C9F69CCF603A52850FD925E00EA2BD",
+  "uid": "51c9f69ccf603a52850fd925e00ea2bd",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost14.index",
+  "size": 4756,
+  "md5": "212C3A1740AC8A0B65D8B4D60B359FB2",
+  "uid": "212c3a1740ac8a0b65d8b4d60b359fb2",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost15.data",
+  "size": 10092800,
+  "md5": "1190C9026455210FA28FA0A7CD1409B7",
+  "uid": "1190c9026455210fa28fa0a7cd1409b7",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_cost15.index",
+  "size": 8932,
+  "md5": "2AE8DFD9941BB66F9C38B60CDD525AA8",
+  "uid": "2ae8dfd9941bb66f9c38b60cdd525aa8",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_fix1.data",
+  "size": 18130176,
+  "md5": "BD42AC8BC752F1BCFAAE40F2BC0B1FF4",
+  "uid": "bd42ac8bc752f1bcfaae40f2bc0b1ff4",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_fix1.index",
+  "size": 2620,
+  "md5": "F41E83108D6669741CEDCD929B647530",
+  "uid": "f41e83108d6669741cedcd929b647530",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_maps.data",
+  "size": 31543808,
+  "md5": "632880636FF524DB76CEBF35C93E849F",
+  "uid": "632880636ff524db76cebf35c93e849f",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_maps.index",
+  "size": 7988,
+  "md5": "50441AB11813C2D8D38A64A54575BE43",
+  "uid": "50441ab11813c2d8d38a64a54575be43",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_maps2.data",
+  "size": 15467520,
+  "md5": "333D187D5CED19CBEFE6A16807CCFA8E",
+  "uid": "333d187d5ced19cbefe6a16807ccfa8e",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_maps2.index",
+  "size": 4900,
+  "md5": "1D086ACED61D3CD60AAB2B36117D7EFC",
+  "uid": "1d086aced61d3cd60aab2b36117d7efc",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_maps3.data",
+  "size": 18257408,
+  "md5": "12499AF79E0D81F2EA5F29FED76B4A7F",
+  "uid": "12499af79e0d81f2ea5f29fed76b4a7f",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_maps3.index",
+  "size": 4980,
+  "md5": "D8F68EA259AA04F073D2B8365C26EF18",
+  "uid": "d8f68ea259aa04f073d2b8365c26ef18",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs.data",
+  "size": 2064384,
+  "md5": "48FF4A8A3EA90F26D002DED9A9CC2C7B",
+  "uid": "48ff4a8a3ea90f26d002ded9a9cc2c7b",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs.index",
+  "size": 3628,
+  "md5": "AD8E9D2F820F66BE89476F73B10625F6",
+  "uid": "ad8e9d2f820f66be89476f73b10625f6",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs2.data",
+  "size": 12833280,
+  "md5": "70A560B1802780C382EFC2B28F4B64A7",
+  "uid": "70a560b1802780c382efc2b28f4b64a7",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs2.index",
+  "size": 7052,
+  "md5": "A333E0814FD1C47899EB8DE663D6A097",
+  "uid": "a333e0814fd1c47899eb8de663d6a097",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs3.data",
+  "size": 9875712,
+  "md5": "99E6095C053F86D3043CAFE443693C9D",
+  "uid": "99e6095c053f86d3043cafe443693c9d",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs3.index",
+  "size": 8332,
+  "md5": "EBD98BAC918ABD5619F367C11604BA33",
+  "uid": "ebd98bac918abd5619f367c11604ba33",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs4.data",
+  "size": 17626368,
+  "md5": "AEE7DCBF0939449C96C563068E3DDCEC",
+  "uid": "aee7dcbf0939449c96c563068e3ddcec",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_mobs4.index",
+  "size": 10740,
+  "md5": "8C112552F4ED7BE5529FE48AE70054FB",
+  "uid": "8c112552f4ed7be5529fe48ae70054fb",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_ui.data",
+  "size": 400384,
+  "md5": "61FF74525D3C4FDC1468F05BBAA6B728",
+  "uid": "61ff74525d3c4fdc1468f05bbaa6b728",
+  "delete": 0
+ },
+ {
+  "name": "pack\\az_ui.index",
+  "size": 1764,
+  "md5": "458333A8555E8468761C71ACE8BA88B5",
+  "uid": "458333a8555e8468761c71ace8ba88b5",
+  "delete": 0
+ },
+ {
+  "name": "pack\\bd_maps.data",
+  "size": 5228032,
+  "md5": "1146B823A100776348D60C17282D192D",
+  "uid": "1146b823a100776348d60c17282d192d",
+  "delete": 0
+ },
+ {
+  "name": "pack\\bd_maps.index",
+  "size": 3620,
+  "md5": "3537A59E212CC3DC337515B5313FE4D6",
+  "uid": "3537a59e212cc3dc337515b5313fe4d6",
+  "delete": 0
+ },
+ {
+  "name": "pack\\catacomb_map.data",
+  "size": 43560704,
+  "md5": "4AEDD1FBC66D73FB942ED18F03CC5E0D",
+  "uid": "4aedd1fbc66d73fb942ed18f03cc5e0d",
+  "delete": 0
+ },
+ {
+  "name": "pack\\catacomb_map.index",
+  "size": 45540,
+  "md5": "7ECE949FFC78291CC007251870F31C2D",
+  "uid": "7ece949ffc78291cc007251870f31c2d",
+  "delete": 0
+ },
+ {
+  "name": "pack\\dbdata.data",
+  "size": 407552,
+  "md5": "6D58D61E45F641B00CA005D4D04D6CFA",
+  "uid": "6d58d61e45f641b00ca005d4d04d6cfa",
+  "delete": 0,
+  "keep": 1
+ },
+ {
+  "name": "pack\\dbdata.index",
+  "size": 292,
+  "md5": "1CE7E6D396D0D5EE216C68F3C8026D6A",
+  "uid": "1ce7e6d396d0d5ee216c68f3c8026d6a",
+  "delete": 0,
+  "keep": 1
+ },
+ {
+  "name": "pack\\gamedata.data",
+  "size": 23097600,
+  "md5": "7A53DABDF0AD0B609985E12C97EA1B87",
+  "uid": "7a53dabdf0ad0b609985e12c97ea1b87",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gamedata.index",
+  "size": 4092,
+  "md5": "F723CD1B7E392EC6E55EF218DACA9585",
+  "uid": "f723cd1b7e392ec6e55ef218daca9585",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_misc.data",
+  "size": 4855296,
+  "md5": "F5F4922C31658828D0F4BBA930533C33",
+  "uid": "f5f4922c31658828d0f4bba930533c33",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_misc.index",
+  "size": 8108,
+  "md5": "C1E9EA528C7312A6D2FAF49D394262F7",
+  "uid": "c1e9ea528c7312a6d2faf49d394262f7",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_mobs.data",
+  "size": 31018752,
+  "md5": "90173881E09176752615843B5040E755",
+  "uid": "90173881e09176752615843b5040e755",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_mobs.index",
+  "size": 49076,
+  "md5": "EF0FA9E86C2EBFA794A0FA351FA017F5",
+  "uid": "ef0fa9e86c2ebfa794a0fa351fa017f5",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_nemere.data",
+  "size": 22011904,
+  "md5": "E0A96CF6F7E258D2453473EC8B5360E0",
+  "uid": "e0a96cf6f7e258d2453473ec8b5360e0",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_nemere.index",
+  "size": 19876,
+  "md5": "83F51C0E9A06F88F79322F45F687665F",
+  "uid": "83f51c0e9a06f88f79322f45f687665f",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_ore.data",
+  "size": 424704,
+  "md5": "50C86BCAD9BEEF59CB986CAC01D230DA",
+  "uid": "50c86bcad9beef59cb986cac01d230da",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_ore.index",
+  "size": 564,
+  "md5": "9CEC1435D2A0946DF2AFFF1191F96E92",
+  "uid": "9cec1435d2a0946df2afff1191f96e92",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_razador.data",
+  "size": 24040704,
+  "md5": "9DB52C5F61300D81AAA35608CE141456",
+  "uid": "9db52c5f61300d81aaa35608ce141456",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gf_razador.index",
+  "size": 25036,
+  "md5": "619CCCD0B0365A453514AE7419F62845",
+  "uid": "619cccd0b0365a453514ae7419f62845",
+  "delete": 0
+ },
+ {
+  "name": "pack\\goblin.data",
+  "size": 9272576,
+  "md5": "E5EE96C2897D76DEB900C6E96A5CADE0",
+  "uid": "e5ee96c2897d76deb900c6e96a5cade0",
+  "delete": 0
+ },
+ {
+  "name": "pack\\goblin.index",
+  "size": 5956,
+  "md5": "F29227651EF524985688C40B5FF785C0",
+  "uid": "f29227651ef524985688c40b5ff785c0",
+  "delete": 0
+ },
+ {
+  "name": "pack\\icon.data",
+  "size": 7179776,
+  "md5": "0C39CE73725DD4769B734BFD1D1A5867",
+  "uid": "0c39ce73725dd4769b734bfd1d1a5867",
+  "delete": 0
+ },
+ {
+  "name": "pack\\icon.index",
+  "size": 78548,
+  "md5": "93304E155E55972F1756904D1A3BD4C4",
+  "uid": "93304e155e55972f1756904d1a3bd4c4",
+  "delete": 0
+ },
+ {
+  "name": "pack\\Index",
+  "size": 1014,
+  "md5": "B66B5CDF56D9CC6EA9403B0FEE987B84",
+  "uid": "b66b5cdf56d9cc6ea9403b0fee987b84",
+  "delete": 0
+ },
+ {
+  "name": "pack\\locale.data",
+  "size": 18406656,
+  "md5": "577FAAAAFB0B334084F6D758F8A8BB09",
+  "uid": "577faaaafb0b334084f6d758f8a8bb09",
+  "delete": 0
+ },
+ {
+  "name": "pack\\locale.index",
+  "size": 23500,
+  "md5": "FA26800D57CEC208E7D378F3BA22B800",
+  "uid": "fa26800d57cec208e7d378f3ba22b800",
+  "delete": 0
+ },
+ {
+  "name": "pack\\maps.data",
+  "size": 14649344,
+  "md5": "A98B524024847A953FE989CFDE49A733",
+  "uid": "a98b524024847a953fe989cfde49a733",
+  "delete": 0
+ },
+ {
+  "name": "pack\\maps.index",
+  "size": 90452,
+  "md5": "AACB5E6C01B46A31E011DD01BEDC42CE",
+  "uid": "aacb5e6c01b46a31e011dd01bedc42ce",
+  "delete": 0
+ },
+ {
+  "name": "pack\\minigames.data",
+  "size": 2349568,
+  "md5": "2EC4EDDA610EBD4593FD7BBB0504BB5E",
+  "uid": "2ec4edda610ebd4593fd7bbb0504bb5e",
+  "delete": 0
+ },
+ {
+  "name": "pack\\minigames.index",
+  "size": 10164,
+  "md5": "EE33CA7AE259ABF68A94F9B0EF3FAC4D",
+  "uid": "ee33ca7ae259abf68a94f9b0ef3fac4d",
+  "delete": 0
+ },
+ {
+  "name": "pack\\newpet.data",
+  "size": 4445696,
+  "md5": "2CBAFEE4BDE5DEACCBA9F6C8C5C8E129",
+  "uid": "2cbafee4bde5deaccba9f6c8c5c8e129",
+  "delete": 0
+ },
+ {
+  "name": "pack\\newpet.index",
+  "size": 5828,
+  "md5": "6008626543F35D1BDB01C976EFB14D0C",
+  "uid": "6008626543f35d1bdb01c976efb14d0c",
+  "delete": 0
+ },
+ {
+  "name": "pack\\ochao.data",
+  "size": 25146112,
+  "md5": "12D096E22E13F3D748AC162C3C7371CB",
+  "uid": "12d096e22e13f3d748ac162c3c7371cb",
+  "delete": 0
+ },
+ {
+  "name": "pack\\ochao.index",
+  "size": 19556,
+  "md5": "03BBF708D06743173DA8B0CAD5E048CA",
+  "uid": "03bbf708d06743173da8b0cad5e048ca",
+  "delete": 0
+ },
+ {
+  "name": "pack\\property.data",
+  "size": 413440,
+  "md5": "39C784D5053828A6388B8D4FD11C6D06",
+  "uid": "39c784d5053828a6388b8d4fd11c6d06",
+  "delete": 0
+ },
+ {
+  "name": "pack\\property.index",
+  "size": 56252,
+  "md5": "90A9B212D07CED6171C1E60B3C7084E1",
+  "uid": "90a9b212d07ced6171c1e60b3c7084e1",
+  "delete": 0
+ },
+ {
+  "name": "pack\\root.data",
+  "size": 14677760,
+  "md5": "28043C5A252B58C6057F62994EDFE72E",
+  "uid": "28043c5a252b58c6057f62994edfe72e",
+  "delete": 0
+ },
+ {
+  "name": "pack\\root.index",
+  "size": 30148,
+  "md5": "4D5E7F7EA901264BD80B940B81E5ECF8",
+  "uid": "4d5e7f7ea901264bd80b940b81e5ecf8",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wiki_nowe.data",
+  "size": 577024,
+  "md5": "01A89622AB5F6024987BCD7464DEA7EF",
+  "uid": "01a89622ab5f6024987bcd7464dea7ef",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wiki_nowe.index",
+  "size": 1140,
+  "md5": "ECC13AADEC5B99632B099004F53B7537",
+  "uid": "ecc13aadec5b99632b099004f53b7537",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zodiak_maps.data",
+  "size": 22047232,
+  "md5": "C3C9BE99E95A3EDC30BB58581C4FF9D6",
+  "uid": "c3c9be99e95a3edc30bb58581c4ff9d6",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zodiak_maps.index",
+  "size": 16964,
+  "md5": "3E250142A93DF311D98C41895EF6E1AF",
+  "uid": "3e250142a93df311d98c41895ef6e1af",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zodiak_mobs.data",
+  "size": 15348736,
+  "md5": "4AF2CC13E659FA2C6EC42211E32CCA43",
+  "uid": "4af2cc13e659fa2c6ec42211e32cca43",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zodiak_mobs.index",
+  "size": 9780,
+  "md5": "E2677EC4FEFAA24944A72528735CF33A",
+  "uid": "e2677ec4fefaa24944a72528735cf33a",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zodiak_mobs2.data",
+  "size": 19320576,
+  "md5": "0C8DD0A68E2B6C5D125AE43919BA42C5",
+  "uid": "0c8dd0a68e2b6c5d125ae43919ba42c5",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zodiak_mobs2.index",
+  "size": 27860,
+  "md5": "20C6396DDA36A345049FBD5D6FA76C21",
+  "uid": "20c6396dda36a345049fbd5d6fa76c21",
+  "delete": 0
+ },
+ {
+  "name": "CLIENT_VERSION",
+  "size": 7,
+  "md5": "F6EA598438BB36DBB85CE7C265E333DE",
+  "uid": "f6ea598438bb36dbb85ce7c265e333de",
+  "delete": 0
+ }
+]

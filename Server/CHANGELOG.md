@@ -17,7 +17,15 @@ every version here.
 
 ---
 
-## 2.35.0 — 2026-10-16 — Porządek w plecakach i na straganach botów, mniej krążenia między wioskami
+## 2.35.0 — 2026-10-16 — Porządek w plecakach i na straganach botów, systemy rozgrywki MT2Plus
+
+### MT2Plus — Autorskie Systemy Rozgrywki (Dev Gameplay V1)
+- **Czytanie KU bez wymaganego EXPa:** Do czytania Ksiąg Umiejętności nie jest już wymagany żaden punkt doświadczenia (EXP) w silniku gry.
+- **Pełne odblokowanie limiterów postaci:** Zdjęto sztuczne limity prędkości ruchu (Movement Speed) i ataku (Attack Speed), odblokowano górny limit zadawanych obrażeń oraz całkowicie usunięto rozłączanie (disconnect) i cofki gracza przez antyhack.
+- **Błyskawiczne ulepszanie u Kowala:** Usunięto 1-sekundowe sztuczne opóźnienie "Odczekaj przed następnym ulepszaniem", umożliwiając płynne potwierdzanie ulepszania enterem.
+- **Zapisywanie Lochów w Zwoju Powrotu:** Odblokowano zapisywanie i teleportację do Lochów Pająków (V1/V2/V3), Lochów Małp oraz Groty Wygnańców przy posiadaniu VIP-a lub wymaganej Przepustki; naprawiono również zapisywanie ze zwojów czystych.
+- **Inteligentne wprowadzanie kwot Yang (k, kk, kkk):** W oknach wpisywania waluty (handel, tobołek, wyrzucanie Yang) można wpisywać wygodne skróty, np. `1kk` automatycznie wpisuje `1.000.000`.
+- **Bonus PvP za znajomość języków:** Obrażenia zadawane graczom z innego królestwa wzrastają o 5%, jeśli agresor opanował język ofiary na poziomie minimum M1.
 
 ### Boty – plecaki, stragany i handel
 - **Stragan tylko dla wartościowego sprzętu.** Boty zostawiają na stragan broń i zbroję z co najmniej dwoma bonusami (albo z jednym naprawdę dobrym) i wystawiają je według cennika, także przy pełnym straganie. Przedmioty z jednym słabym bonusem sprzedaję u Handlarki, a od 35 poziomu oddaję Alchemikowi na Odłamki Energii. Przedmioty powyżej 41 poziomu idą tak do Handlarki tylko do +4 – od +5 zostają na straganie.

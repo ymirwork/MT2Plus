@@ -235,11 +235,12 @@ function offerHtml(o, i){
   }
   if (o.running) right += '<button type="button" class="mk-btn" data-tp="' + i + '" title="' + esc(T.tp_title) + '">' + esc(T.tp) + '</button>';
   // The icon and, under it, the small compare switch share one column (MT2009_PLUS_MARKET_PREVIEW_V1):
-  // the switch never sits on the icon and the card keeps no column of its own for it.
+  var itemLink = (D.economy_item || '/economy/item/') + o.vnum + (o.vnum === 50300 && o['var'] ? '?skill=' + o['var'] : '');
   return '<div class="mk-offer' + (o.running ? '' : ' closed') + '"><div class="mk-lead"><div class="mk-icon" data-tip="' + i + '">' + icon +
     '</div><input type="checkbox" class="mk-cmpsw" data-cmp="' + o.id + '" title="' + esc(T.compare_pick) + '" aria-label="' +
-    esc(T.compare_pick) + '"' + (picked[o.id] ? ' checked' : '') + '></div><div style="min-width:0"><div class="mk-name" data-item="' + i + '" title="' + esc(T.item_title) + '">' + esc(o.name) +
-    plus + stack + '</div><div class="mk-tags">' + tags + '</div>' + bonBtn + '</div><div class="mk-right">' + right + '</div></div>';
+    esc(T.compare_pick) + '"' + (picked[o.id] ? ' checked' : '') + '></div><div style="min-width:0"><a class="mk-name" href="' +
+    esc(itemLink) + '" title="Przejdź do analizy gospodarczej przedmiotu (economy/item/' + o.vnum + ')">' + esc(o.name) +
+    plus + stack + '</a><div class="mk-tags">' + tags + '</div>' + bonBtn + '</div><div class="mk-right">' + right + '</div></div>';
 }
 function draw(data){
   hidePop();
@@ -354,9 +355,10 @@ function openCompare(){
       [T.avg, o.avg ? o.avg + '%' : '–'], [T.skl, o.skl ? o.skl + '%' : '–'],
       [T.stones, o.stones.length ? o.stones.map(function(s){ return esc(s.n); }).join('<br>') : '–'],
       [T.c_price, num(o.price) + ' ' + esc(T.yang) + (o.cnt > 1 ? '<br><small>' + esc(fmt('per_unit', {p: num(o.unit)})) + '</small>' : '')],
-      [T.c_deal, o.rare ? T.rare : (o.deal !== null ? o.deal + '%' : '–')], [T.c_seller, esc(o.seller) + ' · ' + esc(o.shop_name)]];
-    return '<div class="col"><div class="mk-name" style="cursor:default">' + esc(o.name) + (o.plus >= 0 ? ' <span class="plus">+' + o.plus + '</span>' : '') +
-      '</div>' + rows.map(function(r){ return '<div class="row"><span>' + esc(r[0]) + '</span><span style="text-align:right">' +
+    var cmpItemLink = (D.economy_item || '/economy/item/') + o.vnum + (o.vnum === 50300 && o['var'] ? '?skill=' + o['var'] : '');
+    return '<div class="col"><a class="mk-name" href="' + esc(cmpItemLink) +
+      '" title="Przejdź do analizy gospodarczej przedmiotu (economy/item/' + o.vnum + ')">' + esc(o.name) + (o.plus >= 0 ? ' <span class="plus">+' + o.plus + '</span>' : '') +
+      '</a>' + rows.map(function(r){ return '<div class="row"><span>' + esc(r[0]) + '</span><span style="text-align:right">' +
       (r[0] === T.c_bonuses || r[0] === T.stones || r[0] === T.c_price || r[0] === T.c_seller ? r[1] : esc(r[1])) + '</span></div>'; }).join('') + '</div>';
   }).join('');
   $('mk-modal').classList.add('on');

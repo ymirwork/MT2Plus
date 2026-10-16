@@ -7,9 +7,119 @@
 <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px">
   {% if item.icon_url %}<img src="{{ item.icon_url }}" style="width:36px; height:36px" loading="lazy" alt="">{% endif %}
   <div>
-    <h1 style="margin:0; font-size:26px">{{ item.item_name }} <span class="muted" style="font-size:16px; font-weight:normal">· VNUM {{ item.vnum }}</span></h1>
+    <h1 style="margin:0; font-size:26px">{{ item.item_name }} <span class="muted" style="font-size:16px; font-weight:normal">· VNUM {{ item.vnum }}{% if skill_id %} · ID Skilla {{ skill_id }}{% endif %}</span></h1>
   </div>
 </div>
+
+{% if is_skillbook %}
+<div class="panel" style="margin-bottom:18px; background:rgba(255,255,255,0.03); border:1px solid var(--edge); padding:14px; border-radius:8px">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:10px">
+    <div>
+      <div style="display:flex; align-items:center; gap:8px">
+        <span style="font-weight:700; color:#f6c85f; font-size:15px">📖 Filtr Umiejętności Księgi (VNUM 50300)</span>
+        {% if skill_name %}
+          <span style="background:rgba(57,232,144,0.15); color:#39e890; border:1px solid rgba(57,232,144,0.3); font-size:12px; font-weight:600; padding:2px 8px; border-radius:12px">
+            Wybrana: {{ skill_name }} (ID: {{ skill_id }})
+          </span>
+        {% else %}
+          <span style="background:rgba(246,200,95,0.15); color:#f6c85f; border:1px solid rgba(246,200,95,0.3); font-size:12px; font-weight:600; padding:2px 8px; border-radius:12px">
+            Zbiorcze podsumowanie (Wszystkie księgi)
+          </span>
+        {% endif %}
+      </div>
+      <p class="muted" style="margin:4px 0 0; font-size:12px">Wybierz konkretną umiejętność z listy lub pigułek poniżej, aby przełączyć statystyki, wycenę i oferty na wybraną księgę:</p>
+    </div>
+    
+    <div>
+      <select onchange="if(this.value){window.location.href=this.value;}" style="padding:6px 12px; border-radius:6px; background:var(--bg-card); color:var(--text); border:1px solid var(--edge); font-size:13px; font-weight:600">
+        <option value="{{ url_for('economy_item', vnum=50300) }}" {% if not skill_id %}selected{% endif %}>— 📋 Wszystkie Księgi (Zestawienie Zbiorcze) —</option>
+        {% for cat in skill_categories %}
+        <optgroup label="{{ cat.class }}">
+          {% for s_id, s_name in cat.skills %}
+          <option value="{{ url_for('economy_item', vnum=50300) }}?skill={{ s_id }}" {% if skill_id == s_id %}selected{% endif %}>{{ s_name }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  {# Szybkie pigułki najpopularniejszych ksiąg #}
+  <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px">
+    <span class="muted" style="font-size:11px; text-transform:uppercase; font-weight:600">Szybki wybór:</span>
+    <a href="{{ url_for('economy_item', vnum=50300) }}" style="text-decoration:none; padding:3px 9px; border-radius:5px; border:1px solid {% if not skill_id %}var(--mk-gold); color:var(--mk-gold); background:rgba(246,200,95,0.1){% else %}var(--edge); color:var(--muted); background:var(--bg-card){% endif %}; font-weight:{% if not skill_id %}700{% else %}500{% endif %}">
+      📋 Wszystkie
+    </a>
+    {% set popular_skills = [(4, 'Aura Miecza'), (3, 'Berserk'), (2, 'Wir Miecza'), (19, 'Silne Ciało'), (63, 'Czarowane Ostrze'), (64, 'Strach'), (31, 'Zasadzka'), (96, 'Pomoc Smoka'), (94, 'Błogosławieństwo')] %}
+    {% for ps_id, ps_name in popular_skills %}
+    <a href="{{ url_for('economy_item', vnum=50300) }}?skill={{ ps_id }}" style="text-decoration:none; padding:3px 9px; border-radius:5px; border:1px solid {% if skill_id == ps_id %}var(--mk-gold); color:var(--mk-gold); background:rgba(246,200,95,0.15){% else %}var(--edge); color:var(--muted); background:var(--bg-card){% endif %}; font-weight:{% if skill_id == ps_id %}700{% else %}500{% endif %}">
+      {{ ps_name }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if not skill_id and skill_breakdown %}
+<section class="panel" style="margin-bottom:20px">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px">
+    <div>
+      <h2 style="margin:0">📚 Zestawienie Wszystkich Ksiąg Umiejętności na Serwerze</h2>
+      <p class="muted" style="margin:2px 0 0">Kliknij na dowolną księgę, aby przejść do jej indywidualnej wyceny, rynku i posiadaczy.</p>
+    </div>
+    <div>
+      <input type="text" id="skill-filter-input" placeholder="Szukaj księgi (np. Aura, Berserk)..." style="padding:6px 12px; border-radius:6px; background:var(--bg-card); border:1px solid var(--edge); color:var(--text); font-size:13px; width:260px" onkeyup="filterSkillTable()">
+    </div>
+  </div>
+
+  <table id="skills-table">
+    <thead>
+      <tr>
+        <th>Księga Umiejętności</th>
+        <th>Klasa / Profesja</th>
+        <th style="text-align:right">Na rynku (oferty)</th>
+        <th style="text-align:right">Sztuk na rynku</th>
+        <th style="text-align:right">Cena min.</th>
+        <th style="text-align:right">Średnia cena</th>
+        <th style="text-align:right">W świecie</th>
+        <th style="text-align:center">Akcja</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in skill_breakdown %}
+      <tr>
+        <td>
+          <a href="{{ url_for('economy_item', vnum=50300) }}?skill={{ s.skill_id }}" style="text-decoration:none; color:#f6c85f; font-weight:700">
+            📖 {{ s.skill_name }}
+          </a>
+        </td>
+        <td><span class="muted" style="font-size:11px">{{ s.class_name }}</span></td>
+        <td style="text-align:right; font-weight:600">{{ s.offers }}</td>
+        <td style="text-align:right">{{ s.units }}</td>
+        <td style="text-align:right; color:#39e890; font-weight:600">{% if s.min_price > 0 %}{{ format_yang(s.min_price) }}{% else %}—{% endif %}</td>
+        <td style="text-align:right; color:#ffe28a">{% if s.avg_price > 0 %}{{ format_yang(s.avg_price) }}{% else %}—{% endif %}</td>
+        <td style="text-align:right; font-weight:600">{{ s.world_count }}</td>
+        <td style="text-align:center">
+          <a href="{{ url_for('economy_item', vnum=50300) }}?skill={{ s.skill_id }}" style="display:inline-block; padding:3px 8px; font-size:12px; text-decoration:none; border:1px solid var(--edge); border-radius:4px; background:var(--bg-card); color:var(--text)">
+            Analiza →
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<script>
+function filterSkillTable() {
+  const query = document.getElementById('skill-filter-input').value.toLowerCase();
+  const rows = document.querySelectorAll('#skills-table tbody tr');
+  rows.forEach(r => {
+    const text = r.textContent.toLowerCase();
+    r.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+</script>
+{% endif %}
+{% endif %}
 
 {# Pasek KPI lokalizacji przedmiotu #}
 <section class="cards">
@@ -107,7 +217,7 @@
 {# Top Posiadacze #}
 <section class="panel">
   <h2>🏆 Najwięksi Posiadacze (Top 8)</h2>
-  <p class="muted">Postacie posiadające najwięcej sztuk tego przedmiotu na serwerze (w ekwipunkach i na straganach).</p>
+  <p class="muted">Postacie posiadające najwięcej sztuk tego przedmiotu na serwerze (w ekwipunkach i na straganach, z wyłączeniem kont administracyjnych).</p>
   <table>
     <thead>
       <tr>

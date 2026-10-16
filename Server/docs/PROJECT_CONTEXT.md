@@ -243,6 +243,13 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Alchemia Smoczych Kamieni (Dragon Soul):** Mityczna alchemia, pełny obieg uszlachetniania.
 - **Auto Hunting (Klawisz K):** Zautomatyzowane expienie dla gracza.
 - **Szybkie ulepszanie (Enter-refine) & TAB Minimap Warp.**
+- **Pakiet Usprawnień Rozgrywki (Dev Gameplay V1):**
+  - Czytanie Ksiąg Umiejętności (KU) bez wymogu posiadania punktów doświadczenia (EXP) w `char_skill.cpp`.
+  - Zdjęcie limiterów Movement Speed i Attack Speed, odblokowanie górnego limitu obrażeń (damage cap) oraz usunięcie disconnectów i cofania gracza przez antyhack (`CheckComboHack` / `IS_SPEED_HACK`).
+  - Natychmiastowe ulepszanie u kowala bez 1-sekundowego opóźnienia "Odczekaj przed następnym ulepszaniem" w `input_main.cpp`.
+  - Zapisywanie lochów (Loch Pająków V1/V2/V3, Lochy Małp, Grota Wygnańców) w Zwoju Powrotu z walidacją VIP-a lub Przepustki przy teleportacji oraz poprawka zapisywania dla czystych zwojów (quest `tp_bookmarks.quest`, `char_item.cpp`).
+  - Wprowadzanie kwot Yang ze skrótami `k`, `kk`, `kkk` w oknach dialogowych (np. `1kk` = `1.000.000`) w `uiPickMoney.py`, `uiCommon.py`, `uiexchange.py` i skryptach dialogów.
+  - Zwiększenie obrażeń PvP o 5% przy ataku na gracza z wrogiego królestwa, jeśli napastnik posiada język tej nacji na poziomie minimum M1 w `char_battle.cpp`.
 
 ### 5.1. Rejestr Paczek i Modułów w `Server/addons/`
 
@@ -258,6 +265,7 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
 | `MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip` | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
 | `Paczka_Recykling_Bonusow.zip` | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |
 | `teleport_ring.quest` | Serwer (Quest) | Quest z dodatkowymi lochami i mapami Arezzo | **Aktywny** |
+| `MT2009-PLUS-DEV-GAMEPLAY-V1.zip` | Serwer + Klient | `char_skill.cpp`, `char.cpp`, `battle.cpp`, `input_main.cpp`, `char_battle.cpp`, `char_item.cpp`, `tp_bookmarks.quest`, `uipickmoney.py`, `uicommon.py`, `uiexchange.py` | **Aktywny** |
 
 ---
 

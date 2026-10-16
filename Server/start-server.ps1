@@ -659,7 +659,8 @@ function Get-DockerDesktopCandidates {
     foreach ($p in @(
             (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'),
             (Join-Path ${env:ProgramFiles(x86)} 'Docker\Docker\Docker Desktop.exe'),
-            (Join-Path $env:LOCALAPPDATA 'Docker\Docker Desktop.exe'))) {
+            (Join-Path $env:LOCALAPPDATA 'Docker\Docker Desktop.exe'),
+            (Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\Docker Desktop.exe'))) {
         if ($p) { $paths.Add($p) }
     }
     try {
@@ -667,6 +668,8 @@ function Get-DockerDesktopCandidates {
         if ($cli) {
             $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $cli))
             if ($root) { $paths.Add((Join-Path $root 'Docker Desktop.exe')) }
+            $root2 = Split-Path -Parent (Split-Path -Parent $cli)
+            if ($root2) { $paths.Add((Join-Path $root2 'Docker Desktop.exe')) }
         }
     }
     catch { }

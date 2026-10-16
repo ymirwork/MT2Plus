@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     # The full mt2009 server folder (VERSION, linux-port\docker\game\src\server).
     [Parameter(Mandatory = $true)][string]$ServerRoot
@@ -1216,6 +1216,18 @@ foreach ($dropSourceName in @('item_manager.cpp', 'char_item.cpp')) {
         [IO.File]::WriteAllText($dropSource, $dropText)
         $syncedFiles++
         Write-Host "Removed broken Death Ruler sash drops from $dropSourceName." -ForegroundColor DarkGray
+    }
+}
+
+# Gameplay and mechanics improvements (server-patches/devgameplay, MT2009_PLUS_DEV_GAMEPLAY_V1):
+# KU exp requirement removal, speed/damage limits bypass, refine delay bypass, dungeon recall check, PvP language bonus.
+$devGameplayApply = Join-Path $repo 'server-patches/devgameplay/Apply-DevGameplayPatch.ps1'
+if ((Test-Path -LiteralPath $devGameplayApply -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $engineGameSource 'char_skill.cpp') -PathType Leaf)) {
+    $devGameplayResult = & $devGameplayApply -SourceDir $engineGameSource
+    if ($devGameplayResult.Changed) {
+        $syncedFiles++
+        Write-Host ('Applied {0} dev gameplay edit(s).' -f $devGameplayResult.Applied) -ForegroundColor DarkGray
     }
 }
 

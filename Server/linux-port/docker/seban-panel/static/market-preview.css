@@ -94,10 +94,10 @@ align-items:center;justify-content:center;overflow:hidden;cursor:help}
 .mk-icon img{max-width:40px;max-height:40px;image-rendering:pixelated}
 .mk-icon .ph{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;
 font-size:18px;color:var(--mk-ph);background:var(--mk-ph-bg);border:1px solid var(--mk-ph-line);border-radius:5px}
-.mk-name{font-size:15.5px;font-weight:700;color:var(--mk-title);cursor:pointer;word-break:break-word}
-.mk-name:hover{text-decoration:underline}
-.mk-name .plus{color:var(--mk-gold)}
-.mk-name .stack{color:var(--mk-text);font-weight:600;font-size:13px;margin-left:4px}
+.mk-name, a.mk-name{font-size:15.5px;font-weight:700;color:var(--mk-title);cursor:pointer;word-break:break-word;text-decoration:none;display:inline-block}
+.mk-name:hover, a.mk-name:hover{text-decoration:underline;color:var(--mk-gold)}
+.mk-name .plus, a.mk-name .plus{color:var(--mk-gold)}
+.mk-name .stack, a.mk-name .stack{color:var(--mk-text);font-weight:600;font-size:13px;margin-left:4px}
 .mk-tags{display:flex;gap:4px 6px;flex-wrap:wrap;align-items:center;margin-top:4px;font-size:12px;min-width:0}
 .mk-tag{padding:1px 7px;border-radius:5px;background:var(--mk-tag-bg);border:1px solid var(--mk-tag-line);color:var(--mk-tag);
 white-space:nowrap}

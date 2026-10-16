@@ -267,6 +267,7 @@ def _page():
                        for key, _cid, name, subs in rules.CATEGORIES],
         "api": url_for("market_api_offers"), "teleport": url_for("api_admin_teleport_me"),
         "player": url_for("player", pid=0).rsplit("/", 1)[0] + "/",
+        "economy_item": url_for("economy_item", vnum=0).rsplit("/", 1)[0] + "/",
     }
     return render_template("market_preview.html", data=data, sorts=rules.SORT_NAMES, class_keys=rules.CLASS_KEYS,
                            class_names=rules.CLASS_NAMES, empires=EMPIRE_NAMES, stones=stones)

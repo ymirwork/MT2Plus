@@ -7284,7 +7284,7 @@ def economy():
         "top_richest": top_richest
     }
 
-    # 4. Special Systems Telemetry (Moduł 6 - Graceful/Conditional)
+    # 4. Special Systems Telemetry (YmirWork / Krystian mod-50)
     special_systems = {"available": False}
     try:
         liq_stats = one("""
@@ -7297,11 +7297,45 @@ def economy():
             WHERE how='PLAYERBOT_M1M2_LIQUIDATION'
         """) or {}
         tot_liq = int(liq_stats.get("total_liquidations") or 0)
-        buyer_bots_count = (one("""
-            SELECT COUNT(*) AS c FROM player.player p
+
+        liq_24h = one("""
+            SELECT 
+                COUNT(*) AS count_24h,
+                SUM(CASE WHEN vnum=71285 THEN 1 ELSE 0 END) AS adds_24h,
+                SUM(CASE WHEN vnum=71284 THEN 1 ELSE 0 END) AS switches_24h
+            FROM log.log
+            WHERE how='PLAYERBOT_M1M2_LIQUIDATION' AND time >= NOW() - INTERVAL 24 HOUR
+        """) or {}
+
+        # Bot count and buyers (15% populacji botow)
+        bot_row = one("""
+            SELECT 
+                COUNT(*) AS total_bots,
+                SUM(CASE WHEN MOD(p.id, 100) < 15 THEN 1 ELSE 0 END) AS buyer_bots
+            FROM player.player p
             JOIN account.account a ON a.id = p.account_id
-            WHERE a.login LIKE 'playerbot_%%' AND MOD(p.id, 100) < 15
-        """) or {}).get("c") or 0
+            WHERE a.login LIKE 'playerbot_%%'
+        """) or {}
+        total_bots = int(bot_row.get("total_bots") or 1800)
+        buyer_bots_count = int(bot_row.get("buyer_bots") or int(total_bots * 0.15))
+
+        # Obieg Zaczarowan i Wzmocnien w swiecie i na straganach
+        bonus_circ = rows("""
+            SELECT vnum,
+                   SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
+                   SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
+                   SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
+                   SUM(count) AS total_count
+            FROM player.item
+            WHERE vnum IN (71284, 71285)
+            GROUP BY vnum
+        """)
+        circ_map = {int(r["vnum"]): {
+            "total": int(r.get("total_count") or 0),
+            "shop": int(r.get("shop_count") or 0),
+            "inv": int(r.get("inv_count") or 0),
+            "safebox": int(r.get("safebox_count") or 0)
+        } for r in bonus_circ}
 
         liq_recent = rows("""
             SELECT l.time, l.who, p.name, l.vnum, l.hint, pi.empire
@@ -7309,25 +7343,44 @@ def economy():
             LEFT JOIN player.player p ON p.id = l.who
             LEFT JOIN player.player_index pi ON pi.id = p.account_id
             WHERE l.how='PLAYERBOT_M1M2_LIQUIDATION'
-            ORDER BY l.time DESC LIMIT 6
+            ORDER BY l.time DESC LIMIT 10
         """)
         for r in liq_recent:
             r["time_str"] = r["time"].strftime("%H:%M:%S") if r.get("time") else "—"
             r["item_name"] = resolve_item_display_name(r["vnum"], 0, game_text(r.get("hint") or ""))
             r["icon_url"] = item_icon_url(r["vnum"])
 
-        if tot_liq > 0 or buyer_bots_count > 0:
-            special_systems = {
-                "available": True,
-                "total_liquidations": tot_liq,
-                "active_bots": int(liq_stats.get("active_bots") or 0),
-                "adds_created": int(liq_stats.get("adds_created") or 0),
-                "switches_created": int(liq_stats.get("switches_created") or 0),
-                "buyer_bots_count": buyer_bots_count,
-                "recent": liq_recent
-            }
+        special_systems = {
+            "available": True,
+            "total_liquidations": tot_liq,
+            "active_bots": int(liq_stats.get("active_bots") or 0),
+            "adds_created": int(liq_stats.get("adds_created") or 0),
+            "switches_created": int(liq_stats.get("switches_created") or 0),
+            "count_24h": int(liq_24h.get("count_24h") or 0),
+            "adds_24h": int(liq_24h.get("adds_24h") or 0),
+            "switches_24h": int(liq_24h.get("switches_24h") or 0),
+            "total_bots": total_bots,
+            "buyer_bots_count": buyer_bots_count,
+            "bonus_71284": circ_map.get(71284, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
+            "bonus_71285": circ_map.get(71285, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
+            "recent": liq_recent
+        }
     except Exception:
-        special_systems = {"available": False}
+        special_systems = {
+            "available": True,
+            "total_liquidations": 0,
+            "active_bots": 0,
+            "adds_created": 0,
+            "switches_created": 0,
+            "count_24h": 0,
+            "adds_24h": 0,
+            "switches_24h": 0,
+            "total_bots": 1800,
+            "buyer_bots_count": 270,
+            "bonus_71284": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
+            "bonus_71285": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
+            "recent": []
+        }
 
     # 5. Items in circulation with category & window breakdown
     latest = (one("SELECT MAX(captured_at) AS captured_at FROM player.web_seban_item_snapshot") or {}).get("captured_at")
@@ -7647,27 +7700,198 @@ def economy_discord_report():
 @app.route("/economy/item/<int:vnum>")
 @login_required
 def economy_item(vnum):
+    skill_id = request.args.get("skill", type=int) or request.args.get("socket0", type=int)
+    is_skillbook = int(vnum or 0) in SKILLBOOK_VNUMS
+    skill_name = None
+    if is_skillbook and skill_id:
+        skill_name = SKILL_NAMES.get(skill_id, f"Umiejętność #{skill_id}")
+
     proto = one("SELECT vnum,COALESCE(locale_name,CONCAT('VNUM ',vnum)) AS item_name, type, subtype FROM player.item_proto WHERE vnum=%s", (vnum,)) or {"vnum": vnum, "item_name": f"VNUM {vnum}"}
+    
+    display_title = game_text(proto["item_name"])
+    if is_skillbook and skill_name:
+        display_title = f"{skill_name} - Księga Umiejętności"
+
     item = {
         "vnum": vnum,
-        "item_name": game_text(proto["item_name"]),
+        "item_name": display_title,
         "type": proto.get("type"),
         "subtype": proto.get("subtype"),
-        "icon_url": item_icon_url(vnum)
+        "icon_url": item_icon_url(vnum),
+        "is_skillbook": is_skillbook,
+        "skill_id": skill_id,
+        "skill_name": skill_name
     }
-    history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, amount
-      FROM player.web_seban_item_snapshot WHERE vnum=%s AND captured_at >= NOW() - INTERVAL 14 DAY ORDER BY captured_at""", (vnum,))
 
-    # Distribution across windows
-    dist = one("""
-      SELECT 
-        SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
-        SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
-        SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
-        SUM(count) AS total_count,
-        COUNT(DISTINCT owner_id) AS total_owners
-      FROM player.item WHERE vnum=%s
-    """, (vnum,)) or {}
+    # Budujemy kategorie umiejętności do szybkiego wyboru w nagłówku
+    skill_categories = []
+    if is_skillbook:
+        for (job, group), skills_list in SKILLS.items():
+            class_name = CLASS_PROFILES.get(job, {}).get("name", "Klasa")
+            path_name = SKILL_PATH_NAMES.get((job, group), f"Ścieżka {group}")
+            skill_categories.append({
+                "class": f"{class_name} ({path_name})",
+                "skills": skills_list
+            })
+
+    # Jeśli jest to księga i nie wybrano konkretnego skilla, generujemy zestawienie wszystkich ksiąg
+    skill_breakdown = []
+    if is_skillbook and not skill_id:
+        raw_skills_market = rows("""
+          SELECT i.socket0 AS skill_id,
+                 COUNT(*) AS offers_count,
+                 SUM(i.count) AS units_count,
+                 MIN(CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS min_price,
+                 ROUND(AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count)) AS avg_price
+          FROM player.item i
+          JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
+          WHERE i.vnum = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
+            AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+          GROUP BY i.socket0
+        """, (vnum,))
+        market_by_skill = {int(r["skill_id"]): r for r in raw_skills_market}
+
+        raw_skills_world = rows("""
+          SELECT socket0 AS skill_id, SUM(count) AS world_count, COUNT(DISTINCT owner_id) AS owners_count
+          FROM player.item WHERE vnum = %s GROUP BY socket0
+        """, (vnum,))
+        world_by_skill = {int(r["skill_id"]): r for r in raw_skills_world}
+
+        for (job, group), skills_list in SKILLS.items():
+            class_name = CLASS_PROFILES.get(job, {}).get("name", "Klasa")
+            path_name = SKILL_PATH_NAMES.get((job, group), f"Ścieżka {group}")
+            for s_id, s_name in skills_list:
+                m_info = market_by_skill.get(s_id, {})
+                w_info = world_by_skill.get(s_id, {})
+                skill_breakdown.append({
+                    "skill_id": s_id,
+                    "skill_name": s_name,
+                    "class_name": f"{class_name} ({path_name})",
+                    "job": job,
+                    "group": group,
+                    "world_count": int(w_info.get("world_count") or 0),
+                    "owners_count": int(w_info.get("owners_count") or 0),
+                    "offers": int(m_info.get("offers_count") or 0),
+                    "units": int(m_info.get("units_count") or 0),
+                    "min_price": int(m_info.get("min_price") or 0),
+                    "avg_price": int(m_info.get("avg_price") or 0),
+                })
+        skill_breakdown.sort(key=lambda s: (-s["offers"], -s["world_count"], s["skill_name"]))
+
+    # Warunki SQL w zależności od wybranego skilla
+    if is_skillbook and skill_id:
+        history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, amount
+          FROM player.web_seban_item_snapshot WHERE vnum=%s AND socket0=%s AND captured_at >= NOW() - INTERVAL 14 DAY ORDER BY captured_at""", (vnum, skill_id))
+
+        dist = one("""
+          SELECT 
+            SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
+            SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
+            SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
+            SUM(count) AS total_count,
+            COUNT(DISTINCT owner_id) AS total_owners
+          FROM player.item WHERE vnum=%s AND socket0=%s
+        """, (vnum, skill_id)) or {}
+
+        holders = rows("""
+          SELECT p.id, p.name, p.level, pi.empire, (a.login NOT LIKE 'playerbot_%%') AS is_person,
+                 SUM(i.count) AS item_count
+          FROM player.item i
+          JOIN player.player p ON p.id = i.owner_id
+          JOIN player.player_index pi ON pi.id = p.account_id
+          JOIN account.account a ON a.id = p.account_id
+          WHERE i.vnum = %s AND i.socket0 = %s
+            AND p.name NOT IN (SELECT mName FROM common.gmlist WHERE mAuthority != 'PLAYER')
+            AND a.login NOT IN (SELECT mAccount FROM common.gmlist WHERE mAuthority != 'PLAYER')
+            AND p.name NOT LIKE 'Admin%%'
+            AND p.name NOT LIKE '[%%'
+          GROUP BY p.id ORDER BY item_count DESC LIMIT 8
+        """, (vnum, skill_id))
+
+        active_offers_raw = rows("""
+          SELECT 
+            (CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS unit_price,
+            i.count AS count
+          FROM player.item i
+          JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
+          WHERE i.vnum = %s AND i.socket0 = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
+            AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+          ORDER BY unit_price ASC
+        """, (vnum, skill_id))
+
+        liquidity_24h = one("""
+          SELECT 
+            COUNT(*) AS tx_count_24h,
+            COALESCE(SUM(l.count), 0) AS units_sold_24h,
+            COALESCE(SUM(l.yang), 0) AS turnover_yang_24h
+          FROM log.ikarusshop_log l
+          LEFT JOIN player.item i ON i.id = l.itemid
+          WHERE l.vnum = %s AND (i.socket0 = %s OR i.socket0 IS NULL) AND l.what = 'BUY_ITEM' AND l.time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """, (vnum, skill_id)) or {}
+
+        price_history = rows("""
+          SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,
+                 ROUND(total_value / total_units) AS avg_price, total_units, offers
+          FROM player.web_seban_shop_item_snapshot
+          WHERE vnum = %s AND socket0 = %s AND captured_at >= NOW() - INTERVAL 14 DAY
+          ORDER BY captured_at ASC
+        """, (vnum, skill_id))
+    else:
+        history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, amount
+          FROM player.web_seban_item_snapshot WHERE vnum=%s AND captured_at >= NOW() - INTERVAL 14 DAY ORDER BY captured_at""", (vnum,))
+
+        dist = one("""
+          SELECT 
+            SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
+            SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
+            SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
+            SUM(count) AS total_count,
+            COUNT(DISTINCT owner_id) AS total_owners
+          FROM player.item WHERE vnum=%s
+        """, (vnum,)) or {}
+
+        holders = rows("""
+          SELECT p.id, p.name, p.level, pi.empire, (a.login NOT LIKE 'playerbot_%%') AS is_person,
+                 SUM(i.count) AS item_count
+          FROM player.item i
+          JOIN player.player p ON p.id = i.owner_id
+          JOIN player.player_index pi ON pi.id = p.account_id
+          JOIN account.account a ON a.id = p.account_id
+          WHERE i.vnum = %s
+            AND p.name NOT IN (SELECT mName FROM common.gmlist WHERE mAuthority != 'PLAYER')
+            AND a.login NOT IN (SELECT mAccount FROM common.gmlist WHERE mAuthority != 'PLAYER')
+            AND p.name NOT LIKE 'Admin%%'
+            AND p.name NOT LIKE '[%%'
+          GROUP BY p.id ORDER BY item_count DESC LIMIT 8
+        """, (vnum,))
+
+        active_offers_raw = rows("""
+          SELECT 
+            (CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS unit_price,
+            i.count AS count
+          FROM player.item i
+          JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
+          WHERE i.vnum = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
+            AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+          ORDER BY unit_price ASC
+        """, (vnum,))
+
+        liquidity_24h = one("""
+          SELECT 
+            COUNT(*) AS tx_count_24h,
+            COALESCE(SUM(count), 0) AS units_sold_24h,
+            COALESCE(SUM(yang), 0) AS turnover_yang_24h
+          FROM log.ikarusshop_log
+          WHERE vnum = %s AND what = 'BUY_ITEM' AND time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """, (vnum,)) or {}
+
+        price_history = rows("""
+          SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,
+                 ROUND(total_value / total_units) AS avg_price, total_units, offers
+          FROM player.web_seban_shop_item_snapshot
+          WHERE vnum = %s AND captured_at >= NOW() - INTERVAL 14 DAY
+          ORDER BY captured_at ASC
+        """, (vnum,))
 
     distribution = {
         "inv": int(dist.get("inv_count") or 0),
@@ -7676,30 +7900,6 @@ def economy_item(vnum):
         "total": int(dist.get("total_count") or 0),
         "owners": int(dist.get("total_owners") or 0)
     }
-
-    # Top holders
-    holders = rows("""
-      SELECT p.id, p.name, p.level, pi.empire, (a.login NOT LIKE 'playerbot_%%') AS is_person,
-             SUM(i.count) AS item_count
-      FROM player.item i
-      JOIN player.player p ON p.id = i.owner_id
-      JOIN player.player_index pi ON pi.id = p.account_id
-      JOIN account.account a ON a.id = p.account_id
-      WHERE i.vnum = %s
-      GROUP BY p.id ORDER BY item_count DESC LIMIT 8
-    """, (vnum,))
-
-    # Market snapshot & price history with Fair Value / Median / Spread
-    active_offers_raw = rows("""
-      SELECT 
-        (CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS unit_price,
-        i.count AS count
-      FROM player.item i
-      JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
-      WHERE i.vnum = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
-        AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
-      ORDER BY unit_price ASC
-    """, (vnum,))
 
     offers_count = len(active_offers_raw)
     total_market_units = sum(int(r["count"]) for r in active_offers_raw) if active_offers_raw else 0
@@ -7725,16 +7925,6 @@ def economy_item(vnum):
 
         if min_unit_price > 0:
             spread_pct = round(((max_unit_price - min_unit_price) / min_unit_price) * 100, 1)
-
-    # Obroty i rotacja z logów transakcji 24h (Płynność rynku)
-    liquidity_24h = one("""
-      SELECT 
-        COUNT(*) AS tx_count_24h,
-        COALESCE(SUM(count), 0) AS units_sold_24h,
-        COALESCE(SUM(yang), 0) AS turnover_yang_24h
-      FROM log.ikarusshop_log
-      WHERE vnum = %s AND what = 'BUY_ITEM' AND time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-    """, (vnum,)) or {}
 
     tx_count_24h = int(liquidity_24h.get("tx_count_24h") or 0)
     units_sold_24h = int(liquidity_24h.get("units_sold_24h") or 0)
@@ -7764,17 +7954,12 @@ def economy_item(vnum):
         "liquidity_badge": liquidity_badge
     }
 
-    price_history = rows("""
-      SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,
-             ROUND(total_value / total_units) AS avg_price, total_units, offers
-      FROM player.web_seban_shop_item_snapshot
-      WHERE vnum = %s AND captured_at >= NOW() - INTERVAL 14 DAY
-      ORDER BY captured_at ASC
-    """, (vnum,))
-
     return render_template("economy_item.html", item=item, history=history,
                            distribution=distribution, holders=holders,
-                           market=market, price_history=price_history)
+                           market=market, price_history=price_history,
+                           is_skillbook=is_skillbook, skill_id=skill_id,
+                           skill_name=skill_name, skill_categories=skill_categories,
+                           skill_breakdown=skill_breakdown)
 
 
 def _shop_trend(current, previous):
@@ -7910,7 +8095,8 @@ def recent_shop_sales(limit=10):
         map_index = next((idx for idx, b in MAP_BOUNDS.items()
                            if b[0] <= r["x"] < b[0] + b[2] and b[1] <= r["y"] < b[1] + b[3]), None)
         sales.append({
-            "time": r["time"].strftime("%H:%M:%S"), "vnum": r["vnum"], "item_name": _item_display_name(r["vnum"], socket0),
+            "time": r["time"].strftime("%H:%M:%S"), "vnum": r["vnum"], "socket0": socket0,
+            "item_name": _item_display_name(r["vnum"], socket0),
             "icon_url": item_icon_url(r["vnum"]),
             "qty": qty, "price": price,
             "seller": (seller or {}).get("name") or f"pid {r['who']}",

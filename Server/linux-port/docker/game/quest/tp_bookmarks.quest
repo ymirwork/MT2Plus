@@ -43,7 +43,13 @@ quest tp_bookmarks begin
 				[21] = 0, [23] = 0, [24] = 0,
 				[41] = 0, [43] = 0, [44] = 0,
 				[61] = 0, [62] = 0, [63] = 0, [64] = 0, [65] = 0,
-				[67] = 0, [68] = 0, [69] = 0, [70] = 0, [104] = 0,
+				[67] = 0, [68] = 0, [69] = 0, [70] = 0,
+				-- Lochy Pajakow (V1, V2, V3)
+				[104] = 0, [71] = 0, [217] = 50,
+				-- Lochy Malp (m2 oraz pustynia)
+				[5] = 0, [25] = 0, [45] = 0, [107] = 0, [108] = 0, [109] = 0,
+				-- Grota Wygnancow (V1, V2)
+				[72] = 75, [73] = 75,
 				[301] = 90, [302] = 90, [303] = 90, [304] = 90,
 				[209] = 95,
 				[360] = 0, [361] = 0, [362] = 95,
@@ -111,7 +117,7 @@ quest tp_bookmarks begin
 			for cell = 0, 224 do
 				if item.select_cell(cell) then
 					local vnum = item.get_vnum()
-					if (vnum == 22010 or vnum == 22020) and item.get_socket(0) == 0 then
+					if (vnum == 22000 or vnum == 22001 or vnum == 22010 or vnum == 22011 or vnum == 22020) and item.get_socket(0) == 0 then
 						count = count + item.get_count()
 						if first < 0 then
 							first = cell
@@ -195,7 +201,7 @@ quest tp_bookmarks begin
 				return
 			end
 			local idx = pc.get_map_index()
-			if pc.in_dungeon() or idx >= 10000 then
+			if idx >= 10000 then
 				syschat("W lochu nie mo¿na zapisaæ pozycji.")
 				return
 			end
@@ -206,7 +212,7 @@ quest tp_bookmarks begin
 			end
 			local cell, count = tp_bookmarks.find_scroll()
 			if count <= 0 then
-				syschat("Zapisane pozycje dzia³aj¹ tylko z czystym Zwojem Powrotu (ItemShop) w ekwipunku.")
+				syschat("Zapisane pozycje dzia³aj¹ tylko z czystym Zwojem Powrotu w ekwipunku.")
 				tp_bookmarks.send_list()
 				return
 			end
@@ -274,6 +280,37 @@ quest tp_bookmarks begin
 				syschat(why)
 				return
 			end
+			if m == 71 then
+				local isVip = pc.is_premium_subscription()
+				local hasTicket = pc.count_item(71095) + pc.count_item(71130) > 0
+				if not isVip and not hasTicket then
+					syschat("Teleportacja do Lochu Pajakow V2 wymaga Przepustki lub konta VIP.")
+					return
+				end
+				if not isVip then
+					if pc.count_item(71130) >= 1 then
+						pc.remove_item(71130, 1)
+					else
+						pc.remove_item(71095, 1)
+					end
+					syschat("Zuzyto 1 Przepustke do Lochu Pajakow V2.")
+				end
+			elseif m == 72 or m == 73 then
+				local isVip = pc.is_premium_subscription()
+				local hasStone = pc.count_item(30190) + pc.count_item(30191) > 0
+				if not isVip and not hasStone then
+					syschat("Teleportacja do Groty Wygnancow wymaga Krwawego Kamienia lub konta VIP.")
+					return
+				end
+				if not isVip then
+					if pc.count_item(30190) >= 1 then
+						pc.remove_item(30190, 1)
+					else
+						pc.remove_item(30191, 1)
+					end
+					syschat("Zuzyto 1 Krwawy Kamien.")
+				end
+			end
 			local x = pc.getqf("s" .. slot .. "x")
 			local y = pc.getqf("s" .. slot .. "y")
 			if x <= 0 or y <= 0 then
@@ -282,7 +319,7 @@ quest tp_bookmarks begin
 			end
 			local cell, count = tp_bookmarks.find_scroll()
 			if cell < 0 or not item.select_cell(cell) then
-				syschat("Teleportacja wymaga czystego Zwoju Powrotu (ItemShop) w ekwipunku.")
+				syschat("Teleportacja wymaga czystego Zwoju Powrotu w ekwipunku.")
 				tp_bookmarks.send_list()
 				return
 			end

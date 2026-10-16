@@ -267,9 +267,8 @@ function renderSaleFeed(sales){
     const flagSrc=EMPIRE_FLAGS[s.empire];
     const flag=flagSrc?`<img class="empire-flag-inline" src="${esc(flagSrc)}" alt="${esc(EMPIRE_NAMES[s.empire]||'')}" title="${esc(EMPIRE_NAMES[s.empire]||'')}">`:'';
     const seller=s.seller_id?`<a href="${window.SEBAN_ROOT||''}/player/${Number(s.seller_id)}">${esc(s.seller)}</a>`:esc(s.seller);
-    const shortPrice = formatYangJs(s.price);
-    const fullPrice = Number(s.price).toLocaleString('pl-PL') + ' Yang';
-    return `<tr><td>${esc(s.time)}</td><td class="item-cell">${icon}<a href="${window.SEBAN_ROOT||''}/economy/item/${s.vnum}">${esc(s.item_name)}</a></td><td>${seller}</td><td>${flag}</td><td>${s.qty}</td><td title="${esc(fullPrice)}"><b>${esc(shortPrice)}</b></td></tr>`;
+    const itemUrl = `${window.SEBAN_ROOT||''}/economy/item/${s.vnum}${s.vnum == 50300 && s.socket0 ? '?skill=' + s.socket0 : ''}`;
+    return `<tr><td>${esc(s.time)}</td><td class="item-cell">${icon}<a href="${itemUrl}">${esc(s.item_name)}</a></td><td>${seller}</td><td>${flag}</td><td>${s.qty}</td><td title="${esc(fullPrice)}"><b>${esc(shortPrice)}</b></td></tr>`;
   }).join('');
 }
 window.__shopFeedInterval=setInterval(()=>{

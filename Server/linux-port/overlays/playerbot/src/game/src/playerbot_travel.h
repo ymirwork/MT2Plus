@@ -1204,7 +1204,10 @@ namespace
 		// here so a bot under it never walks to the water; the pass is bought
 		// and worn on the spot (EnsurePlayerBotFishingPass), because nothing
 		// sells one and refusing without it meant no bot ever fished here.
+		// MT2009_PLUS_BOT_FISH_BAG_ROOM_V1: and the bag's room for the weapon
+		// the rod replaces is asked before the pass is bought.
 		if (ch->GetLevel() < PLAYERBOT_FISHING_MIN_LEVEL ||
+				(!IsPlayerBotSidekickFishing(ch->GetPlayerID()) && !PlayerBotHasRodRoom(ch)) ||
 				!EnsurePlayerBotFishingPass(ch, dwNow))
 			return false;
 #endif
@@ -2521,6 +2524,27 @@ namespace
 		s_mapPlayerBotM1HoldWhy.erase(pid);
 	}
 
+	// MT2009_PLUS_BOT_BAG_FLOOR_OFF_V1: a fishing session owns the tick, so
+	// the hold's clock ran on under it and every angler's hold ended at the
+	// session's end with held_s ~2300-2480 (~41 min; 15 October), counted as
+	// a hold nothing lifted (the M1 services ignored for an hour, a services
+	// exit). The session ends the hold where it starts instead: the clock is
+	// dropped, and a need still there after the session holds the bot afresh.
+	void EndPlayerBotM1HoldForFishing(LPCHARACTER ch, DWORD dwNow)
+	{
+		if (!ch)
+			return;
+		std::map<DWORD, DWORD>::iterator it = s_mapPlayerBotM1HeldSince.find(ch->GetPlayerID());
+		if (it == s_mapPlayerBotM1HeldSince.end() || it->second <= 1)
+			return;
+		const int why = GetPlayerBotM1HoldWhy(ch->GetPlayerID(), dwNow);
+		sys_log(0, "PLAYERBOT_WORLD: m1 hold ended by fishing pid=%u name=%s level=%u held_s=%u m1_why=%s",
+				ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), (dwNow - it->second) / 1000U,
+				why >= 0 ? PLAYERBOT_M1_HOLD_WHY_KEY[why] : "-");
+		s_mapPlayerBotM1HeldSince.erase(it);
+		s_mapPlayerBotM1HoldWhy.erase(ch->GetPlayerID());
+	}
+
 #if defined(PLAYERBOT_ENGINE_MT2009) && defined(ENABLE_IKASHOP_RENEWAL)
 	// MT2009_PLUS_BOT_HAGGLE_V2: defined in playerbot_haggle.h.
 	bool IsPlayerBotHaggleHoldingMap(LPCHARACTER ch);
@@ -3536,18 +3560,35 @@ namespace
 			// A share of the bots keeps Joan as home: the services trip goes
 			// there, and only the services trip - a medal, a weapon hunt and
 			// a graduation are Bokjung's business.
+			// MT2009_PLUS_BOT_NAV_FRONTIER_M1_DIRECT_V1: and a services trip
+			// whose need only the first village meets - the Biologist, Baek-Go,
+			// the progression market, the skill reset (needsM1OnlyServices) - or
+			// that the river waits behind goes there straight, not through the
+			// second village. It went frontier -> M2 ("frontier_services_to_m2")
+			// and from M2 on to M1 at once: on the supporters' world after 2.34.0
+			// 8 672 of the 26 773 such trips in 18 hours were followed within ten
+			// minutes by M2 -> M1 (herbalist 2 179, angler 1 997, market 1 658,
+			// biologist 356, the rest unnamed) - a third of all M2 -> M1 changes,
+			// the "back and forth between M1 and M2 for nothing" of the report
+			// of 16 October. Joan has all of Bokjung's services and a Teleporter
+			// of its own back to the frontier (m1_direct_to_*).
+			const bool m1OnlyNeed = needsTown && !blocked &&
+					((needsM1OnlyServices && !onBattleTrialHere) || wantsFishing);
 			const bool joanHome = (needsTown &&
 					(PlayerBotNavHash(ch->GetPlayerID() ^ 0x4a4f414eU) % 1000U) <
 						(DWORD)PLAYERBOT_JOAN_HOME_PER_MILLE) ||
 					// The bank, the bait merchant and the Fisherman are all in
 					// the first village.
-					(!needsTown && !outOfBand && wantsFishing);
+					(!needsTown && !outOfBand && wantsFishing) || m1OnlyNeed;
 			const char* reason = "frontier_visit_complete";
 			if (joanHome && wantsFishing && !needsTown && !outOfBand)
 			{
 				reason = "frontier_fishing_to_m1";
 				HoldPlayerBotRybakTrip(state, dwNow);
 			}
+			else if (m1OnlyNeed)
+				reason = wantsFishing && !(needsM1OnlyServices && !onBattleTrialHere)
+						? "frontier_fishing_services_to_m1" : "frontier_m1only_services_to_m1";
 			else if (joanHome)
 				reason = "frontier_services_to_m1";
 			else if (needsTown)

@@ -137,12 +137,23 @@ struct State {
     // How many visits in a row a restock or a take-off has chained, two
     // seconds apart (PLAYERBOT_OFFLINE_RESTOCK_CHAIN).
     uint32_t chainSteps = 0;
+    // MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1: weak-bonus scrap lines taken off
+    // in this burst of chained steps (a full counter takes several a visit).
+    uint32_t weakTakeoffBurst = 0;
     // Which compiled price table this shop was last priced against.
     uint32_t priceGeneration = 0;
     // The empty-hand probe of the counter, and the last line taken back to
     // wear with when, so a piece the bot will not put on is not taken back
     // and listed again every visit.
     uint32_t nextReclaimProbe = 0, lastReclaimItem = 0, lastReclaimAt = 0;
+    // MT2009_PLUS_BOT_NAV_SHOP_LOOP_V1: the last line asked off the counter
+    // and when, and a line whose take-off did not land (still on the counter
+    // at the next ask) left up until stuckTakeOffUntil; and the clear-stock
+    // call (books of other builds, sashes): when it was made, the stock it was
+    // made for, and the hold after a visit that put none of it up.
+    uint32_t takeOffItem = 0, takeOffAt = 0, stuckTakeOffItem = 0, stuckTakeOffUntil = 0;
+    uint32_t clearStockAskedAt = 0, clearStockHoldUntil = 0;
+    int clearStockBefore = -1;
     // When the counter is next looked over for a slipped price whose time is
     // out, which calls the keeper whatever its round says.
     uint32_t nextSlipProbe = 0;

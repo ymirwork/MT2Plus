@@ -898,6 +898,10 @@ namespace
 			return 1;
 		if (item->GetVnum() == PLAYERBOT_MOONLIGHT_CHEST_VNUM)
 			return PLAYERBOT_CHEST_LINE_UNITS;
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: a herb by its whole stack of two
+		// hundred, the cheap and the dear ones alike.
+		if (IsPlayerBotHerbalismHerb(item->GetVnum()))
+			return PLAYERBOT_HERB_SURPLUS_LINE_UNITS;
 		// A root worth pennies is sold by the heap (IsPlayerBotBulkGoods).
 		if (IsPlayerBotBulkGoods(item))
 			return PLAYERBOT_SHOP_BULK_PACK_UNITS;
@@ -1420,6 +1424,10 @@ namespace
 		if (IsPlayerBotSafeRefineScroll(vnum))
 			return playerbot_stall_rules::FitSmallGoodsLine(
 					playerbot_stall_rules::ScrollLineUnits(seed), avail);
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: a herb goes up a full stack of two
+		// hundred over the keep or not at all (the box takes a smaller spare).
+		if (IsPlayerBotHerbalismHerb(vnum))
+			return avail >= PLAYERBOT_HERB_SURPLUS_LINE_UNITS ? PLAYERBOT_HERB_SURPLUS_LINE_UNITS : 0;
 		if (IsPlayerBotBulkGoods(item))
 			return playerbot_stall_rules::HeapLineFromStack((int)item->GetCount(), spare, seed);
 		if (IsPlayerBotTradeableMaterial(item))
@@ -1458,6 +1466,9 @@ namespace
 	int GetPlayerBotRefineScrollKeep(LPCHARACTER ch);
 	// A worn piece the marble's fifth line would go on (playerbot_bonus.h).
 	bool PlayerBotWantsBlessingMarble(LPCHARACTER ch);
+	// MT2009_PLUS_BOT_DUST_BONUS_V1: the dust kept for the marble, the add
+	// and the change stones the bot will make of it (playerbot_bonus.h).
+	int GetPlayerBotDustBonusKeep(LPCHARACTER ch);
 	// What a bag keeps of a bonus stone kind: PLAYERBOT_BONUS_STONE_KEEP, and
 	// no green one for a bot past their band (playerbot_bonus.h).
 	int GetPlayerBotBonusStoneKeep(LPCHARACTER ch, LPITEM item);
@@ -1469,6 +1480,10 @@ namespace
 	{
 		if (!item)
 			return 1;
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: a herb keeps what the bot's own
+		// rows of Baek-Go's board brew from (GetPlayerBotHerbKeep).
+		if (IsPlayerBotHerbalismHerb(item->GetVnum()))
+			return GetPlayerBotHerbKeep(ch, item->GetVnum());
 		// Asked before the materials: the Blessing Scroll is what recipe 501
 		// consumes, so it is a tradeable material too, and the anvil's reserve
 		// of it - twice the recipe count of every piece under scroll work - is
@@ -1501,9 +1516,12 @@ namespace
 		// arrives six or seven at a time, and kept only while a piece waited it
 		// went to the counters in between - on m2zip (27 September) two bots in
 		// 544 held a hundred and one marble was made in two days.
+		// MT2009_PLUS_BOT_DUST_BONUS_V1: and whatever more the bot will turn
+		// into a change or an add stone (GetPlayerBotDustBonusKeep): the
+		// counter takes only the dust over that.
 		if (item->GetVnum() == PLAYERBOT_MAGIC_DUST_VNUM)
-			return ch && (ch->GetLevel() >= PLAYERBOT_BONUS_MIN_LEVEL || PlayerBotWantsBlessingMarble(ch))
-					? PLAYERBOT_DUST_PER_MARBLE : 0;
+			return ch ? std::max((ch->GetLevel() >= PLAYERBOT_BONUS_MIN_LEVEL || PlayerBotWantsBlessingMarble(ch))
+					? PLAYERBOT_DUST_PER_MARBLE : 0, GetPlayerBotDustBonusKeep(ch)) : 0;
 		// MT2009_PLUS_BOT_CAPE_V1: a bot that uses Peleryna Mestwa keeps its
 		// own off the counter (IsPlayerBotCapeBuild).
 		if (IsPlayerBotValourCapeVnum(item->GetVnum()) && ch && IsPlayerBotCapeBuild(ch))
@@ -1569,61 +1587,12 @@ namespace
 		return occupied * 100 >= PLAYERBOT_BAG_CELLS * PLAYERBOT_BAG_FULL_PERCENT;
 	}
 
-	// MT2009_PLUS_M1_LOOP_FIX_V1 (bag floor): what a finished town visit left
-	// in a bag it could not take under PLAYERBOT_BAG_FULL_PERCENT is what the
-	// bot keeps on purpose - refine reserves, soul stones, its books, a belt of
-	// potions - and the loop report (15 October) found the bags of the bots of
-	// 35-46 at 160 of 180 cells after every visit. "Bag first" then stood for
-	// good and stood down every leisure errand, Baek-Go's board among them,
-	// for a need no town could meet. For PLAYERBOT_BAG_FLOOR_MS after such a
-	// visit the bag counts as full for that rule only once it holds
-	// PLAYERBOT_BAG_FLOOR_SLACK_CELLS more than the visit left; what stops a
-	// pickup (no free three-cell column) is never excused.
-	const DWORD PLAYERBOT_BAG_FLOOR_MS = 60 * 60 * 1000;
-	const int PLAYERBOT_BAG_FLOOR_SLACK_CELLS = 9;
-	struct TPlayerBotBagFloor { DWORD dwAt; int iOccupied; };
-	std::map<DWORD, TPlayerBotBagFloor> s_mapPlayerBotBagFloor;
-
-	int CountPlayerBotBagOccupiedCells(LPCHARACTER ch)
-	{
-		if (!ch || !ch->IsItemLoaded())
-			return 0;
-		return PLAYERBOT_BAG_CELLS - CountPlayerBotFreeInventoryCells(ch) -
-				CountPlayerBotSaddlebagFreeCells(ch);
-	}
-
-	// At the end of a finished town visit.
-	void NotePlayerBotBagFloor(LPCHARACTER ch, DWORD dwNow)
-	{
-		if (!ch || !ch->IsItemLoaded())
-			return;
-		if (!IsPlayerBotBagFull(ch))
-		{
-			s_mapPlayerBotBagFloor.erase(ch->GetPlayerID());
-			return;
-		}
-		TPlayerBotBagFloor& floor = s_mapPlayerBotBagFloor[ch->GetPlayerID()];
-		floor.dwAt = dwNow;
-		floor.iOccupied = CountPlayerBotBagOccupiedCells(ch);
-		sys_log(0, "PLAYERBOT_TOWN: bag floor pid=%u name=%s level=%u occupied=%d free_cells=%d",
-				ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), floor.iOccupied,
-				CountPlayerBotFreeInventoryCells(ch));
-	}
-
-	bool IsPlayerBotBagAtTownFloor(LPCHARACTER ch, DWORD dwNow)
-	{
-		if (!ch)
-			return false;
-		std::map<DWORD, TPlayerBotBagFloor>::iterator it = s_mapPlayerBotBagFloor.find(ch->GetPlayerID());
-		if (it == s_mapPlayerBotBagFloor.end())
-			return false;
-		if (dwNow - it->second.dwAt >= PLAYERBOT_BAG_FLOOR_MS)
-		{
-			s_mapPlayerBotBagFloor.erase(it);
-			return false;
-		}
-		return CountPlayerBotBagOccupiedCells(ch) <= it->second.iOccupied + PLAYERBOT_BAG_FLOOR_SLACK_CELLS;
-	}
+	// MT2009_PLUS_BOT_BAG_FLOOR_OFF_V1: the 2.34 "bag floor" (a bag the last
+	// town visit left over PLAYERBOT_BAG_FULL_PERCENT did not count as full for
+	// an hour) is gone. It reopened the rod, the pickaxe, the bushes and the
+	// stay in town to every full bag, and the anglers at the first villages'
+	// banks went from ~45 to ~130-210 at once (supporters' world, 15 October).
+	// Baek-Go's board never needed it: it is off the full-bag gate by itself.
 
 	// Defined with the stall's keeps in playerbot_town.h.
 	int CountPlayerBotVnumUnitsAhead(LPCHARACTER ch, LPITEM item);
@@ -1770,6 +1739,9 @@ namespace
 	{
 		if (!item)
 			return 0;
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: lines of two hundred of a herb.
+		if (IsPlayerBotHerbalismHerb(item->GetVnum()))
+			return PLAYERBOT_HERB_SURPLUS_STALL_LINES;
 		if (IsPlayerBotBulkGoods(item))
 			return PLAYERBOT_SHOP_BULK_LINES;
 		if (IsPlayerBotSafeRefineScroll(item->GetVnum()))
@@ -2373,6 +2345,58 @@ namespace
 		return ahead;
 	}
 
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (playerbot_bonus.h): a weapon or an
+	// armour piece +0..+6 of one counted line that is not valuable, and the
+	// bonus goods a counter took home unsold.
+	bool IsPlayerBotOneWeakBonusPiece(LPITEM item);
+	bool IsPlayerBotUnsoldBonusGoodsKind(LPITEM item);
+	bool IsPlayerBotBonusGoodsSeller(LPCHARACTER ch);
+	bool CanPlayerBotRerollItem(LPITEM item);
+
+	// What the bot keeps of gear for itself whatever the goods rule says: its
+	// next piece, the higher tier its anvil works, the backup of what it
+	// wears, the Demon Tower smith's piece, and a bonus maker's goods (a piece
+	// it puts stones on to sell). Iwakura's list, a gambler's piece, a Stalki
+	// and what a companion's owner gave are kept before the junk rule asks.
+	bool IsPlayerBotGearKeptForSelf(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item)
+			return false;
+		if (IsPlayerBotUpgradeForSelf(ch, item) || IsPlayerBotHigherTierSpare(ch, item) ||
+				IsPlayerBotWearableUpgrade(ch, item, item->GetCell()) || IsPlayerBotTowerSmithReserve(ch, item) ||
+				(item->GetType() == ITEM_WEAPON ? IsPlayerBotKeptBackupWeapon(ch, item)
+					: IsPlayerBotKeptBackupArmour(ch, item)))
+			return true;
+		return IsPlayerBotBonusGoodsSeller(ch) && (int)item->GetRefineLevel() >= PLAYERBOT_BONUS_GOODS_MIN_PLUS &&
+				CanPlayerBotRerollItem(item);
+	}
+
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: the one-weak-line piece is scrap -
+	// the merchant's, or the Alchemist's at 35+ (ShouldPlayerBotKeepScrapForAlchemist)
+	// - from every bot, counter or none, full or not, unless the bot keeps it
+	// for itself (IsPlayerBotGearKeptForSelf). It replaces
+	// MT2009_PLUS_BOT_WEAK_BONUS_SCRAP_V1's IsPlayerBotWeakBonusScrapSurplus,
+	// which sold such pieces (and pieces of two weak lines) only from a bot
+	// whose own counter had fewer than four free cells, past the first two in
+	// the bag. Two counted lines are goods now, never scrap for being surplus.
+	bool IsPlayerBotOneWeakBonusScrap(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || item->IsEquipped() || !IsPlayerBotOneWeakBonusPiece(item))
+			return false;
+		return !IsPlayerBotGearKeptForSelf(ch, item);
+	}
+
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: bonus goods its counter took home
+	// unsold after PLAYERBOT_GOODS_UNSOLD_HOURS (BotOfflineTakeOffStaleBonusGoods)
+	// are the merchant's (or the Alchemist's at 35+) - unless the bot has
+	// since found a use for the piece itself.
+	bool IsPlayerBotUnsoldBonusGoodsScrap(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || item->IsEquipped() || !IsPlayerBotUnsoldBonusGoods(item->GetID(), get_dword_time()))
+			return false;
+		return !IsPlayerBotGearKeptForSelf(ch, item);
+	}
+
 	bool IsPlayerBotJunkItem(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item || item->IsEquipped() || item->isLocked())
@@ -2472,6 +2496,14 @@ namespace
 		// counter's, and the merchant's only from a bag under pressure that
 		// has no counter, the rule a polymorph marble keeps. The merchant paid
 		// a few thousand for a bracelet a player pays millions for.
+		// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (the owner, 16 October): a piece
+		// of one counted line that is not valuable is scrap, counter or none
+		// (IsPlayerBotOneWeakBonusScrap), and bonus goods its counter took
+		// home unsold after PLAYERBOT_GOODS_UNSOLD_HOURS go the same way
+		// (IsPlayerBotUnsoldBonusGoodsScrap). Two counted lines are goods
+		// below and never the merchant's for being surplus.
+		if (IsPlayerBotOneWeakBonusScrap(ch, item) || IsPlayerBotUnsoldBonusGoodsScrap(ch, item))
+			return true;
 		if ((item->GetType() == ITEM_WEAPON || item->GetType() == ITEM_ARMOR) && IsPlayerBotBonusGoodsPiece(item) &&
 				!(IsPlayerBotBagUnderPressure(ch) && !PlayerBotHasCounter(ch)))
 			return false;

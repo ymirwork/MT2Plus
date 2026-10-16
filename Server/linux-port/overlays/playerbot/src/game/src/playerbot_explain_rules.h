@@ -156,6 +156,8 @@ namespace playerbot_explain_rules
 		OFF_SASH_KEEPER = 202,       // a sash its keeper wants for its own
 		OFF_CRAFT_EXCHANGE = 203,    // refine goods unsold, for the Dozorca's exchange
 		OFF_RARE_UNSOLD = 204,       // a Cor Draconis or a sash unsold through the markdown
+		OFF_UNSOLD_BONUS_GOODS = 205, // MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: bonus gear unsold a day
+		OFF_WEAK_BONUS_SCRAP = 206,   // MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1: one weak counted bonus, scrap
 	};
 
 	// The take-off's reason word (BotOfflineUnwantedLine) as its code.
@@ -172,7 +174,8 @@ namespace playerbot_explain_rules
 			{ "material_pack", OFF_MATERIAL_PACK }, { "low_gear", OFF_LOW_GEAR }, { "tackle", OFF_TACKLE },
 			{ "buff_potion", OFF_BUFF_POTION }, { "ds_low_grade", OFF_DS_LOW_GRADE },
 			{ "sash_keeper", OFF_SASH_KEEPER }, { "craft_exchange", OFF_CRAFT_EXCHANGE },
-			{ "rare_unsold", OFF_RARE_UNSOLD },
+			{ "rare_unsold", OFF_RARE_UNSOLD }, { "unsold_bonus_goods", OFF_UNSOLD_BONUS_GOODS },
+			{ "weak_bonus_scrap", OFF_WEAK_BONUS_SCRAP },
 		};
 		if (!why || !*why)
 			return OFF_NONE;

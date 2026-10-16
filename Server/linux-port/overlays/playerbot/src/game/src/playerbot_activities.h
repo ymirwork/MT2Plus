@@ -455,6 +455,24 @@ namespace
 	}
 #endif
 
+	// MT2009_PLUS_BOT_BAG_FLOOR_OFF_V1: defined in playerbot_travel.h.
+	void EndPlayerBotM1HoldForFishing(LPCHARACTER ch, DWORD dwNow);
+
+	// Anglers with a stand on this map now; over
+	// PLAYERBOT_FISHING_BUSY_BANK_ANGLERS the stroll after a session is
+	// halved, so a crowded bank does not empty onto the market ring.
+	const int PLAYERBOT_FISHING_BUSY_BANK_ANGLERS = 15;
+	int CountPlayerBotAnglersOnMap(long mapIndex)
+	{
+		int count = 0;
+		for (std::map<int, TPlayerBotFishingStand>::const_iterator it =
+				s_mapPlayerBotFishingStands.begin();
+				it != s_mapPlayerBotFishingStands.end(); ++it)
+			if (it->first / 1000 == (int)mapIndex)
+				++count;
+		return count;
+	}
+
 	void ReleasePlayerBotFishingStand(DWORD playerID)
 	{
 		for (std::map<int, TPlayerBotFishingStand>::iterator it =
@@ -592,6 +610,44 @@ namespace
 		}
 		return rods;
 	}
+
+	// MT2009_PLUS_BOT_FISH_BAG_ROOM_V1 (a report from another MT2009 PLUS
+	// server, checked here 16 October: 391 sessions of 171 bots ended
+	// "rod_not_equippable" on the supporters' world on 15 October, each after
+	// the walk to the water and the pass): the rod goes on only once the
+	// weapon has come off into the bag (EquipPlayerBotRod), and with a weapon
+	// skin worn the engine takes the skin off first (CHARACTER::UnequipItem,
+	// ENABLE_WEAPON_COSTUME_SYSTEM) - each needs its own free cells, and a
+	// rod bought at the Rybak one more. A bot whose bag cannot take them does
+	// not set out nor buy a pass. Asked of the bag's real free cells, whatever
+	// rule decides the bag is "full" for the trip (IsPlayerBotBagFirst), so
+	// the two never disagree about room.
+	bool PlayerBotHasRodRoom(LPCHARACTER ch)
+	{
+		if (!ch || IsPlayerBotHoldingRod(ch))
+			return true;
+		LPITEM weapon = ch->GetWear(WEAR_WEAPON);
+		int need = 0;
+		if (weapon)
+		{
+			if (ch->GetEmptyInventory(weapon->GetSize()) < 0)
+				return false;
+			need += weapon->GetSize();
+#ifdef ENABLE_WEAPON_COSTUME_SYSTEM
+			if (LPITEM skin = ch->GetWear(WEAR_COSTUME_WEAPON))
+				need += skin->GetSize();
+#endif
+		}
+		if (CountPlayerBotRods(ch) <= 0)
+		{
+			const TItemTable* rod = ITEM_MANAGER::instance().GetTable(PLAYERBOT_FISHING_ROD_VNUM);
+			need += rod ? std::max<int>(1, rod->bSize) : 1;
+		}
+		return need <= 0 || CountPlayerBotFreeInventoryCells(ch) >= need;
+	}
+
+	// How long a bot without that room waits before it asks again.
+	const DWORD PLAYERBOT_FISHING_NO_ROOM_WAIT_MS = 60 * 60 * 1000;
 
 	// A rod or a pickaxe (ITEM_ROD, ITEM_PICK) of the bot's own standing on its
 	// offline counter - the 2.x line, where a line leaves the bag for the shop
@@ -1236,7 +1292,10 @@ namespace
 		// the market ring for a while instead of walking straight back out -
 		// which is the whole of what makes that square look inhabited, since the
 		// bank, the bait merchant and the stalls are all on this one map.
-		if (RollPlayerBotTownRest(ch))
+		// MT2009_PLUS_BOT_BAG_FLOOR_OFF_V1: half as often off a crowded bank.
+		if (RollPlayerBotTownRest(ch) &&
+				(CountPlayerBotAnglersOnMap(ch->GetMapIndex()) <= PLAYERBOT_FISHING_BUSY_BANK_ANGLERS ||
+				 number(0, 1) == 0))
 			state.dwTownLingerUntil = dwNow + number(
 					(int)PLAYERBOT_TOWN_LINGER_MIN, (int)PLAYERBOT_TOWN_LINGER_MAX);
 		if (ch)
@@ -1572,6 +1631,16 @@ namespace
 			// so this gate and the engine can never disagree.
 			if (ch->GetLevel() < PLAYERBOT_FISHING_MIN_LEVEL)
 				return false;
+			// MT2009_PLUS_BOT_FISH_BAG_ROOM_V1: no room for the weapon (and its
+			// skin, and a rod to buy) - no pass, no walk, an hour's wait. A
+			// companion its owner sent fishing goes as before.
+			if (!IsPlayerBotSidekickFishing(ch->GetPlayerID()) && !PlayerBotHasRodRoom(ch))
+			{
+				state.dwNextFishingCheckTime = dwNow + PLAYERBOT_FISHING_NO_ROOM_WAIT_MS;
+				sys_log(0, "PLAYERBOT_FISHING: no bag room for the rod pid=%u name=%s free=%d",
+						ch->GetPlayerID(), ch->GetName(), CountPlayerBotFreeInventoryCells(ch));
+				return false;
+			}
 			if (!EnsurePlayerBotFishingPass(ch, dwNow))
 			{
 				state.dwNextFishingCheckTime = dwNow + 60 * 60 * 1000;
@@ -1595,6 +1664,8 @@ namespace
 			ch->SetVictim(NULL);
 			ch->Stop();
 			ClearPlayerBotRoute(state, true);
+			// MT2009_PLUS_BOT_BAG_FLOOR_OFF_V1: the session ends an M1 hold.
+			EndPlayerBotM1HoldForFishing(ch, dwNow);
 			sys_log(0, "PLAYERBOT_FISHING: heading for the bank pid=%u name=%s level=%u personality=%u mood=%u spell=%d minutes=%u",
 					ch->GetPlayerID(), ch->GetName(), ch->GetLevel(),
 					(unsigned int)state.bPersonality, (unsigned int)state.persona.mood.mood,
@@ -1643,6 +1714,30 @@ namespace
 		{
 			GetPlayerBotNpcApproach(ch->GetPlayerID(), bank->fisherman.x,
 					bank->fisherman.y, 0x46495348U, destX, destY);
+			// MT2009_PLUS_BOT_NAV_RYBAK_REACH_V1: the approach lanes east of the
+			// Rybak of map 1 (x 482970-483150, three of the eleven) lie on the
+			// river bank's blocked ground; the farthest lane is six cells from
+			// the square, past FindPlayerBotReachableGoal's five, so the plan
+			// was "unreachable" three times and the session ended route_failed
+			// before a step - 698 of the supporters' 2 511 "unreachable" lines
+			// in 18 hours after 2.34, the same (483150, 961260-961500) in a
+			// player's log, the same bots session after session. The mirrored
+			// lane west of him first, then the bot's own ground nearest to him.
+			long walkX = destX, walkY = destY;
+			if (FindPlayerBotOwnGroundNear(ch, destX, destY, 0, walkX, walkY) != PLAYERBOT_NAV_GOAL_ON_GROUND)
+			{
+				const long mirrorX = 2 * bank->fisherman.x - destX;
+				if (FindPlayerBotOwnGroundNear(ch, mirrorX, destY, 0, walkX, walkY) == PLAYERBOT_NAV_GOAL_ON_GROUND ||
+						FindPlayerBotOwnGroundNear(ch, bank->fisherman.x, bank->fisherman.y,
+							PLAYERBOT_FISHING_TACKLE_REACH_CELLS, walkX, walkY) != PLAYERBOT_NAV_GOAL_NONE)
+				{
+					PlayerBotLogThrottled("fishing_tackle_lane", dwNow,
+							"PLAYERBOT_NAV: Rybak approach off the ground, moved pid=%u name=%s map=%ld lane=(%ld,%ld) walk=(%ld,%ld)",
+							ch->GetPlayerID(), ch->GetName(), ch->GetMapIndex(), destX, destY, walkX, walkY);
+					destX = walkX;
+					destY = walkY;
+				}
+			}
 		}
 		else
 		{
@@ -1761,7 +1856,16 @@ namespace
 			return true;
 		}
 		if (!EquipPlayerBotRod(ch))
-			return EndPlayerBotFishingSession(ch, state, dwNow, "rod_not_equippable");
+		{
+			// MT2009_PLUS_BOT_FISH_BAG_ROOM_V1: and not back for an hour at
+			// least - the ordinary rest is minutes, and the bag that refused
+			// the weapon is the same bag then.
+			EndPlayerBotFishingSession(ch, state, dwNow, "rod_not_equippable");
+			if (!IsPlayerBotSidekickFishing(ch->GetPlayerID()) &&
+					(int)(state.dwNextFishingCheckTime - (dwNow + PLAYERBOT_FISHING_NO_ROOM_WAIT_MS)) < 0)
+				state.dwNextFishingCheckTime = dwNow + PLAYERBOT_FISHING_NO_ROOM_WAIT_MS;
+			return false;
+		}
 
 		if (dwNow < state.dwNextFishingActionTime)
 			return true;

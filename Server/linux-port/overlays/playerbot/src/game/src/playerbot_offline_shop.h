@@ -887,19 +887,11 @@ namespace {
                 M2_DELETE(preview);
                 continue;
             }
-            // A soul stone of a grade Iwakura bans from sockets, one of the
-            // eighty-five in a hundred the Alchemist turns into dust
-            // (IsPlayerBotSoulStoneForDust), comes home a stone a visit: 2 720
-            // lines of +0 to +2 stood on m2zip's counters the morning the rule
-            // came in, against 783 stones in the bags. The line's id is the
-            // stone's, so the fifteen in a hundred kept for the market stay.
-            if (preview->GetType() == ITEM_METIN &&
-                    GetPlayerBotItemPolicy(preview) == PLAYERBOT_ITEM_POLICY_NONE &&
-                    IsPlayerBotSoulStoneForDustOf(ch, preview->GetVnum(), id, (DWORD)preview->GetValue(5))) {
-                if (!unwanted) { unwanted = id; reason = "soul_stone_dust"; }
-                M2_DELETE(preview);
-                continue;
-            }
+            // MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: a soul stone of a grade
+            // Iwakura bans from sockets came home a stone a visit when its id
+            // drew "dust"; now a counter's +0 to +2 stays where it is - the
+            // bag keeps three of each for it and only the rest goes to the
+            // Alchemist (PLAYERBOT_SOUL_STONE_STALL_KEEP).
             // Refine goods the Dozorca takes (playerbot_saddlebag.h), unsold
             // for PLAYERBOT_CRAFT_UNSOLD_RECALL_MS: home, one a visit, for his
             // exchange - Materialy Rzemieslnicze sell where these did not.
@@ -1109,9 +1101,41 @@ namespace {
     // One line back into the owner's bag, through the journal like every other
     // mutation. A bag with no room refuses it synchronously and the next visit
     // asks again. True when the request reached the DB core.
+    // MT2009_PLUS_BOT_NAV_SHOP_LOOP_V1: a take-off the counter does not let go
+    // of. The request reaches the DB core, the line stays up (the core refuses
+    // it), and the next step of the visit asked for the same line again: the
+    // whole chain of steps went on it, nothing else was ever put up, and the
+    // keeper came back for it - item 106466027 of eurogabka2 "took off" 14
+    // times in three hours on the supporters' ch1 (16 October 06-09), twelve
+    // lines ten times or more, 491 "low_gear" take-offs in those three hours,
+    // most of them repeats. Asked a second time while it still stands there
+    // within PLAYERBOT_OFFLINE_TAKEOFF_STUCK_WINDOW_MS, the line is left up
+    // for PLAYERBOT_OFFLINE_TAKEOFF_STUCK_HOLD_MS and the visit goes on to its
+    // next step. Never a line promised to a person (a deal).
+    const uint32_t PLAYERBOT_OFFLINE_TAKEOFF_STUCK_WINDOW_MS = 60 * 60 * 1000;
+    const uint32_t PLAYERBOT_OFFLINE_TAKEOFF_STUCK_HOLD_MS = 6 * 60 * 60 * 1000;
+    bool BotOfflineTakeOffStuck(LPCHARACTER ch, TPlayerBotAIState& state, DWORD itemid, DWORD now) {
+        auto& o = state.offlineShop;
+        if (!ch || !itemid) return false;
+        if (o.stuckTakeOffItem == itemid && !playerbot_offline::Due(now, o.stuckTakeOffUntil)) return true;
+        if (o.takeOffItem != itemid || o.takeOffAt == 0 || now - o.takeOffAt >= PLAYERBOT_OFFLINE_TAKEOFF_STUCK_WINDOW_MS)
+            return false;
+        auto shop = ikashop::GetManager().GetShopByOwnerID(ch->GetPlayerID());
+        if (!shop || shop->GetItems().find(itemid) == shop->GetItems().end()) return false;
+        o.stuckTakeOffItem = itemid;
+        o.stuckTakeOffUntil = now + PLAYERBOT_OFFLINE_TAKEOFF_STUCK_HOLD_MS;
+        if (o.stuckTakeOffUntil == 0) o.stuckTakeOffUntil = 1;
+        o.takeOffItem = o.takeOffAt = 0;
+        PlayerBotLogThrottled("offline_takeoff_stuck", now,
+            "PLAYERBOT_OFFLINE: take-off did not land, line left up pid=%u name=%s item=%u for_h=%u",
+            ch->GetPlayerID(), ch->GetName(), itemid, PLAYERBOT_OFFLINE_TAKEOFF_STUCK_HOLD_MS / 3600000U);
+        return true;
+    }
     bool BotOfflineTakeOff(LPCHARACTER ch, TPlayerBotAIState& state, DWORD itemid, int lowGear, DWORD now,
             const char* why = "") {
         using namespace playerbot_offline;
+        const bool deal = why && strcmp(why, "deal") == 0;
+        if (!deal && BotOfflineTakeOffStuck(ch, state, itemid, now)) return false;
         // What the line was and where it stood, for the ledger once it is off.
         DWORD lineVnum = 0;
         WORD lineCount = 0;
@@ -1129,8 +1153,11 @@ namespace {
         if (!Begin(ch->GetPlayerID(), Remove, itemid, now)) return false;
         ikashop::GetManager().RecvShopRemoveItemClientPacket(ch, itemid);
         if (!EndCall(ch->GetPlayerID())) return false;
+        // MT2009_PLUS_BOT_NAV_SHOP_LOOP_V1: what was asked off, for the next ask.
+        state.offlineShop.takeOffItem = itemid;
+        state.offlineShop.takeOffAt = now ? now : 1;
         // MT2009_PLUS_BOT_DEAL_FROM_STALL_V1: the promised line is off.
-        if (why && strcmp(why, "deal") == 0)
+        if (deal)
             state.offlineShop.dealPulled = true;
         RemovePlayerBotMarketSupply(lineVnum, lineCount, lineMap);
         NotePlayerBotMissionBooksOnCounter(lineMap, lineVnum, -(int)lineCount);
@@ -1307,6 +1334,105 @@ namespace {
         const DWORD stale = BotOfflineStaleRareLine(state, shop, now, vnum);
         if (!stale || !BotOfflineTakeOff(ch, state, stale, 0, now, "rare_unsold")) return false;
         NotePlayerBotRareGoodsUnsold(ch->GetPlayerID(), vnum, now);
+        return true;
+    }
+    // MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (the owner, 16 October: "Wiadomo gdy
+    // po czasie sie nie sprzedadza - niech ida do sprzedania u handlarki"): the
+    // first weapon or armour line of bonus goods (IsPlayerBotUnsoldBonusGoodsKind:
+    // +0..+6, not a +7 by its lines, a prize, a level-30 weapon or a Stalki;
+    // never a book, a material or a stone) that has stood unsold
+    // PLAYERBOT_GOODS_UNSOLD_HOURS - the markdown's whole twelve hours to its
+    // forty percent and as long again - on this bot's counter, clocked as
+    // the markdown clocks it (o.listed: from the listing, or from the first
+    // visit that saw a line from before this core started). Not one the
+    // operator put on "stall", not a gambler's, and not one the bag has no
+    // cell for (it would go to the shop's safebox, not the merchant).
+    DWORD BotOfflineStaleBonusGoodsLine(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD now) {
+        if (!ch || !shop) return 0;
+        auto& o = state.offlineShop;
+        for (const auto& [id, line] : shop->GetItems()) {
+            if (!line || !line->GetTable()) continue;
+            const BYTE type = line->GetTable()->bType;
+            if (type != ITEM_WEAPON && type != ITEM_ARMOR) continue;
+            auto listed = o.listed.find(id);
+            if (listed == o.listed.end())
+                listed = o.listed.emplace(id, playerbot_offline::ListedLine{
+                        line->GetInfo().vnum, 0u, 0u, 0 }).first;
+            if (listed->second.when == 0 && listed->second.observedSince == 0)
+                listed->second.observedSince = now;
+            const uint32_t since = listed->second.when ? listed->second.when : listed->second.observedSince;
+            if (now - since < PLAYERBOT_GOODS_UNSOLD_MS) continue;
+            LPITEM preview = BotOfflinePreview(*line);
+            if (!preview) continue;
+            const bool stale = IsPlayerBotUnsoldBonusGoodsKind(preview) &&
+                    GetPlayerBotItemPolicy(preview) == PLAYERBOT_ITEM_POLICY_NONE &&
+                    !IsPlayerBotGambleForSale(ch, preview) && ch->GetEmptyInventory(preview->GetSize()) >= 0;
+            M2_DELETE(preview);
+            if (stale) return id;
+        }
+        return 0;
+    }
+    // Takes it home (BotOfflineTakeOff, one line a visit like every take-off)
+    // and marks the piece for the merchant (NotePlayerBotUnsoldBonusGoods).
+    bool BotOfflineTakeOffStaleBonusGoods(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD now) {
+        const DWORD stale = BotOfflineStaleBonusGoodsLine(ch, state, shop, now);
+        if (!stale || !BotOfflineTakeOff(ch, state, stale, 0, now, "unsold_bonus_goods")) return false;
+        NotePlayerBotUnsoldBonusGoods(stale, now);
+        return true;
+    }
+    // The first line on this counter that is scrap by
+    // MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 - a weapon or armour piece +0..+6 of
+    // one weak counted line (IsPlayerBotOneWeakBonusPiece: never a +7 by its
+    // lines, a prize, a level-30 weapon or a Stalki) - not on the operator's
+    // "stall", not a gambler's piece, and one the bag has a cell for with
+    // PLAYERBOT_STALL_WEAK_TAKEOFF_BAG_KEEP more to spare. A weapon whose
+    // lines are all ignored is plain gear now, which the counter lists at
+    // any plus (MT2009_PLUS_BOT_LIST_ALL_GEAR_V1): it stays.
+    DWORD BotOfflineWeakScrapLine(LPCHARACTER ch, NativeShop shop) {
+        if (!ch || !shop) return 0;
+        const int bagFree = CountPlayerBotFreeInventoryCells(ch);
+        for (const auto& [id, line] : shop->GetItems()) {
+            if (!line || !line->GetTable()) continue;
+            const BYTE type = line->GetTable()->bType;
+            if (type != ITEM_WEAPON && type != ITEM_ARMOR) continue;
+            if (bagFree < (int)line->GetTable()->bSize + PLAYERBOT_STALL_WEAK_TAKEOFF_BAG_KEEP) continue;
+            LPITEM preview = BotOfflinePreview(*line);
+            if (!preview) continue;
+            const bool scrap = IsPlayerBotOneWeakBonusPiece(preview) &&
+                    GetPlayerBotItemPolicy(preview) == PLAYERBOT_ITEM_POLICY_NONE &&
+                    !IsPlayerBotGambleForSale(ch, preview) && ch->GetEmptyInventory(preview->GetSize()) >= 0;
+            M2_DELETE(preview);
+            if (scrap) return id;
+        }
+        return 0;
+    }
+    // Takes one such line home (reason weak_bonus_scrap); the junk rule sells
+    // it at the merchant's, or the Alchemist's at 35+ (IsPlayerBotOneWeakBonusScrap).
+    // While the counter is nearly full the visit goes on in
+    // PLAYERBOT_STALL_WEAK_TAKEOFF_STEP_MS for the next, up to
+    // PLAYERBOT_STALL_WEAK_TAKEOFF_BURST lines (`chained` says so); with room,
+    // one line a visit. The journal holds one request a bot at a time, so
+    // "several" is several steps of the same visit.
+    bool BotOfflineTakeOffWeakScrap(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD now,
+            bool& chained) {
+        chained = false;
+        auto& o = state.offlineShop;
+        const DWORD weak = BotOfflineWeakScrapLine(ch, shop);
+        if (!weak) {
+            o.weakTakeoffBurst = 0;
+            return false;
+        }
+        const bool full = BotOfflineFreeCells(shop) < PLAYERBOT_STALL_WEAK_TAKEOFF_FULL_CELLS;
+        if (!full) o.weakTakeoffBurst = 0;
+        else if (o.weakTakeoffBurst >= (uint32_t)PLAYERBOT_STALL_WEAK_TAKEOFF_BURST) {
+            o.weakTakeoffBurst = 0;   // the burst is spent: the next visit starts another
+            return false;
+        }
+        if (!BotOfflineTakeOff(ch, state, weak, 0, now, "weak_bonus_scrap")) return false;
+        if (full) {
+            ++o.weakTakeoffBurst;
+            chained = o.weakTakeoffBurst < (uint32_t)PLAYERBOT_STALL_WEAK_TAKEOFF_BURST;
+        }
         return true;
     }
     // How many lines of this item's kind kept by count - the books of its
@@ -1625,8 +1751,9 @@ namespace {
         // the stack it came from. The next line's size depends on the lines of
         // it the counter already shows: a holding of fifty shows five twos,
         // then fives.
+        // MT2009_PLUS_BOT_HERB_SURPLUS_V1: and every herb, the dear ones too.
         if (IsPlayerBotBulkGoods(item) || IsPlayerBotSafeRefineScroll(item->GetVnum()) ||
-                IsPlayerBotTradeableMaterial(item)) {
+                IsPlayerBotTradeableMaterial(item) || IsPlayerBotHerbalismHerb(item->GetVnum())) {
             const int keep = GetPlayerBotStallBaseKeep(ch, item);
             const int spare = (int)ch->CountSpecifyItem(item->GetVnum()) - keep;
             const int avail = std::min((int)item->GetCount(), spare);
@@ -2167,9 +2294,35 @@ namespace {
         // sash goods (IsPlayerBotClearStockReady) and a free cell on its
         // counter - at most every PLAYERBOT_CLEAR_STOCK_SERVICE_MS, so a stock
         // the counter refuses does not call it round in circles.
+        // MT2009_PLUS_BOT_NAV_SHOP_LOOP_V1: a clear-stock call whose visit put
+        // none of the stock up is not made again for PLAYERBOT_OFFLINE_CLEAR_STOCK_HOLD_MS.
+        // The ornament farmers of the second villages (level 33, forty-odd
+        // books of every build in the bag, five lines on the counter) were
+        // called every quarter of an hour, M2 -> M1 -> M2, and stood at the
+        // counter while its steps went on a take-off that did not land:
+        // MordercaKox 141 map changes in 20 hours, forty bots so, 1 850 of
+        // the supporters' "offline_shop_service" trips after 2.34.0.
+        if (o.clearStockAskedAt != 0 && !o.visiting && o.lastServedAt != 0 &&
+                int32_t(o.lastServedAt - o.clearStockAskedAt) >= 0) {
+            const int left = GetPlayerBotSashGoodsInBag(ch) + CountPlayerBotOtherClassBooks(ch);
+            if (o.clearStockBefore >= 0 && left >= o.clearStockBefore) {
+                o.clearStockHoldUntil = now + PLAYERBOT_OFFLINE_CLEAR_STOCK_HOLD_MS;
+                if (o.clearStockHoldUntil == 0) o.clearStockHoldUntil = 1;
+                PlayerBotLogThrottled("offline_clear_stock_hold", now,
+                    "PLAYERBOT_OFFLINE: clear stock not put up, no call for %u h pid=%u name=%s stock=%d",
+                    PLAYERBOT_OFFLINE_CLEAR_STOCK_HOLD_MS / 3600000U, ch->GetPlayerID(), ch->GetName(), left);
+            }
+            o.clearStockAskedAt = 0;
+            o.clearStockBefore = -1;
+        }
         const bool clearLines = !o.visiting && !medalLines && shop && o.lastServedAt != 0 &&
                 Due(now, o.lastServedAt + PLAYERBOT_CLEAR_STOCK_SERVICE_MS) &&
+                Due(now, o.clearStockHoldUntil) &&
                 BotOfflineFreeCells(shop) > 0 && IsPlayerBotClearStockReady(ch, state);
+        if (clearLines && o.clearStockAskedAt == 0) {
+            o.clearStockAskedAt = now ? now : 1;
+            o.clearStockBefore = GetPlayerBotSashGoodsInBag(ch) + CountPlayerBotOtherClassBooks(ch);
+        }
         if (clearLines && o.nextService > now + 40000)
             o.nextService = now + 30000 + PlayerBotNavHash(ch->GetPlayerID() ^ 0x434c5253U) % 10000;
         const char* busy = BotOfflineBusyReason(ch, state);
@@ -2423,6 +2576,20 @@ namespace {
                 BotOfflineFinishVisit(ch, state, now);
                 return false;
             }
+            // MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: and bonus goods unsold a day.
+            if (BotOfflineTakeOffStaleBonusGoods(ch, state, shop, now)) {
+                BotOfflineFinishVisit(ch, state, now);
+                return false;
+            }
+            // MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1: and weak-bonus scrap.
+            {
+                bool chained = false;
+                if (BotOfflineTakeOffWeakScrap(ch, state, shop, now, chained)) {
+                    BotOfflineFinishVisit(ch, state, now);
+                    if (chained) state.offlineShop.nextService = now + PLAYERBOT_STALL_WEAK_TAKEOFF_STEP_MS;
+                    return false;
+                }
+            }
             // So does a piece the owner should be wearing.
             {
                 long long gain = 0;
@@ -2592,6 +2759,23 @@ namespace {
         if (BotOfflineTakeOffStaleRare(ch, state, shop, now)) {
             BotOfflineFinishVisit(ch, state, now);
             return false;
+        }
+        // MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: so do weapon and armour bonus
+        // goods unsold PLAYERBOT_GOODS_UNSOLD_HOURS, one line a visit.
+        if (BotOfflineTakeOffStaleBonusGoods(ch, state, shop, now)) {
+            BotOfflineFinishVisit(ch, state, now);
+            return false;
+        }
+        // MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1: a line of one weak counted
+        // bonus comes home for the merchant - several in chained steps while
+        // the counter is nearly full, one a visit while it has room.
+        {
+            bool chained = false;
+            if (BotOfflineTakeOffWeakScrap(ch, state, shop, now, chained)) {
+                BotOfflineFinishVisit(ch, state, now);
+                if (chained) state.offlineShop.nextService = now + PLAYERBOT_STALL_WEAK_TAKEOFF_STEP_MS;
+                return false;
+            }
         }
         // And a piece the owner should be wearing comes home before anything
         // goes on (BotOfflineReclaimLine).

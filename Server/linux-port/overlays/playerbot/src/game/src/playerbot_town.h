@@ -132,6 +132,11 @@ namespace
 	// half in playerbot_offline_shop.h.
 	std::map<DWORD, DWORD> s_mapPlayerBotSafeboxFullAt;
 	bool MakePlayerBotBagColumnRoom(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow);
+	// MT2009_PLUS_BOT_FULL_CLEAROUT_V1 (playerbot_market_life.h).
+	bool RunPlayerBotFullClearout(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow);
+	// MT2009_PLUS_BOT_HERB_SURPLUS_V1: how many more lines of two hundred of a
+	// herb the bot's counter takes now (playerbot_market_life.h).
+	int GetPlayerBotHerbStallLineRoom(LPCHARACTER ch, DWORD vnum);
 #if defined(PLAYERBOT_ENGINE_MT2009) && defined(ENABLE_IKASHOP_RENEWAL)
 	bool HurryPlayerBotStallForBagRoom(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow);
 #else
@@ -342,6 +347,89 @@ namespace
 		}
 	}
 
+	// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the herbs the storekeeper's box takes,
+	// by vnum in units - everything over the bot's keep (GetPlayerBotHerbKeep)
+	// but the full stacks of two hundred its counter has a line for now, at
+	// most PLAYERBOT_HERB_SURPLUS_BAG_LINES of them in all - and the bag cells
+	// that frees, the bag's stacks poured together as the merge pass does.
+	// Nothing of a companion's (its box is its owner's), nothing the
+	// operator's policy names, locked or gifted.
+	bool IsPlayerBotSafeboxHerbStack(LPCHARACTER ch, LPITEM item, WORD cell)
+	{
+		return ch && item && item->GetCell() == cell && !item->IsEquipped() && !item->isLocked() &&
+				IsPlayerBotHerbalismHerb(item->GetVnum()) &&
+				GetPlayerBotItemPolicy(item) == PLAYERBOT_ITEM_POLICY_NONE &&
+				!IsPlayerBotSidekickLockedItem(ch, item) && !IsPlayerBotSidekickGift(ch, item);
+	}
+
+	int CollectPlayerBotSafeboxHerbs(LPCHARACTER ch, std::map<DWORD, int>& units)
+	{
+		units.clear();
+		if (!ch || !ch->IsItemLoaded() || IsPlayerBotSidekickServing(ch))
+			return 0;
+		std::map<DWORD, std::pair<int, int> > held;   // vnum -> units, stacks
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (!IsPlayerBotSafeboxHerbStack(ch, item, cell))
+				continue;
+			held[item->GetVnum()].first += (int)item->GetCount();
+			++held[item->GetVnum()].second;
+		}
+		int freed = 0;
+		int bagLines = PLAYERBOT_HERB_SURPLUS_BAG_LINES;
+		for (std::map<DWORD, std::pair<int, int> >::const_iterator it = held.begin(); it != held.end(); ++it)
+		{
+			const int spare = it->second.first - GetPlayerBotHerbKeep(ch, it->first);
+			if (spare <= 0)
+				continue;
+			int lines = std::min(spare / PLAYERBOT_HERB_SURPLUS_LINE_UNITS, bagLines);
+			if (lines > 0)
+				lines = std::min(lines, GetPlayerBotHerbStallLineRoom(ch, it->first));
+			lines = std::max(0, lines);
+			bagLines -= lines;
+			const int deposit = spare - lines * PLAYERBOT_HERB_SURPLUS_LINE_UNITS;
+			if (deposit <= 0)
+				continue;
+			units[it->first] = deposit;
+			const int left = it->second.first - deposit;
+			freed += std::max(0, it->second.second -
+					(left + PLAYERBOT_HERB_SURPLUS_LINE_UNITS - 1) / PLAYERBOT_HERB_SURPLUS_LINE_UNITS);
+		}
+		return freed;
+	}
+
+	// The full stacks of two hundred over the keep the bag holds of all its
+	// herbs together - what waits for the counter (PLAYERBOT_HERB_SURPLUS_BAG_LINES).
+	int CountPlayerBotHerbSpareLines(LPCHARACTER ch)
+	{
+		if (!ch)
+			return 0;
+		std::map<DWORD, int> held;
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (IsPlayerBotSafeboxHerbStack(ch, item, cell))
+				held[item->GetVnum()] += (int)item->GetCount();
+		}
+		int lines = 0;
+		for (std::map<DWORD, int>::const_iterator it = held.begin(); it != held.end(); ++it)
+			lines += std::max(0, it->second - GetPlayerBotHerbKeep(ch, it->first)) / PLAYERBOT_HERB_SURPLUS_LINE_UNITS;
+		return lines;
+	}
+
+	// And whether they are worth a visit of their own: PLAYERBOT_HERB_SURPLUS_DEPOSIT_CELLS
+	// cells freed, or any at all from a bag under pressure.
+	bool PlayerBotWantsHerbDeposit(LPCHARACTER ch)
+	{
+		std::map<DWORD, int> units;
+		const int freed = CollectPlayerBotSafeboxHerbs(ch, units);
+		if (freed >= PLAYERBOT_HERB_SURPLUS_DEPOSIT_CELLS)
+			return true;
+		return freed > 0 && (IsPlayerBotBagFull(ch) ||
+				CountPlayerBotFreeInventoryCells(ch) <= PLAYERBOT_BAG_PRESSURE_FREE_CELLS);
+	}
+
 	bool HasPlayerBotSafeboxDeposit(LPCHARACTER ch, const TPlayerBotAIState& state)
 	{
 		// MT2009_PLUS_SIDEKICK_KEEP_VALUABLES_V1: a companion puts nothing in
@@ -365,6 +453,9 @@ namespace
 			return true;
 		CollectPlayerBotSafeboxMissionBooks(ch, cells);
 		if (!cells.empty())
+			return true;
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the herbs nobody brews or lists.
+		if (PlayerBotWantsHerbDeposit(ch))
 			return true;
 		CollectPlayerBotSafeboxLpp(ch, state, cells);
 		return !cells.empty();
@@ -640,6 +731,33 @@ namespace
 				wanted = CanPlayerBotSeatSoulStone(ch, item->GetVnum(), (DWORD)item->GetValue(5));
 				why = "lpp_stone";
 			}
+			else if (IsPlayerBotHerbalismHerb(item->GetVnum()))
+			{
+				// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the box keeps the herbs the
+				// deposit put down (CollectPlayerBotSafeboxHerbs). One comes out
+				// for a brewer whose bag is short of its keep, or as a full stack
+				// of two hundred for a line the counter has free - never a kind
+				// the bag already holds a full spare stack of, into a bag that
+				// stays clear of pressure. Anything else would be the deposit's
+				// next round trip.
+				const int inBag = (int)ch->CountSpecifyItem(item->GetVnum());
+				const int keep = GetPlayerBotHerbKeep(ch, item->GetVnum());
+				const int freeAfter = CountPlayerBotFreeInventoryCells(ch) - (int)item->GetSize();
+				const bool clear = freeAfter > PLAYERBOT_BAG_PRESSURE_FREE_CELLS &&
+						(PLAYERBOT_BAG_CELLS - freeAfter) * 100 < PLAYERBOT_BAG_CELLS * PLAYERBOT_BAG_FULL_PERCENT;
+				if (inBag < keep)
+				{
+					wanted = freeAfter > PLAYERBOT_BAG_PRESSURE_FREE_CELLS;
+					why = "herb_brew";
+				}
+				else if ((int)item->GetCount() >= PLAYERBOT_HERB_SURPLUS_LINE_UNITS &&
+						inBag - keep < PLAYERBOT_HERB_SURPLUS_LINE_UNITS)
+				{
+					wanted = clear && GetPlayerBotHerbStallLineRoom(ch, item->GetVnum()) > 0 &&
+							CountPlayerBotHerbSpareLines(ch) < PLAYERBOT_HERB_SURPLUS_BAG_LINES;
+					why = "herb_counter";
+				}
+			}
 			else if (item->GetType() == ITEM_MATERIAL && IsPlayerBotNonGearMaterial(item->GetVnum()))
 			{
 				// The herbs an older version put down as materials: out, and to
@@ -668,6 +786,27 @@ namespace
 			}
 			if (!wanted)
 				continue;
+
+			// MT2009_PLUS_BOT_HERB_SURPLUS_V1: a brewer short of its keep takes
+			// only what it is short of; the box's stack keeps the rest, poured
+			// off the way the deposit tops a stack up.
+			if (!strcmp(why, "herb_brew"))
+			{
+				const int need = GetPlayerBotHerbKeep(ch, item->GetVnum()) - (int)ch->CountSpecifyItem(item->GetVnum());
+				if (need > 0 && need < (int)item->GetCount())
+				{
+					if (ch->GetEmptyInventory(1) < 0)
+						break;
+					const DWORD vnum = item->GetVnum();
+					item->SetCount(item->GetCount() - need);
+					ITEM_MANAGER::instance().FlushDelayedSave(item);
+					ch->AutoGiveItem(vnum, need, -1, false);
+					sys_log(0, "PLAYERBOT_TOWN: safebox withdraw pid=%u name=%s vnum=%u count=%d reason=herb_brew left=%u",
+							ch->GetPlayerID(), ch->GetName(), vnum, need, (unsigned int)item->GetCount());
+					++taken;
+					continue;
+				}
+			}
 
 			// Room for this exact piece or it stays where it is; a bag filled
 			// by the withdrawal would be emptied into the box on the next trip.
@@ -824,6 +963,27 @@ namespace
 		std::vector<WORD> missionBooks;
 		CollectPlayerBotSafeboxMissionBooks(ch, missionBooks);
 		cells.insert(cells.end(), missionBooks.begin(), missionBooks.end());
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the herbs over the keep and the
+		// counter's full stacks (CollectPlayerBotSafeboxHerbs), the smallest
+		// stacks of a kind first - the full ones are the counter's lines.
+		const size_t herbFrom = cells.size();
+		std::map<DWORD, int> herbLeft;
+		CollectPlayerBotSafeboxHerbs(ch, herbLeft);
+		if (!herbLeft.empty())
+		{
+			std::vector<std::pair<std::pair<DWORD, int>, WORD> > herbCells;
+			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+			{
+				LPITEM item = ch->GetInventoryItem(cell);
+				if (IsPlayerBotSafeboxHerbStack(ch, item, cell) && herbLeft.count(item->GetVnum()))
+					herbCells.push_back(std::make_pair(std::make_pair(item->GetVnum(), (int)item->GetCount()), cell));
+			}
+			std::sort(herbCells.begin(), herbCells.end());
+			for (size_t h = 0; h < herbCells.size(); ++h)
+				cells.push_back(herbCells[h].second);
+		}
+		const size_t herbTo = cells.size();
+		int herbUnits = 0;
 		// And what Iwakura's list keeps for later (playerbot_lpp.h).
 		const size_t lppFrom = cells.size();
 		std::vector<WORD> lpp;
@@ -842,7 +1002,29 @@ namespace
 			// material the deposit had just stored and took it straight back:
 			// that round trip was three quarters of all safebox traffic on
 			// m2zip and the source of the ITEM_ID_DUP lines in syserr.
-			if (IsPlayerBotTradeableMaterial(item) && !IsPlayerBotSafeRefineScroll(item->GetVnum()))
+			// MT2009_PLUS_BOT_HERB_SURPLUS_V1: a herb gives what is left of its
+			// kind's deposit, the stack cut the same way when it holds more.
+			if (i >= herbFrom && i < herbTo)
+			{
+				if (!IsPlayerBotHerbalismHerb(item->GetVnum()))
+					continue;
+				int& left = herbLeft[item->GetVnum()];
+				if (left <= 0)
+					continue;
+				if (left < (int)item->GetCount())
+				{
+					const int to = ch->GetEmptyInventory(item->GetSize());
+					if (to < 0 || !ch->MoveItem(TItemPos(INVENTORY, cells[i]),
+							TItemPos(INVENTORY, (WORD)to), left))
+						continue;
+					item = ch->GetInventoryItem(to);
+					if (!item)
+						continue;
+				}
+				left -= (int)item->GetCount();
+				herbUnits += (int)item->GetCount();
+			}
+			else if (IsPlayerBotTradeableMaterial(item) && !IsPlayerBotSafeRefineScroll(item->GetVnum()))
 			{
 				const int keep = GetPlayerBotRefineMaterialReserve(ch, item->GetVnum());
 				const int spare = (int)ch->CountSpecifyItem(item->GetVnum()) - keep;
@@ -883,7 +1065,11 @@ namespace
 				char szHint[128];
 				snprintf(szHint, sizeof(szHint), "%s %u", item->GetName(), (unsigned int)item->GetCount());
 				LogManager::instance().ItemLog(ch, item, "SAFEBOX PUT", szHint);
-				if (i >= lppFrom)
+				if (i >= herbFrom && i < herbTo)
+				{
+					// MT2009_PLUS_BOT_HERB_SURPLUS_V1: logged once a visit below.
+				}
+				else if (i >= lppFrom)
 				{
 					sys_log(0, "PLAYERBOT_LPP: to safebox pid=%u name=%s vnum=%u+%u count=%u level=%u",
 							ch->GetPlayerID(), ch->GetName(), item->GetVnum(),
@@ -918,6 +1104,10 @@ namespace
 				break;
 			}
 		}
+		if (herbUnits > 0)
+			sys_log(0, "PLAYERBOT_HERB: surplus to safebox pid=%u name=%s units=%d kinds=%u spare_lines=%d",
+					ch->GetPlayerID(), ch->GetName(), herbUnits, (unsigned int)herbLeft.size(),
+					CountPlayerBotHerbSpareLines(ch));
 		return deposited;
 	}
 
@@ -1030,6 +1220,7 @@ namespace
 		{
 			state.dwNextShopCheckTime = dwNow + number(60000, 120000);
 			MakePlayerBotBagColumnRoom(ch, state, dwNow);	// MT2009_PLUS_FRONTIER_BAG_LOOP_V1
+			RunPlayerBotFullClearout(ch, state, dwNow);	// MT2009_PLUS_BOT_FULL_CLEAROUT_V1
 			return;
 		}
 
@@ -1554,13 +1745,18 @@ namespace
 	// The stones the Alchemist takes, and what they cost: the fee is 500 yang
 	// a dust and a stone of grade g is g + 1 dust (item_exchange.lua). Only
 	// what the purse pays for and leaves GetPlayerBotReservedGold behind.
-	int CollectPlayerBotDustStones(LPCHARACTER ch, std::vector<LPITEM>* out, int* dust, long long* fee)
+	// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: of each stone (vnum) the bag
+	// keeps PLAYERBOT_SOUL_STONE_STALL_KEEP for its counter, in its largest
+	// stack, and every unit over that is the Alchemist's - the other stacks
+	// whole and the kept one cut (out: the item and the units it gives).
+	int CollectPlayerBotDustStones(LPCHARACTER ch, std::vector<std::pair<LPITEM, int> >* out, int* dust, long long* fee)
 	{
 		int stones = 0, dustSum = 0;
 		long long feeSum = 0;
 		if (ch && ch->IsItemLoaded())
 		{
 			const long long spendable = (long long)ch->GetGold() - (long long)GetPlayerBotReservedGold(ch);
+			std::map<DWORD, std::vector<LPITEM> > byVnum;
 			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
 			{
 				LPITEM item = ch->GetInventoryItem(cell);
@@ -1568,16 +1764,36 @@ namespace
 						!IsPlayerBotSoulStoneForDust(ch, item) ||
 						IsPlayerBotSidekickLockedItem(ch, item))	// MT2009_PLUS_SIDEKICK_EQUIP_LOCK_V1
 					continue;
-				const int count = std::max<int>(1, (int)item->GetCount());
-				const int gain = (GetPlayerBotSoulStoneGrade(item->GetVnum()) + 1) * count;
-				const long long cost = (long long)gain * PLAYERBOT_MAGIC_DUST_FEE;
-				if (feeSum + cost > spendable)
-					continue;
-				feeSum += cost;
-				dustSum += gain;
-				stones += count;
-				if (out)
-					out->push_back(item);
+				byVnum[item->GetVnum()].push_back(item);
+			}
+			for (std::map<DWORD, std::vector<LPITEM> >::iterator it = byVnum.begin(); it != byVnum.end(); ++it)
+			{
+				std::vector<LPITEM>& stacks = it->second;
+				std::stable_sort(stacks.begin(), stacks.end(), [](LPITEM a, LPITEM b) {
+					return a->GetCount() > b->GetCount();
+				});
+				const int perStone = GetPlayerBotSoulStoneGrade(it->first) + 1;
+				const long long unitCost = (long long)perStone * PLAYERBOT_MAGIC_DUST_FEE;
+				int keep = PLAYERBOT_SOUL_STONE_STALL_KEEP;
+				for (size_t i = 0; i < stacks.size(); ++i)
+				{
+					const int count = std::max<int>(1, (int)stacks[i]->GetCount());
+					const int keepHere = std::min(keep, count);
+					keep -= keepHere;
+					int take = count - keepHere;
+					if (take <= 0)
+						continue;
+					const long long affordable = unitCost > 0 ? (spendable - feeSum) / unitCost : 0;
+					if (affordable < take)
+						take = (int)std::max<long long>(0, affordable);
+					if (take <= 0)
+						continue;
+					feeSum += unitCost * take;
+					dustSum += perStone * take;
+					stones += take;
+					if (out)
+						out->push_back(std::make_pair(stacks[i], take));
+				}
 			}
 		}
 		if (dust)
@@ -1592,8 +1808,9 @@ namespace
 	// the herbalist above is - the NPC stands at the end of the walk, a few
 	// seconds pass, and the exchange is the package's own item_exchange.lua
 	// done server-side: its window is a client's, and a bot has no hands for
-	// it. The stones are the grades Iwakura bans from sockets, eighty-five in
-	// a hundred of them (IsPlayerBotSoulStoneForDust); the dust is counter
+	// it. The stones are the grades Iwakura bans from sockets, all but three
+	// of each kept for the counter (IsPlayerBotSoulStoneForDust,
+	// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1); the dust is counter
 	// goods. Above the travel pass in the tick: the bots that carry these
 	// stones are the Metin hunters of the frontier, in the first village for
 	// their stand, and the travel pass walked them straight back out.
@@ -1684,12 +1901,24 @@ namespace
 		// At the counter. The quest takes every stone first, then the fee,
 		// then hands the dust over in stacks; so does this, with the stones
 		// counted again - the bag may have changed on the walk.
-		std::vector<LPITEM> taken;
+		std::vector<std::pair<LPITEM, int> > taken;
 		const int count = CollectPlayerBotDustStones(ch, &taken, &dust, &fee);
 		if (count > 0 && CountPlayerBotFreeInventoryCells(ch) >= (dust + 199) / 200 + 1)
 		{
+			// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: a stack the counter's
+			// three stay in gives only what is over them.
+			int split = 0;
 			for (size_t i = 0; i < taken.size(); ++i)
-				ITEM_MANAGER::instance().RemoveItem(taken[i], "PLAYERBOT_ALCHEMIST");
+			{
+				LPITEM stone = taken[i].first;
+				if (taken[i].second >= (int)stone->GetCount())
+					ITEM_MANAGER::instance().RemoveItem(stone, "PLAYERBOT_ALCHEMIST");
+				else
+				{
+					stone->SetCount(stone->GetCount() - taken[i].second);
+					++split;
+				}
+			}
 			PlayerBotChangeGold(ch, -fee);
 			// MT2009_PLUS_EXCHANGE_CHANCE_V1: a roll a dust, at the chance the
 			// players get (the world's difficulty); the fee is paid for every
@@ -1705,8 +1934,8 @@ namespace
 				ch->AutoGiveItem(PLAYERBOT_MAGIC_DUST_VNUM, chunk, -1, false);
 				left -= chunk;
 			}
-			sys_log(0, "PLAYERBOT_ALCHEMIST: exchanged pid=%u name=%s stones=%d dust=%d/%d chance=%d fee=%lld gold=%lld",
-					ch->GetPlayerID(), ch->GetName(), count, made, dust, chance, fee, (long long)ch->GetGold());
+			sys_log(0, "PLAYERBOT_ALCHEMIST: exchanged pid=%u name=%s stones=%d dust=%d/%d chance=%d fee=%lld gold=%lld split=%d",
+					ch->GetPlayerID(), ch->GetName(), count, made, dust, chance, fee, (long long)ch->GetGold(), split);
 		}
 		// MT2009_PLUS_BOT_ENERGY_SHARDS_V1: and the held scrap, into Odlamki
 		// Energii the quest's way (playerbot_energy_shards.h).
@@ -1755,10 +1984,12 @@ namespace
 		// MT2009_PLUS_FRONTIER_BAG_LOOP_V1: a visit that left the bag with no
 		// free three-cell column and the box full makes the column now.
 		if (completed && ch)
+		{
 			MakePlayerBotBagColumnRoom(ch, state, dwNow);
-		// MT2009_PLUS_M1_LOOP_FIX_V1 (bag floor): what the bag keeps after it.
-		if (completed && ch)
-			NotePlayerBotBagFloor(ch, dwNow);
+			// MT2009_PLUS_BOT_FULL_CLEAROUT_V1: stall, bag and box all full -
+			// its cheapest pieces to another bot or the merchant.
+			RunPlayerBotFullClearout(ch, state, dwNow);
+		}
 		// MT2009_PLUS_SIDEKICK_BAG_LOOP_V1: a companion off the leash whose bag
 		// the visit's merchants could not clear goes out anyway (its bag is
 		// excused from BlocksPlayerBotTravel for a while), its owner told.
@@ -4603,6 +4834,14 @@ namespace
 		// slot from something that would sell.
 		if (IsPlayerBotMerchantOnlyForgetScroll(item))
 			return merchant ? PlayerBotGoods(400, per::GOODS_FORGET_SCROLL_MERCHANT_ONLY, item->GetSocket(0)) : -1;
+		// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: a piece of one counted line that
+		// is not valuable, and bonus goods the counter took home unsold, are
+		// the merchant's (IsPlayerBotJunkItem) and never go up - the counter
+		// has room for them or not. The junk rule asked whole, so a piece a
+		// rule above it keeps (Iwakura's list, a gambler's) is not left out.
+		if (ch && (IsPlayerBotOneWeakBonusPiece(item) || IsPlayerBotUnsoldBonusGoods(item->GetID(), get_dword_time())) &&
+				IsPlayerBotJunkItem(ch, item))
+			return -1;
 		// A Stalki (playerbot_stalki.h): the one a bot keeps for the level it is
 		// about to reach is not goods, nor the one the blacksmith is making into
 		// its next armour or weapon (IsPlayerBotHigherTierSpare); any other - of
@@ -4867,11 +5106,13 @@ namespace
 		// A herb is Baek-Go's material now, so a few stay home. Without this a
 		// keeper listed the lot and then stood at the board with nothing to
 		// craft - the counters already held 12 506 Tue Mushrooms on 17 September.
-		// MT2009_PLUS_BOT_HERBALIST_FIX_V1: a gatherer (ACTIVITY_V1) keeps
-		// three times as many - a visit brews up to six rows of ten.
+		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the keep is what the bot's own rows
+		// brew from (GetPlayerBotHerbKeep, a flat 20 / 60 before), and a herb
+		// is goods only by the full stack of two hundred over it - a smaller
+		// spare goes to the storekeeper's box (CollectPlayerBotSafeboxHerbs).
 		if (IsPlayerBotHerbalismHerb(item->GetVnum()) &&
-				(int) ch->CountSpecifyItem(item->GetVnum()) <=
-					PLAYERBOT_HERBALISM_HERB_KEEP * (IsPlayerBotHerbGatherer(ch) ? 3 : 1))   // MT2009_PLUS_BOT_HERBALIST_ACTIVITY_V1
+				(int) ch->CountSpecifyItem(item->GetVnum()) - GetPlayerBotHerbKeep(ch, item->GetVnum()) <
+					PLAYERBOT_HERB_SURPLUS_LINE_UNITS)
 			return -1;
 		// No mission book while its village's counters hold thirty (Iwakura's
 		// Patch 4, point 13): the junk rule and the storekeeper take them.
@@ -4931,10 +5172,24 @@ namespace
 		// the smelting rows and Zaczarowany Klejnot consume it and no bot
 		// does, so all of it is goods. Ahead of the rule below, which would
 		// call a material no refine recipe names scenery.
+		// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: over
+		// PLAYERBOT_MAGIC_DUST_SURPLUS_COUNT it scores
+		// PLAYERBOT_SHOP_MAGIC_DUST_SURPLUS_SCORE and wins a counter's space.
+		// MT2009_PLUS_BOT_DUST_BONUS_V1: the keep is what the bot will turn
+		// into a marble, an add or a change stone, and the 800 goes to the
+		// dust over it: PLAYERBOT_MAGIC_DUST_SURPLUS_SPARE more than the keep
+		// and over PLAYERBOT_MAGIC_DUST_SURPLUS_COUNT in all (with the
+		// ordinary keep of a hundred, the "over 200" of before).
 		if (item->GetVnum() == PLAYERBOT_MAGIC_DUST_VNUM)
-			return (int)ch->CountSpecifyItem(PLAYERBOT_MAGIC_DUST_VNUM) > GetPlayerBotStallBaseKeep(ch, item)
-					? PlayerBotGoods(PLAYERBOT_SHOP_LOW_SOUL_STONE_SCORE + 20, per::GOODS_MAGIC_DUST,
-						(long long)ch->CountSpecifyItem(PLAYERBOT_MAGIC_DUST_VNUM), GetPlayerBotStallBaseKeep(ch, item)) : -1;
+		{
+			const int dustHeld = (int)ch->CountSpecifyItem(PLAYERBOT_MAGIC_DUST_VNUM);
+			const int dustKeep = GetPlayerBotStallBaseKeep(ch, item);
+			return dustHeld > dustKeep
+					? PlayerBotGoods(dustHeld > PLAYERBOT_MAGIC_DUST_SURPLUS_COUNT &&
+							dustHeld - dustKeep > PLAYERBOT_MAGIC_DUST_SURPLUS_SPARE
+							? PLAYERBOT_SHOP_MAGIC_DUST_SURPLUS_SCORE : PLAYERBOT_SHOP_LOW_SOUL_STONE_SCORE + 20,
+						per::GOODS_MAGIC_DUST, (long long)dustHeld, dustKeep) : -1;
+		}
 		// An ITEM_MATERIAL no recipe consumes is scenery, not goods: it was put
 		// up for its type, and its type is not a reason anybody would buy it -
 		// unless Iwakura's sheet prices it, which is exactly that reason (the
@@ -4944,15 +5199,16 @@ namespace
 			return -1;
 		// A soul stone the bot cannot seat - one Iwakura's list keeps out of the
 		// hunting set, no socket open, the wrong grade for the piece it keeps -
-		// is somebody else's set. One of the grades his list bans goes to the
-		// Alchemist for dust, eighty-five in a hundred of them, and the rest
-		// are the counter's cheapest goods (PLAYERBOT_SOUL_STONE_DUST_MAX_GRADE):
+		// is somebody else's set. One of the grades his list bans is the
+		// counter's cheapest goods (PLAYERBOT_SOUL_STONE_DUST_MAX_GRADE):
 		// scored 700 to 900 like any stone, a +2 went up level with the horse
 		// medal and first onto every counter.
+		// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: every such stone is goods
+		// now - the bag keeps three of each for the counter and the Alchemist
+		// takes the rest (CollectPlayerBotDustStones).
 		if (item->GetType() == ITEM_METIN)
 		{
-			if (CanPlayerBotSeatSoulStone(ch, item->GetVnum(), (DWORD)item->GetValue(5)) ||
-					IsPlayerBotSoulStoneForDust(ch, item))
+			if (CanPlayerBotSeatSoulStone(ch, item->GetVnum(), (DWORD)item->GetValue(5)))
 				return -1;
 #if defined(PLAYERBOT_ENGINE_MT2009)
 			if (IsPlayerBotSoulStoneVnum(item->GetVnum()) &&
@@ -5695,7 +5951,8 @@ namespace
 			if (IsPlayerBotEnergyShardVnum(item->GetVnum()))
 				continue;
 			if (IsPlayerBotSafeRefineScroll(item->GetVnum()) || IsPlayerBotBulkGoods(item) ||
-					IsPlayerBotTradeableMaterial(item))
+					IsPlayerBotTradeableMaterial(item) ||
+					IsPlayerBotHerbalismHerb(item->GetVnum()))   // MT2009_PLUS_BOT_HERB_SURPLUS_V1
 			{
 				int lines = 0, small = 0;
 				CountPlayerBotCutLines(ch, item, lines, small);

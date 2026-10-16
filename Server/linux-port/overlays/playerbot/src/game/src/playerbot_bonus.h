@@ -500,6 +500,139 @@ namespace
 		}
 	}
 
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (the owner, 16 October: "Od teraz
+	// boty niech zostawiaja tylko produkty z dwoma bonusami - niech traktuja
+	// je jako drogocenne i wystawiaja na lady zgodnie z cennikiem. Przedmioty
+	// z jednym bonusem, nie wartosciowym, do handlarki. Bonusy w broniach
+	// (oprocz inteligencji czy na przyklad bonusu silny na xxx 20%) w ogole
+	// niech olewaja. Wyjatek to 4 bonusy w broni, bronie z srednimi i
+	// umiejetnosciami"). What a weapon or an armour piece is to the counter
+	// by its lines - it replaces MT2009_PLUS_BOT_WEAK_BONUS_SCRAP_V1, which
+	// sold pieces of one or two weak lines only from a bot whose own counter
+	// was full:
+	//   - a piece of two or more counted lines is goods: kept, and listed at
+	//     the price list, whether or not the counter has room (no market cap -
+	//     the owner: "nie limituj rynku");
+	//   - a piece of exactly one counted line is goods when that line is
+	//     valuable - a top roll (IsPlayerBotTopBonusLine) or a prize piece
+	//     (IsPlayerBotPrizeItem) - and scrap otherwise: the merchant's, or the
+	//     Alchemist's at 35+ (IsPlayerBotOneWeakBonusScrap, playerbot_economy.h);
+	//   - a piece of no counted line is whatever it was before.
+	// On a weapon only Intelligence and "Silny przeciwko ..." at 20 or more
+	// (his "silny na xxx 20%", the top roll of the five races) count; every
+	// other line is ignored, and a weapon whose lines are all ignored is a
+	// weapon of no line. The exceptions are valuable outright, every line
+	// counted: four lines or more of any kind, any Srednie Obrazenia
+	// (APPLY_NORMAL_HIT_DAMAGE_BONUS) or any Obrazenia Umiejetnosci
+	// (APPLY_SKILL_DAMAGE_BONUS). The price list asks the same question
+	// (GetPlayerBotBonusLinePct, CountPlayerBotBonusCountLines), so an ignored
+	// line never raises a weapon's price either. The arrows are no gear here.
+	enum EPlayerBotGoodsBonusClass
+	{
+		PLAYERBOT_GOODS_BONUS_NONE = 0,		// no counted line, or no gear
+		PLAYERBOT_GOODS_BONUS_ONE_WEAK = 1,	// one counted line, not valuable: scrap
+		PLAYERBOT_GOODS_BONUS_GOODS = 2,	// two or more, one valuable, or the weapon exceptions
+	};
+
+	bool IsPlayerBotStrongAgainstApply(BYTE type)
+	{
+		switch (type)
+		{
+			case APPLY_ATTBONUS_HUMAN:
+			case APPLY_ATTBONUS_ANIMAL:
+			case APPLY_ATTBONUS_ORC:
+			case APPLY_ATTBONUS_MILGYO:
+			case APPLY_ATTBONUS_UNDEAD:
+			case APPLY_ATTBONUS_DEVIL:
+			case APPLY_ATTBONUS_MONSTER:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	bool IsPlayerBotGoodsGearPiece(LPITEM item)
+	{
+		if (!item)
+			return false;
+		if (item->GetType() == ITEM_WEAPON)
+			return item->GetSubType() != WEAPON_ARROW;
+		if (item->GetType() != ITEM_ARMOR)
+			return false;
+		switch (item->GetSubType())
+		{
+			case ARMOR_BODY: case ARMOR_HEAD: case ARMOR_SHIELD: case ARMOR_FOOTS:
+			case ARMOR_WRIST: case ARMOR_NECK: case ARMOR_EAR:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	// A weapon valuable outright: four lines or more, or an average or a
+	// skill damage line of any size.
+	bool IsPlayerBotOutrightBonusWeapon(LPITEM item)
+	{
+		if (!item || item->GetType() != ITEM_WEAPON || item->GetSubType() == WEAPON_ARROW)
+			return false;
+		int lines = 0;
+		for (int i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; ++i)
+		{
+			const BYTE type = item->GetAttributeType(i);
+			const long value = item->GetAttributeValue(i);
+			if (type == APPLY_NONE || value <= 0)
+				continue;
+			if (type == APPLY_NORMAL_HIT_DAMAGE_BONUS || type == APPLY_SKILL_DAMAGE_BONUS)
+				return true;
+			++lines;
+		}
+		return lines >= PLAYERBOT_GOODS_WEAPON_OUTRIGHT_LINES;
+	}
+
+	// Whether this line of this piece counts - for the goods rule and for the
+	// price list alike. `outright` is IsPlayerBotOutrightBonusWeapon(item),
+	// asked once by a caller walking every line.
+	bool IsPlayerBotGoodsLineCounted(LPITEM item, bool outright, BYTE type, long value)
+	{
+		if (!item || type == APPLY_NONE || value <= 0)
+			return false;
+		if (item->GetType() != ITEM_WEAPON || outright)
+			return true;
+		return type == APPLY_INT ||
+				(IsPlayerBotStrongAgainstApply(type) && value >= PLAYERBOT_GOODS_WEAPON_STRONG_MIN);
+	}
+
+	bool IsPlayerBotPrizeItem(LPITEM item);
+
+	int GetPlayerBotGoodsBonusClass(LPITEM item, int* countedOut = NULL)
+	{
+		if (countedOut)
+			*countedOut = 0;
+		if (!IsPlayerBotGoodsGearPiece(item))
+			return PLAYERBOT_GOODS_BONUS_NONE;
+		const bool outright = IsPlayerBotOutrightBonusWeapon(item);
+		int counted = 0;
+		bool valuable = false;
+		for (int i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; ++i)
+		{
+			const BYTE type = item->GetAttributeType(i);
+			const long value = item->GetAttributeValue(i);
+			if (!IsPlayerBotGoodsLineCounted(item, outright, type, value))
+				continue;
+			++counted;
+			if (IsPlayerBotTopBonusLine(type, value))
+				valuable = true;
+		}
+		if (countedOut)
+			*countedOut = counted;
+		if (outright || counted >= PLAYERBOT_GOODS_BONUS_MIN_LINES)
+			return PLAYERBOT_GOODS_BONUS_GOODS;
+		if (counted == 1)
+			return valuable || IsPlayerBotPrizeItem(item) ? PLAYERBOT_GOODS_BONUS_GOODS
+					: PLAYERBOT_GOODS_BONUS_ONE_WEAK;
+		return PLAYERBOT_GOODS_BONUS_NONE;
+	}
+
 	// Iwakura's bonus multipliers - the rows per slot and line, and the tiers
 	// of a weapon's two damage lines - are generated into
 	// playerbot_price_tables.h from his sheet, each row checked against
@@ -594,6 +727,13 @@ namespace
 		if (atTop)
 			*atTop = false;
 		if (!item || type == 0 || value <= 0)
+			return 100;
+		// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: a weapon's ignored line (not
+		// Intelligence, not "Silny przeciwko" at 20+, on a weapon that is no
+		// exception) asks nothing and is at no top - for the price, the
+		// premium of lines at their top and the shop sign alike.
+		if (slot == PRICE_SLOT_WEAPON &&
+				!IsPlayerBotGoodsLineCounted(item, IsPlayerBotOutrightBonusWeapon(item), type, value))
 			return 100;
 		if (slot == PRICE_SLOT_WEAPON && type == APPLY_NORMAL_HIT_DAMAGE_BONUS)
 		{
@@ -801,12 +941,23 @@ namespace
 	}
 
 	// The ordinary lines (the first five slots) that carry a bonus.
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: on a weapon only the lines the goods
+	// rule counts (IsPlayerBotGoodsLineCounted) - an ignored line adds no yang.
 	int CountPlayerBotBonusCountLines(LPITEM item)
 	{
 		int lines = 0;
+		const bool weapon = item && item->GetType() == ITEM_WEAPON;
+		const bool outright = weapon && IsPlayerBotOutrightBonusWeapon(item);
 		for (int i = 0; item && i < playerbot_price_rules::BONUS_COUNT_MAX_LINES && i < ITEM_ATTRIBUTE_MAX_NUM; ++i)
-			if (item->GetAttributeType(i) != 0 && item->GetAttributeValue(i) != 0)
-				++lines;
+		{
+			const BYTE type = item->GetAttributeType(i);
+			const long value = item->GetAttributeValue(i);
+			if (type == 0 || value == 0)
+				continue;
+			if (weapon && !IsPlayerBotGoodsLineCounted(item, outright, type, value))
+				continue;
+			++lines;
+		}
 		return lines;
 	}
 
@@ -842,11 +993,60 @@ namespace
 		const int plus = GetPlayerBotBonusPlusLevel(item);
 		if (plus >= PLAYERBOT_MARKET_V3_BONUS_GOODS_PLUS && plus > (int)item->GetRefineLevel())
 			return true;
-		// MT2009_PLUS_BONUS_COUNT_PRICE_V1: and, while the owner's bonus-count
-		// prices hold, every piece its lines add yang to - a bracelet of two
-		// weak lines included: the counter's goods, never the merchant's or
-		// the storekeeper's.
-		return GetPlayerBotBonusCountAddon(item) > 0;
+		// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: and a weapon or an armour piece
+		// the owner's rule of 16 October calls valuable (GetPlayerBotGoodsBonusClass):
+		// two counted lines or more, one valuable line, or a weapon of four
+		// lines, an average or a skill line. Asked whatever the Moonlight
+		// clock says - the owner's rule has no such condition; the price
+		// list then prices it (the bonus-count add-on while it is on). Before,
+		// every piece the add-on priced was goods - one weak line included -
+		// and a weapon's every line counted.
+		return GetPlayerBotGoodsBonusClass(item) == PLAYERBOT_GOODS_BONUS_GOODS;
+	}
+
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: a weapon or an armour piece +0..+6
+	// (+0..+4 over level 41, GetPlayerBotGoodsScrapMaxPlus) of exactly one counted line that is not valuable (GetPlayerBotGoodsBonusClass)
+	// - scrap, the merchant's or the Alchemist's at 35+, whether or not the
+	// bot's counter has room. Never a level-30 weapon, a Stalki, a prize piece
+	// or one its lines price as a +7: those keep their own rules. What the
+	// junk rule keeps of it for the bot itself is IsPlayerBotOneWeakBonusScrap
+	// (playerbot_economy.h).
+	// The highest plus the merchant may have such a piece at: +6 up to level
+	// 41, +4 over it (PLAYERBOT_GOODS_SCRAP_HIGH_LEVEL) - for the bag's scrap,
+	// the counter's weak-bonus take-off and the unsold take-off alike.
+	int GetPlayerBotGoodsScrapMaxPlus(LPITEM item)
+	{
+		return item && (int)item->GetLevelLimit() > PLAYERBOT_GOODS_SCRAP_HIGH_LEVEL
+				? PLAYERBOT_GOODS_SCRAP_HIGH_MAX_PLUS : PLAYERBOT_GOODS_SCRAP_MAX_PLUS;
+	}
+
+	bool IsPlayerBotOneWeakBonusPiece(LPITEM item)
+	{
+		if (!item || !IsPlayerBotGoodsGearPiece(item) ||
+				(int)item->GetRefineLevel() > GetPlayerBotGoodsScrapMaxPlus(item) ||
+				IsPlayerBotSpecialLevel30Weapon(item) || IsPlayerBotStalkiItem(item) || IsPlayerBotPrizeItem(item))
+			return false;
+		if (GetPlayerBotGoodsBonusClass(item) != PLAYERBOT_GOODS_BONUS_ONE_WEAK)
+			return false;
+		return GetPlayerBotPricedPlus(item) < PLAYERBOT_MARKET_V3_BONUS_GOODS_PLUS;
+	}
+
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (the owner, 16 October: "Wiadomo gdy
+	// po czasie sie nie sprzedadza - niech ida do sprzedania u handlarki"):
+	// the bonus goods a bot's counter takes home unsold after
+	// PLAYERBOT_GOODS_UNSOLD_HOURS (BotOfflineStaleBonusGoodsLine) for the
+	// merchant: a weapon or an armour piece +0..+6 (+0..+4 over level 41) that is goods by the rule
+	// above, and not a +7 by its lines or its average, a prize piece, a
+	// level-30 weapon or a Stalki - those are the market's high goods and keep
+	// their counter. Books, materials and stones are no gear and never asked.
+	bool IsPlayerBotUnsoldBonusGoodsKind(LPITEM item)
+	{
+		if (!item || !IsPlayerBotGoodsGearPiece(item) ||
+				(int)item->GetRefineLevel() > GetPlayerBotGoodsScrapMaxPlus(item) ||
+				IsPlayerBotSpecialLevel30Weapon(item) || IsPlayerBotStalkiItem(item) || IsPlayerBotPrizeItem(item) ||
+				GetPlayerBotPricedPlus(item) >= PLAYERBOT_MARKET_V3_BONUS_GOODS_PLUS)
+			return false;
+		return GetPlayerBotGoodsBonusClass(item) == PLAYERBOT_GOODS_BONUS_GOODS;
 	}
 
 	int ScorePlayerBotItemBonuses(LPCHARACTER ch, LPITEM item, BYTE wearCell)
@@ -1879,6 +2079,109 @@ namespace
 		return marble != NULL;
 	}
 
+	// MT2009_PLUS_BOT_DUST_BONUS_V1 (the owner, 16 October): the dust makes
+	// the two ordinary stones too, "magicznie" like the marble and for bots
+	// only - a hundred a Zaczarowanie Przedmiotu, two hundred a Wzmocnienie
+	// Przedmiotu - and only a stone the bonus pass would spend now: the bag
+	// holds no ordinary stone of the kind, and with one added the pass's own
+	// choice (StepFor, RestOpen read with that bag) puts it on one of the
+	// bot's own pieces - worn, or held for its slot; never goods for sale,
+	// which take the stones' surplus only. Nothing is made to be held. Not a
+	// companion: its bag is its owner's.
+	bool PlayerBotWouldSpendDustStone(LPCHARACTER ch, bool add)
+	{
+		if (!ch || !ch->IsItemLoaded() || IsPlayerBotSidekickPID(ch->GetPlayerID()))
+			return false;
+		TPlayerBotBonusBag bag;
+		ReadPlayerBotBonusBag(ch, bag);
+		if (add ? bag.plainAdd >= 0 : bag.plainChange >= 0)
+			return false;
+		std::vector<TPlayerBotBonusTarget> targets;
+		CollectPlayerBotBonusTargets(ch, targets);
+		if (targets.empty())
+			return false;
+		playerbot_bonus_rules::TBag kinds = GetPlayerBotBonusBagKinds(bag);
+		if (add)
+			kinds.plainAdd = true;
+		else
+			kinds.plainChange = true;
+		const playerbot_bonus_rules::TLimits limits = GetPlayerBotBonusLimits();
+		std::vector<playerbot_bonus_rules::TPiece> pieces;
+		pieces.reserve(targets.size());
+		for (size_t i = 0; i < targets.size(); ++i)
+			pieces.push_back(BuildPlayerBotBonusPiece(ch, targets[i]));
+		const unsigned restOpen = playerbot_bonus_rules::RestOpen(&pieces[0], (int)pieces.size(), kinds, limits);
+		const playerbot_bonus_rules::EStep want = add ? playerbot_bonus_rules::STEP_ADD
+				: playerbot_bonus_rules::STEP_CHANGE;
+		for (size_t i = 0; i < pieces.size(); ++i)
+		{
+			if (pieces[i].goods)
+				continue;
+			const playerbot_bonus_rules::TStepChoice c =
+					playerbot_bonus_rules::StepFor(pieces[i], kinds, limits, restOpen, false);
+			if (c.step == want && c.stone == playerbot_bonus_rules::STONE_PLAIN)
+				return true;
+		}
+		return false;
+	}
+
+	// The dust the bot keeps back for what it will make of it: the marble's
+	// hundred while a worn piece waits for its fifth line, two hundred for an
+	// add while one of its pieces is short of four lines, a hundred for a
+	// change while one wants a reroll. The counter gets only the dust over it
+	// (GetPlayerBotStallBaseKeep).
+	int GetPlayerBotDustBonusKeep(LPCHARACTER ch)
+	{
+		if (!ch || !ch->IsItemLoaded())
+			return 0;
+		int keep = PlayerBotWantsBlessingMarble(ch) ? PLAYERBOT_DUST_PER_MARBLE : 0;
+		if (PlayerBotWouldSpendDustStone(ch, true))
+			keep += PLAYERBOT_DUST_PER_ADD;
+		if (PlayerBotWouldSpendDustStone(ch, false))
+			keep += PLAYERBOT_DUST_PER_CHANGE;
+		return keep;
+	}
+
+	// One stone a pass, in the owner's order: the marble first
+	// (ManagePlayerBotDustMarble, asked before this - while a piece waits for
+	// its fifth line the dust is saved for the marble), then the add - saved
+	// up for while a piece is short of a line, no change made of that dust
+	// meanwhile - then the change.
+	bool ManagePlayerBotDustBonusStones(LPCHARACTER ch)
+	{
+		if (!ch || !ch->IsItemLoaded())
+			return false;
+		const int dust = (int)ch->CountSpecifyItem(PLAYERBOT_MAGIC_DUST_VNUM);
+		if (dust < std::min(PLAYERBOT_DUST_PER_ADD, PLAYERBOT_DUST_PER_CHANGE) || ch->GetEmptyInventory(1) < 0 ||
+				PlayerBotWantsBlessingMarble(ch))
+			return false;
+		DWORD vnum = 0;
+		int cost = 0;
+		const char* what = "";
+		if (PlayerBotWouldSpendDustStone(ch, true))
+		{
+			vnum = PLAYERBOT_BONUS_ADD_VNUM;
+			cost = PLAYERBOT_DUST_PER_ADD;
+			what = "an add stone";
+		}
+		else if (PlayerBotWouldSpendDustStone(ch, false))
+		{
+			vnum = PLAYERBOT_BONUS_CHANGE_VNUM;
+			cost = PLAYERBOT_DUST_PER_CHANGE;
+			what = "a change stone";
+		}
+		if (!vnum || dust < cost)
+			return false;
+		ch->RemoveSpecifyItem(PLAYERBOT_MAGIC_DUST_VNUM, cost);
+		LPITEM stone = ch->AutoGiveItem(vnum, 1, -1, false);
+		if (stone)
+			LogManager::instance().ItemLog(ch, stone, "PLAYERBOT_DUST_BONUS", stone->GetName());
+		sys_log(0, "PLAYERBOT_BONUS: dust into %s pid=%u name=%s vnum=%u dust=%d dust_left=%d ok=%d",
+				what, ch->GetPlayerID(), ch->GetName(), vnum, cost,
+				(int)ch->CountSpecifyItem(PLAYERBOT_MAGIC_DUST_VNUM), stone ? 1 : 0);
+		return stone != NULL;
+	}
+
 	// The refiners' exchange (Iwakura): with the market flooded by a refine
 	// material - over PLAYERBOT_EXCHANGE_FLOOD_UNITS on the stands at no more
 	// than PLAYERBOT_EXCHANGE_UNIT_PRICE_MAX a piece - a bot with a surplus of
@@ -2013,8 +2316,7 @@ namespace
 				(long long)ch->GetGold() > GetPlayerBotExchangeFee() * 2;
 	}
 
-	// =========================================================================
-	// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V2 (Autor: YmirWork / Krystian):
+		// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V2 (Autor: YmirWork / Krystian):
 	// Dynamic simulation of turning excess M1/M2/plus upgrade materials into tradeable adds / changes
 	// (71285 / 71284). Base: 50 units for common, 25 units for rare materials.
 	// Required units scale down dynamically based on market oversupply (down to 25 common / 12 rare).
@@ -2291,7 +2593,10 @@ namespace
 		if (!ch || !ch->IsItemLoaded() || dwNow < state.dwNextBonusCheckTime)
 			return false;
 		state.dwNextBonusCheckTime = dwNow + PLAYERBOT_BONUS_INTERVAL;
-		ManagePlayerBotDustMarble(ch);
+		// MT2009_PLUS_BOT_DUST_BONUS_V1: the marble first, else an add or a
+		// change stone the pass below spends at once.
+		if (!ManagePlayerBotDustMarble(ch))
+			ManagePlayerBotDustBonusStones(ch);
 		ManagePlayerBotRefinerExchange(ch);
 		ManagePlayerBotLiquidationM1M2(ch);
 		// Nothing to spend, nothing to weigh: the pass below scores every line

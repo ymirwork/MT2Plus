@@ -1015,7 +1015,24 @@ namespace
 	// for it (PLAYERBOT_SOUL_STONE_WEAK_*). mt2009 only: r40250 has no
 	// Alchemist to take one.
 	const int PLAYERBOT_SOUL_STONE_DUST_MAX_GRADE = 2;
-	const int PLAYERBOT_SOUL_STONE_MARKET_PERCENT = 15;
+	// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: the 85/15 above was drawn by
+	// item id, so once per stack: a new drop merges into a stack and takes its
+	// fate, the "dust" stacks went to the Alchemist and the "market" ones grew
+	// for good - the counter shows three of a vnum, the rest never left the
+	// bag (the owner, 15 October: 9 804 "market" stacks of 40 261 stones in
+	// the bags, 96% instead of 15%, against 1 048 stacks of 1 723 "dust";
+	// 69 exchanges in 450 walks to the Alchemist in 18-19 h; 414 bots at 140+
+	// of 180 cells). Now every bot keeps this many of each stone (vnum: the
+	// grade and the kind, what PLAYERBOT_SHOP_SAME_VNUM_LINES caps a counter
+	// at) for its counter, and the rest goes to the Alchemist, a stack cut if
+	// it has to be. What stands on a counter already stays there.
+	const int PLAYERBOT_SOUL_STONE_STALL_KEEP = 3;
+	// MT2009_PLUS_BOT_SOULSTONE_STALL_KEEP3_V1: Magiczny Pyl over this many in
+	// the bag is counter goods at PLAYERBOT_SHOP_MAGIC_DUST_SURPLUS_SCORE, not
+	// the 400 that lost every counter's space to everything else (222 bots
+	// with 200+ each, 66k together, 48 on counters).
+	const int PLAYERBOT_MAGIC_DUST_SURPLUS_COUNT = 200;
+	const int PLAYERBOT_SHOP_MAGIC_DUST_SURPLUS_SCORE = 800;
 	const DWORD PLAYERBOT_MAGIC_DUST_VNUM = 30360;
 	// MT2009_PLUS_HEAVEN_OIL_V1 (Autor: Digi Rasta, v0.17): Olejek Niebios, the soul
 	// stone steps' second ingredient (= mt2009_awakening::HEAVEN_OIL_VNUM).
@@ -3171,7 +3188,9 @@ namespace
 	// priced by level and kind, and the estimate for any other unpriced piece of 30+.
 	// 26: MT2009_PLUS_NS_WIKI_ITEMS_V1 - the wiki families (Cyjanitowe weapons, Turmalin jewellery,
 	// Ogniste Buty, Buty Oceanu) and their 16 materials (wiki_nowe.sql; Autor: Digi Rasta).
-	const DWORD PLAYERBOT_PRICE_TABLE_VERSION = 26;
+	// 27: MT2009_PLUS_BOT_HERB_SURPLUS_V1 - Jaskiniowy Grzyb (50736) at 19 000 like the other four
+	// late herbs; herbs go up in lines of 200.
+	const DWORD PLAYERBOT_PRICE_TABLE_VERSION = 27;
 	// Community patch 2, point 8: inflation. Every PLAYERBOT_INFLATION_STEP_YANG
 	// the world's characters hold between them lifts every price his sheet sets
 	// by PLAYERBOT_INFLATION_STEP_PERCENT, on top of the yang-rate curve and in
@@ -3405,6 +3424,50 @@ namespace
 	const int PLAYERBOT_BONUS_GOODS_SELLER_PERCENT = 20;
 	const int PLAYERBOT_BONUS_GOODS_MIN_LEVEL = 30;
 	const int PLAYERBOT_BONUS_GOODS_MIN_PLUS = 6;
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (playerbot_bonus.h,
+	// GetPlayerBotGoodsBonusClass): a weapon or an armour piece of this many
+	// counted lines or more is counter goods; one of exactly one line that is
+	// not valuable, up to PLAYERBOT_GOODS_SCRAP_MAX_PLUS, is scrap whether or
+	// not the counter has room (it replaces MT2009_PLUS_BOT_WEAK_BONUS_SCRAP_V1
+	// and its "own counter full" test). On a weapon only Intelligence and
+	// "Silny przeciwko ..." at PLAYERBOT_GOODS_WEAPON_STRONG_MIN or more count,
+	// unless it carries PLAYERBOT_GOODS_WEAPON_OUTRIGHT_LINES lines, an
+	// average or a skill line. No market cap: what the other counters hold is
+	// never asked (the owner: "nie limituj rynku").
+	const int PLAYERBOT_GOODS_BONUS_MIN_LINES = 2;
+	const int PLAYERBOT_GOODS_SCRAP_MAX_PLUS = 6;
+	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (the owner, 16 October: "przedmioty
+	// powyzej 41 lvl to niech do +4 beda sprzedawane u handlarki, powyzej +5 to
+	// juz nie"): a piece whose level limit is over PLAYERBOT_GOODS_SCRAP_HIGH_LEVEL
+	// is scrap, and comes off a counter unsold, only up to
+	// PLAYERBOT_GOODS_SCRAP_HIGH_MAX_PLUS; at +5 and +6 it stays on the counter
+	// (GetPlayerBotGoodsScrapMaxPlus). Level 41 and under keeps +0..+6.
+	const int PLAYERBOT_GOODS_SCRAP_HIGH_LEVEL = 41;
+	const int PLAYERBOT_GOODS_SCRAP_HIGH_MAX_PLUS = 4;
+	const long PLAYERBOT_GOODS_WEAPON_STRONG_MIN = 20;
+	const int PLAYERBOT_GOODS_WEAPON_OUTRIGHT_LINES = 4;
+	// Bonus goods of that rule (IsPlayerBotUnsoldBonusGoodsKind) unsold on a
+	// bot's counter this many hours from their listing come home, one line a
+	// visit, for the merchant (the owner, 16 October: "gdy po czasie sie nie
+	// sprzedadza - niech ida do sprzedania u handlarki"). Twice the markdown's
+	// twelve hours to its forty percent: a whole day at the lowest price.
+	// The bag holds such a piece for the merchant PLAYERBOT_GOODS_UNSOLD_HOLD_MS.
+	const int PLAYERBOT_GOODS_UNSOLD_HOURS = 24;
+	const DWORD PLAYERBOT_GOODS_UNSOLD_MS = (DWORD)PLAYERBOT_GOODS_UNSOLD_HOURS * 60 * 60 * 1000;
+	const DWORD PLAYERBOT_GOODS_UNSOLD_HOLD_MS = 48 * 60 * 60 * 1000;
+	// MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1 (the owner, 16 October: "niech
+	// zdejmuja nawet kilka o ile nie maja miejsca w sklepie, jak maja miejsce w
+	// sklepie to niech sciagaja po 1"): the lines of one weak counted bonus
+	// already on a bot's counter (IsPlayerBotOneWeakBonusPiece) come home for
+	// the merchant - one a visit while the counter has room, and up to
+	// PLAYERBOT_STALL_WEAK_TAKEOFF_BURST in chained steps of a visit while it
+	// has fewer than PLAYERBOT_STALL_WEAK_TAKEOFF_FULL_CELLS free cells, each
+	// only while the bag keeps PLAYERBOT_STALL_WEAK_TAKEOFF_BAG_KEEP cells free
+	// besides the piece.
+	const int PLAYERBOT_STALL_WEAK_TAKEOFF_BURST = 8;
+	const int PLAYERBOT_STALL_WEAK_TAKEOFF_FULL_CELLS = 4;
+	const int PLAYERBOT_STALL_WEAK_TAKEOFF_BAG_KEEP = 3;
+	const DWORD PLAYERBOT_STALL_WEAK_TAKEOFF_STEP_MS = 2000;
 	const int PLAYERBOT_BONUS_GOODS_PIECES = 2;
 	const int PLAYERBOT_BONUS_GOODS_STONE_RESERVE = 10;
 	// Point 10: a line worth keeping for itself is never mixed off by an
@@ -3439,6 +3502,16 @@ namespace
 	// Point 11: a hundred of the Alchemist's dust make a Marmur Blogoslawienstwa.
 	const int PLAYERBOT_DUST_PER_MARBLE = 100;
 	const DWORD PLAYERBOT_BLESSING_MARBLE_VNUM = 70024;
+	// MT2009_PLUS_BOT_DUST_BONUS_V1 (the owner, 16 October): and, the same
+	// way - "magicznie", bots only - a hundred make a Zaczarowanie Przedmiotu
+	// (71084, PLAYERBOT_BONUS_CHANGE_VNUM) and two hundred a Wzmocnienie
+	// Przedmiotu (71085, PLAYERBOT_BONUS_ADD_VNUM), only when the bonus pass
+	// would spend that stone now (ManagePlayerBotDustBonusStones).
+	const int PLAYERBOT_DUST_PER_CHANGE = 100;
+	const int PLAYERBOT_DUST_PER_ADD = 200;
+	// The dust over what the bot keeps for those (GetPlayerBotDustBonusKeep)
+	// that makes it counter goods at PLAYERBOT_SHOP_MAGIC_DUST_SURPLUS_SCORE.
+	const int PLAYERBOT_MAGIC_DUST_SURPLUS_SPARE = 100;
 	// Point 10: how often a Metinolog with no stone in view uses its detector.
 	const DWORD PLAYERBOT_METIN_DETECTOR_GAP_MS = 60000;
 	// Pricing. The prior counts as this many sales when the market's median is
@@ -5715,6 +5788,14 @@ namespace
 	// snap stays inside the radius that tests arrival.
 	const int PLAYERBOT_FISHING_TACKLE_ARRIVE = 400;
 	const int PLAYERBOT_FISHING_TACKLE_SNAP_CELLS = 4;
+	// MT2009_PLUS_BOT_NAV_RYBAK_REACH_V1: how far round the Rybak the bot's own
+	// ground is looked for when its approach lane is off the ground.
+	const int PLAYERBOT_FISHING_TACKLE_REACH_CELLS = 16;
+	// MT2009_PLUS_BOT_NAV_CHASE_SHORE_V1: how far from a foe standing off the
+	// bot's ground its own ground is looked for (cells of 50), and how close
+	// to that point is close enough to wait there.
+	const int PLAYERBOT_NAV_CHASE_SHORE_CELLS = 24;
+	const int PLAYERBOT_NAV_CHASE_SHORE_ARRIVE = 100;
 	// Independently planned route failures before the bank is written off. Six
 	// matches the town-service rescue; anything larger is indistinguishable from
 	// never giving up at all.
@@ -6361,11 +6442,9 @@ namespace
 	// His shop, bought the way the fishing pass and the Forgetting Scroll are:
 	// the counter is a quest window a bot cannot open, so the bottle is created
 	// for the price the shop asks (world.shop_special, shop 14).
-	// What a bot keeps of each herb for its own board before the rest goes on a
-	// counter. A row takes five to fifteen of one herb, so this is a few
-	// crafts' worth and no more: the bags hold tens of thousands of the two
-	// common ones and the counters are where a player buys the rest.
-	const int PLAYERBOT_HERBALISM_HERB_KEEP = 20;
+	// What a bot keeps of each herb for its own board: GetPlayerBotHerbKeep
+	// (MT2009_PLUS_BOT_HERB_SURPLUS_V1, below) - it was a flat twenty, sixty
+	// for a gatherer, for the counter alone.
 	const DWORD PLAYERBOT_HERBALISM_BOTTLE_M = 50901;
 	const DWORD PLAYERBOT_HERBALISM_BOTTLE_S = 50902;
 	const DWORD PLAYERBOT_HERBALISM_BOTTLE_D = 50903;
@@ -6383,6 +6462,42 @@ namespace
 	const DWORD PLAYERBOT_HERBALISM_VISIT_MIN_MS = 20 * 60 * 1000;
 	const DWORD PLAYERBOT_HERBALISM_VISIT_MAX_MS = 35 * 60 * 1000;
 	const DWORD PLAYERBOT_HERBALISM_CRAFTS_PER_VISIT = 3;
+	// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the herbs a bot does not need leave the
+	// bag ("boty trzymaja w eq bardzo duzo ziol. Jesli ich nie potrzebuja -
+	// niech odloza do dozorcy albo niech wystawia na sprzedaz po 200 sztuk w
+	// stosie", the owner, 16 October). The supporters' world that day: 20 011
+	// herb stacks of 1 299 326 herbs in 2 106 bot bags (9.5 cells a bag that
+	// holds any, up to 27; 1 681 of the bags a gatherer's with 17 531 of the
+	// cells), 985 stacks in the boxes, 5 613 counter lines (64 of them 200).
+	// The counter took two lines of a heap a kind, mostly of fifty, and every
+	// bush picked since stayed in the bag as pickup goods.
+	//   * The keep (GetPlayerBotHerbKeep): what the rows of Baek-Go's board the
+	//     bot knows ask of the herb - the largest row's count, times
+	//     PLAYERBOT_HERB_SURPLUS_KEEP_BREWS brews (a gatherer, who brews six a
+	//     visit, PLAYERBOT_HERB_SURPLUS_GATHERER_BREWS); a row takes five to
+	//     fifteen of a herb, so 10..30 (15..45) of a herb its rows use, one
+	//     cell, and nothing of one they do not. A bot that does not brew
+	//     (not a Zielarz) keeps none; one of fifteen that has not been through
+	//     the onboarding keeps its ten Peach Blossoms.
+	//   * Over the keep the counter takes lines of exactly
+	//     PLAYERBOT_HERB_SURPLUS_LINE_UNITS (the stack's own two hundred),
+	//     PLAYERBOT_HERB_SURPLUS_STALL_LINES a kind, at the price list's unit
+	//     price times the count, as every heap.
+	//   * The rest - under two hundred, or with no line free on the counter,
+	//     or no counter - goes to the storekeeper's box on the next visit, the
+	//     box's own stacks topped up first; a visit is asked for once it frees
+	//     PLAYERBOT_HERB_SURPLUS_DEPOSIT_CELLS bag cells (one under pressure).
+	//     The bag holds at most PLAYERBOT_HERB_SURPLUS_BAG_LINES full stacks
+	//     waiting for the counter, and the box gives a full stack back for a
+	//     free line, or what the keep is short of to a brewer.
+	const int PLAYERBOT_HERB_SURPLUS_KEEP_BREWS = 2;
+	const int PLAYERBOT_HERB_SURPLUS_GATHERER_BREWS = 3;
+	const int PLAYERBOT_HERB_SURPLUS_LINE_UNITS = 200;
+	const int PLAYERBOT_HERB_SURPLUS_STALL_LINES = 2;
+	const int PLAYERBOT_HERB_SURPLUS_STALL_FREE_CELLS = 4;
+	const int PLAYERBOT_HERB_SURPLUS_BAG_LINES = 4;
+	const int PLAYERBOT_HERB_SURPLUS_DEPOSIT_CELLS = 3;
+	const DWORD PLAYERBOT_HERB_SURPLUS_KEEP_CACHE_MS = 60 * 1000;
 	// What a bot keeps for itself before a line goes on the counter. A buff
 	// lasts ten minutes and a boss is rarer than that, so a few of each is
 	// plenty and the rest is what players have never been able to buy.
@@ -7752,6 +7867,9 @@ namespace
 	const int PLAYERBOT_CLEAR_STOCK_BOOKS = 12;
 	const int PLAYERBOT_CLEAR_STOCK_SASHES = 2;
 	const DWORD PLAYERBOT_CLEAR_STOCK_SERVICE_MS = 15 * 60 * 1000;
+	// MT2009_PLUS_BOT_NAV_SHOP_LOOP_V1: no clear-stock call for this long after
+	// a visit it called put none of that stock up.
+	const DWORD PLAYERBOT_OFFLINE_CLEAR_STOCK_HOLD_MS = 3 * 60 * 60 * 1000;
 	// Lines of one skill another build's books take on a counter with
 	// PLAYERBOT_SHOP_BOOK_FREE_CELLS free cells or fewer (three before: 36
 	// skills of other builds, ten and more books of each in a dropper's bag).

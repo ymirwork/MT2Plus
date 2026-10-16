@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateRange(30, 600)]
     [int]$DockerTimeoutSeconds = 180,
@@ -143,7 +143,34 @@ function Start-M2Updater {
     try {
         $ErrorActionPreference = 'Continue'
         $running = "$(& docker inspect -f '{{.State.Running}}' "$prefix-updater" 2>$null)".Trim()
-        if ($running -eq 'true' -and -not $Force) { return $true }
+        # MT2009_PLUS_UPDATER_REFRESH_V1: a running updater was always left as
+        # it was - with the folder and the files it was created with. One made
+        # for another server folder (installed again elsewhere, a copy) kept
+        # reading that folder's env_schema.py and .env, and the panel's .env
+        # page refused new keys as "nieznana zmienna" (M2_SHOP_BIG, 15 October).
+        # It is recreated when it serves another folder, and once after every
+        # update of this one (VERSION differs from .updater-version).
+        $foreign = $false
+        $versionPath = Join-Path $ServerRoot 'VERSION'
+        $stampPath = Join-Path $ServerRoot '.updater-version'
+        $version = if (Test-Path -LiteralPath $versionPath -PathType Leaf) { ([IO.File]::ReadAllText($versionPath)).Trim() } else { '' }
+        if ($running -eq 'true' -and -not $Force) {
+            $containerEnv = @(& docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$prefix-updater" 2>$null)
+            $stackLine = @($containerEnv | Where-Object { "$_" -like 'M2_UPDATE_STACK_DIR=*' } | Select-Object -First 1)
+            $currentStack = if ($stackLine.Count -gt 0) { ("$($stackLine[0])".Substring('M2_UPDATE_STACK_DIR='.Length)).Trim().TrimEnd('/') } else { '' }
+            $ours = @(Get-M2EngineHostPaths $ServerRoot)
+            $stamp = if (Test-Path -LiteralPath $stampPath -PathType Leaf) { ([IO.File]::ReadAllText($stampPath)).Trim() } else { '' }
+            if ($currentStack -and -not ($ours | Where-Object { $_ -ieq $currentStack })) {
+                Write-Host "Aktualizator dziala dla innego folderu ($currentStack) - uruchamiam go ponownie dla tego serwera." -ForegroundColor Yellow
+                $foreign = $true
+                $Force = $true
+            }
+            elseif ($version -and $stamp -ne $version) {
+                Write-Host "Aktualizator: serwer ma nowa wersje ($version) - uruchamiam aktualizator ponownie z nowymi plikami." -ForegroundColor DarkGray
+                $Force = $true
+            }
+            else { return $true }
+        }
         Push-Location $ComposeDirectory
         try {
             & docker compose --profile update build updater 2>&1 | ForEach-Object { Write-Verbose "$_" }
@@ -166,8 +193,11 @@ function Start-M2Updater {
             $env:M2_UPDATE_REPO_DIR = "$stack/.update-cache/repo"
             # On Windows the launcher installs updates; the container only saves settings.
             $env:M2_UPDATE_WATCH_UPDATES = '0'
+            # Another folder's container (maybe another compose project under
+            # the same name, which compose would refuse) goes first.
+            if ($foreign) { & docker rm -f "$prefix-updater" 2>&1 | ForEach-Object { Write-Verbose "$_" } }
             $upArgs = @('compose', '--profile', 'update', 'up', '-d', '--no-deps')
-            if ($Force) { $upArgs += '--force-recreate' }
+            if ($Force -and -not $foreign) { $upArgs += '--force-recreate' }
             $upArgs += 'updater'
             & docker @upArgs 2>&1 | ForEach-Object { Write-Verbose "$_" }
             if ($LASTEXITCODE -ne 0) {
@@ -175,6 +205,8 @@ function Start-M2Updater {
                 return $false
             }
             Write-Host "Aktualizator uruchomiony ($stack) - panel zaawansowany moze zapisywac Ustawienia serwera (.env)." -ForegroundColor Green
+            # MT2009_PLUS_UPDATER_REFRESH_V1: the version it was made with.
+            if ($version) { try { [IO.File]::WriteAllText($stampPath, $version) } catch { } }
             return $true
         }
         finally {
@@ -659,8 +691,7 @@ function Get-DockerDesktopCandidates {
     foreach ($p in @(
             (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'),
             (Join-Path ${env:ProgramFiles(x86)} 'Docker\Docker\Docker Desktop.exe'),
-            (Join-Path $env:LOCALAPPDATA 'Docker\Docker Desktop.exe'),
-            (Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\Docker Desktop.exe'))) {
+            (Join-Path $env:LOCALAPPDATA 'Docker\Docker Desktop.exe'))) {
         if ($p) { $paths.Add($p) }
     }
     try {
@@ -668,8 +699,6 @@ function Get-DockerDesktopCandidates {
         if ($cli) {
             $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $cli))
             if ($root) { $paths.Add((Join-Path $root 'Docker Desktop.exe')) }
-            $root2 = Split-Path -Parent (Split-Path -Parent $cli)
-            if ($root2) { $paths.Add((Join-Path $root2 'Docker Desktop.exe')) }
         }
     }
     catch { }
@@ -1348,28 +1377,6 @@ if ((Test-Path -LiteralPath $overlaySource -PathType Container) -and
                "Paczka jest niekompletna - uruchom aktualizacje z launchera albo " +
                "rozpakuj archiwum serwera ponownie. Bez tego pliku playerbot-migrate " +
                "konczy sie bledem exit 1 przy kazdym starcie.")
-    }
-
-    # Custom overlay for seban-panel (preserving custom templates, inflation tooltips, retired-bots statistics)
-    $sebanOverlaySource = Join-Path $PSScriptRoot 'linux-port\overlays\seban-panel'
-    $sebanPanelTarget = Join-Path $PSScriptRoot 'linux-port\docker\seban-panel'
-    if ((Test-Path -LiteralPath $sebanOverlaySource -PathType Container) -and (Test-Path -LiteralPath $sebanPanelTarget -PathType Container)) {
-        foreach ($file in Get-ChildItem -LiteralPath $sebanOverlaySource -Recurse -File) {
-            $relative = $file.FullName.Substring($sebanOverlaySource.Length).TrimStart('\')
-            $targetPath = Join-Path $sebanPanelTarget $relative
-            $targetParent = Split-Path -Parent $targetPath
-            if (-not (Test-Path -LiteralPath $targetParent -PathType Container)) {
-                New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
-            }
-            $targetHash = $null
-            if (Test-Path -LiteralPath $targetPath -PathType Leaf) {
-                $targetHash = (Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash
-            }
-            if ($targetHash -ne (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash) {
-                Copy-Item -LiteralPath $file.FullName -Destination $targetPath -Force
-                $syncedFiles++
-            }
-        }
     }
 
     if ($syncedFiles -gt 0) {

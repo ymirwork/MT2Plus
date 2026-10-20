@@ -388,5 +388,89 @@
   "marker": "MT2009_PLUS_EXCHANGE_DS_V1 (check)",
   "old": "\t\tif (item->GetCell() >= m_pOwner->GetInventoryMaxCount())\n\t\t{\n\t\t\tGetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Summon your horse to get access to horse inventory.\"));\n\t\t\treturn false;\n\t\t}\n",
   "new": "\t\t// MT2009_PLUS_EXCHANGE_DS_V1 (check) (server-patches/enginefixes): only an INVENTORY cell past the bag is the horse's\n\t\t// saddlebag - a Dragon Soul stone (its own window, cells far above the bag's) was refused with the saddlebag text.\n\t\tif (m_pOwner->IsHorseInventory(item->GetItemPos()) && item->GetCell() >= m_pOwner->GetInventoryMaxCount())\n\t\t{\n\t\t\tGetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Summon your horse to get access to horse inventory.\"));\n\t\t\treturn false;\n\t\t}\n"
+ },
+ {
+  "file": "char_player.h",
+  "marker": "MT2009_PLUS_HERB_BUSY_V1 (field)",
+  "old": "\tbool\tm_isBusyAction;\n",
+  "new": "\tbool\tm_isBusyAction;\n\t// MT2009_PLUS_HERB_BUSY_V1 (field) (server-patches/enginefixes): the type of the running\n\t// busy action (BUSY_ACTION_*), so a monster's hit can spare herb gathering.\n\tBYTE\tm_bBusyActionType;\n"
+ },
+ {
+  "file": "char_player.cpp",
+  "marker": "MT2009_PLUS_HERB_BUSY_V1 (init)",
+  "old": "\tm_isBusyAction = false;\n\tm_SpecialShopGuest = {};\n",
+  "new": "\tm_isBusyAction = false;\n\tm_bBusyActionType = 0; // MT2009_PLUS_HERB_BUSY_V1 (init)\n\tm_SpecialShopGuest = {};\n"
+ },
+ {
+  "file": "char_player.cpp",
+  "marker": "MT2009_PLUS_HERB_BUSY_V1 (set)",
+  "old": "\tm_isBusyAction = dwDuration > 0;\n",
+  "new": "\tm_isBusyAction = dwDuration > 0;\n\tm_bBusyActionType = dwDuration > 0 ? bActionType : 0; // MT2009_PLUS_HERB_BUSY_V1 (set)\n"
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_HERB_BUSY_V1 (hit)",
+  "old": "\tif (iRet == BATTLE_DAMAGE || iRet == BATTLE_DEAD)\n\t{\n\t\tif (pkVictim->IsBusyAction()) {\n",
+  "new": "\tif (iRet == BATTLE_DAMAGE || iRet == BATTLE_DEAD)\n\t{\n\t\t// MT2009_PLUS_HERB_BUSY_V1 (hit) (server-patches/enginefixes): a monster's hit no longer\n\t\t// interrupts herb gathering (a player's hit and a move still do).\n\t\tif (pkVictim->IsBusyAction() && (IsPC() ||\n\t\t\tpkVictim->playerData->m_bBusyActionType != BUSY_ACTION_HERB)) {\n"
+ },
+ {
+  "file": "battle.h",
+  "marker": "MT2009_PLUS_HERB_BUSY_V1 (stun)",
+  "old": "\tif (pkVictim && pkVictim->IsBusyAction())\n\t{\n\t\tpkVictim->playerData->SetBusyAction(pkVictim, 0); // interrupt on stun\n",
+  "new": "\t// MT2009_PLUS_HERB_BUSY_V1 (stun): a monster's stun spares herb gathering.\n\tif (pkVictim && pkVictim->IsBusyAction() && ((pkAttacker && pkAttacker->IsPC()) ||\n\t\tpkVictim->playerData->m_bBusyActionType != BUSY_ACTION_HERB))\n\t{\n\t\tpkVictim->playerData->SetBusyAction(pkVictim, 0); // interrupt on stun\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_TOOL_REFINE_POINTS_V1 (helper)",
+  "old": "void CInputMain::Refine(LPCHARACTER ch, const char* c_pData)\n{\n",
+  "new": "// MT2009_PLUS_TOOL_REFINE_POINTS_V1 (helper) (server-patches/enginefixes): a Herbalist's Knife or a\n// pickaxe refines only with its points gathered (socket0 >= value2) - the\n// check of ReceiveItem, missing on a resent packet and on the keep-open path.\nstatic bool RefineToolNotReady(LPITEM item)\n{\n\tif (!item)\n\t\treturn false;\n\tif (item->GetType() == ITEM_HERB_KNIFE || item->GetType() == ITEM_PICK)\n\t\treturn (DWORD) item->GetSocket(0) < (DWORD) item->GetValue(2);\n\treturn false;\n}\n\nvoid CInputMain::Refine(LPCHARACTER ch, const char* c_pData)\n{\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_TOOL_REFINE_POINTS_V1 (packet)",
+  "old": "\t\tch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"ITEM_PICKAXE_REFINE_ONLY_DEOKBAE\"));\n\t\tch->ClearRefineMode();\n\t\treturn;\n\t}\n",
+  "new": "\t\tch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"ITEM_PICKAXE_REFINE_ONLY_DEOKBAE\"));\n\t\tch->ClearRefineMode();\n\t\treturn;\n\t}\n\n\t// MT2009_PLUS_TOOL_REFINE_POINTS_V1 (packet): a tool without its points is not refined.\n\tif (RefineToolNotReady(item))\n\t{\n\t\tch->ClearRefineMode();\n\t\treturn;\n\t}\n"
+ },
+ {
+  "file": "input_main.cpp",
+  "marker": "MT2009_PLUS_TOOL_REFINE_POINTS_V1 (reopen)",
+  "old": "\t\t\t\tif (refineCh)\n\t\t\t\t{\n\t\t\t\t\tint distance = DISTANCE_APPROX(",
+  "new": "\t\t\t\t// MT2009_PLUS_TOOL_REFINE_POINTS_V1 (reopen): no new window for a tool without its points.\n\t\t\t\tif (refineCh && !RefineToolNotReady(refreshedItem))\n\t\t\t\t{\n\t\t\t\t\tint distance = DISTANCE_APPROX("
+ },
+ {
+  "file": "char_battle.cpp",
+  "marker": "MT2009_PLUS_WAR_KILL_QUEST_V1",
+  "old": "\t\t\telse\n\t\t\t{\n\t\t\t\tif (pkKiller->m_dwUnderGuildWarInfoMessageTime < get_dword_time())\n",
+  "new": "\t\t\telse\n\t\t\t{\n\t\t\t\t// MT2009_PLUS_WAR_KILL_QUEST_V1 (server-patches/enginefixes): a killer whose guild is at war gets\n\t\t\t\t// no experience and no drop, but the kill still counts for the quests (a dungeon's\n\t\t\t\t// \"Pozostalo\" counter, a hunting mission) - Reward() was skipped whole and a Metin or a\n\t\t\t\t// Phoenix Egg of Wukong's hill fell without its kill event. The companion's kill is its\n\t\t\t\t// owner's, as in Reward().\n\t\t\t\tpkKiller->SetQuestNPCID(GetVID());\n\t\t\t\tLPCHARACTER pkWarQuestKiller = CPlayerBotManager::instance().GetSidekickKillCredit(pkKiller, this);\n\t\t\t\tif (pkWarQuestKiller)\n\t\t\t\t\tpkWarQuestKiller->SetQuestNPCID(GetVID());\n\t\t\t\telse\n\t\t\t\t\tpkWarQuestKiller = pkKiller;\n\t\t\t\tquest::CQuestManager::instance().Kill(pkWarQuestKiller->GetPlayerID(), GetRaceNum());\n\n\t\t\t\tif (pkKiller->m_dwUnderGuildWarInfoMessageTime < get_dword_time())\n"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_IKASHOP_DS_V1 (helper)",
+  "old": "void MoveAndDestroyInstance(LPITEM item, BYTE window, WORD pos)\n{\n",
+  "new": "// MT2009_PLUS_IKASHOP_DS_V1 (helper) (server-patches/enginefixes): a Dragon Soul stone from an offline\n// shop goes to the Dragon Soul inventory (CanTakeInventoryItem), so the room asked for before a buy\n// or a take-back is there - HasSlotForItem only looks at the bag. A stone for someone without the\n// Dragon Soul inventory open (DragonSoul_IsQualified) finds no room.\ntemplate <typename TShopLine>\nstatic bool IkashopHasRoomFor(LPCHARACTER ch, const TShopLine& line)\n{\n\tconst TItemTable* proto = ITEM_MANAGER::instance().GetTable(line->GetVnum());\n\tif (!proto || proto->bType != ITEM_DS)\n\t\treturn ch->HasSlotForItem(line->GetVnum());\n\tif (!ch->DragonSoul_IsQualified())\n\t{\n\t\tch->ChatPacket(CHAT_TYPE_INFO, \"Najpierw odblokuj Smocza Alchemie - kamien trafia do jej okna.\");\n\t\treturn false;\n\t}\n\tLPITEM probe = line->CreateItem();\n\tif (!probe)\n\t\treturn false;\n\tTItemPos pos;\n\tconst bool room = ch->CanTakeInventoryItem(probe, &pos);\n\tprobe->SetSkipSave(true);\n\tM2_DESTROY_ITEM(probe);\n\treturn room;\n}\n\nvoid MoveAndDestroyInstance(LPITEM item, BYTE window, WORD pos)\n{\n"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_IKASHOP_DS_V1 (buy)",
+  "old": "\t\tif (!ch->HasSlotForItem(pitem->GetVnum()))\n",
+  "new": "\t\tif (!IkashopHasRoomFor(ch, pitem)) // MT2009_PLUS_IKASHOP_DS_V1 (buy): a stone's room is in the DS inventory\n"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_IKASHOP_DS_V1 (take back)",
+  "old": "\t\tif (!ch->HasSlotForItem(shopItem->GetVnum()))\n",
+  "new": "\t\tif (!IkashopHasRoomFor(ch, shopItem)) // MT2009_PLUS_IKASHOP_DS_V1 (take back)\n"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_BOT_SHOP_PAGES4_V1 (slot)",
+  "old": "\t\tif (!ch->CanAddItemToShop(item, destPos))\n\t\t\treturn false;\n",
+  "new": "\t\t// MT2009_PLUS_BOT_SHOP_PAGES4_V1 (slot): the premium and locked cells are the first page's; a cell past it\n\t\t// is asked as the first cell past it - CanAddItemToShop takes a BYTE, and a bot's fourth page (240-319) wrapped\n\t\tif (!ch->CanAddItemToShop(item, destPos < SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT ? destPos : SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT))\n\t\t\treturn false;\n"
+ },
+ {
+  "file": "ikarus_shop_manager.cpp",
+  "marker": "MT2009_PLUS_BOT_SHOP_PAGES4_V1 (person)",
+  "old": "\t\tbool spaceFree = false;\n\t\tif (secondPage)\n",
+  "new": "\t\t// MT2009_PLUS_BOT_SHOP_PAGES4_V1 (person): a bot's stand has playerbot_offline::BOT_SHOP_PAGES pages (four,\n\t\t// 320 cells); a person's never more than the two of the bigger shops switch\n\t\tif (destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * 2 && !(ch->GetDesc() && ch->GetDesc()->IsBot()))\n\t\t{\n\t\t\tch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"SHOP_ITEM_WRONG_POS\"));\n\t\t\treturn false;\n\t\t}\n\t\tbool spaceFree = false;\n\t\tif (secondPage)\n"
  }
 ]

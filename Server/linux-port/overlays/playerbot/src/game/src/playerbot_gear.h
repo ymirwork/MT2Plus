@@ -396,10 +396,83 @@ namespace
 		return level;
 	}
 
+	// MT2009_PLUS_BOT_LAW_GEAR_V1: the Law of Advancement (playerbot_persona_rules.h,
+	// AwansGaps) used to only check the gear and hold the exp lock; the
+	// equipment pass, the counters and the anvil weighed by points and never
+	// heard what the law was missing. On the supporters' server, 20 October:
+	// of 1325 bots of 35-55 under the exp lock (affect 310) 1090 failed the
+	// helmet - 481 wore one under the law's level (355 of level 0, 126 of
+	// 21) and 609 one of the level at under +6; 196 had a helmet of the level
+	// in the bag, mostly +4. A lv0 +7 helmet scores about as a lv21 +4, so the
+	// swap "did not pay" while the law asked for the helmet of the level.
+	//
+	// The plus the law asks of this slot at this bot's level - one more for a
+	// bot that went back to grinding after its deaths (bLockPinned), so it
+	// does not advance again on the gear it died in - or zero when the law
+	// asks nothing of it.
+	const int PLAYERBOT_LAW_SWAP_PLUS_DROP = 4;
+
+	BYTE GetPlayerBotLawPlusForSlot(LPCHARACTER ch, int wearCell)
+	{
+		if (!ch || !IsPlayerBotPersonaEnabled())
+			return 0;
+		const playerbot_persona::TLawRow law = playerbot_persona::AwansLawFor((uint8_t)std::min<int>(255, ch->GetLevel()));
+		BYTE plus = wearCell == WEAR_WEAPON ? law.weapon : wearCell == WEAR_BODY ? law.armour :
+				wearCell == WEAR_SHIELD ? law.shield : wearCell == WEAR_HEAD ? law.helmet : 0;
+		if (plus == 0)
+			return 0;
+		TPlayerBotAIStateMap::const_iterator st = s_mapPlayerBotAIStates.find(ch->GetPlayerID());
+		if (st != s_mapPlayerBotAIStates.end() && st->second.persona.bLockPinned && !st->second.persona.bAdvanced)
+			plus = std::min<BYTE>(9, plus + 1);
+		return plus;
+	}
+
+	// A body armour or a helmet under the law's level window (IsPieceCurrent):
+	// whatever its plus, it never meets the law. Such a piece is outdated
+	// (IsPlayerBotOutdatedGear), so the equipment pass puts on the piece of
+	// the level from the bag and the counters sell the bot one; the anvil
+	// raises it from there (GetPlayerBotLawRefinePlus). The shield is asked
+	// for its plus alone (AWANS_SHIELD_ANY_LEVEL).
+	bool IsPlayerBotLawStaleGear(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || item->GetType() != ITEM_ARMOR ||
+				(item->GetSubType() != ARMOR_BODY && item->GetSubType() != ARMOR_HEAD))
+			return false;
+		if (GetPlayerBotLawPlusForSlot(ch, item->GetSubType() == ARMOR_BODY ? WEAR_BODY : WEAR_HEAD) == 0)
+			return false;
+		return (int)item->GetLevelLimit() + (int)playerbot_persona::AWANS_LEVEL_WINDOW < (int)ch->GetLevel();
+	}
+
+	// How far the anvil has to take a worn piece for the law: the slot's plus
+	// when the piece is of the law's level and under it, zero otherwise. Such
+	// a step goes to the anvil ahead of the rest (ManagePlayerBotRefining).
+	BYTE GetPlayerBotLawRefinePlus(LPCHARACTER ch, LPITEM item, int wearCell)
+	{
+		if (!ch || !item || wearCell < 0 || IsPlayerBotLawStaleGear(ch, item))
+			return 0;
+		if (wearCell == WEAR_WEAPON && (item->GetType() != ITEM_WEAPON ||
+				(int)item->GetLevelLimit() + (int)playerbot_persona::AWANS_PREMIUM_LEVEL_WINDOW < (int)ch->GetLevel()))
+			return 0;
+		const BYTE plus = GetPlayerBotLawPlusForSlot(ch, wearCell);
+		return item->GetRefineLevel() < plus ? plus : 0;
+	}
+
+	bool PlayerBotHasLawRefineWork(LPCHARACTER ch)
+	{
+		static const BYTE slots[] = { WEAR_WEAPON, WEAR_BODY, WEAR_SHIELD, WEAR_HEAD };
+		for (size_t i = 0; ch && i < sizeof(slots) / sizeof(slots[0]); ++i)
+			if (GetPlayerBotLawRefinePlus(ch, ch->GetWear(slots[i]), slots[i]) != 0)
+				return true;
+		return false;
+	}
+
 	bool IsPlayerBotOutdatedGear(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item || item->GetType() != ITEM_ARMOR || !IsPlayerBotOutdatedGearSubType(item->GetSubType()))
 			return false;
+		// MT2009_PLUS_BOT_LAW_GEAR_V1: under the law's level window.
+		if (IsPlayerBotLawStaleGear(ch, item))
+			return true;
 		if ((int)ch->GetLevel() >= PLAYERBOT_OUTDATED_GEAR_MIN_LEVEL &&
 				(int)item->GetLevelLimit() + PLAYERBOT_OUTDATED_GEAR_LEVELS <= (int)ch->GetLevel())
 			return true;
@@ -418,9 +491,22 @@ namespace
 	// Whether `worn` gives way to `item` by that rule.
 	bool PlayerBotOutdatedGearGivesWay(LPCHARACTER ch, LPITEM worn, LPITEM item)
 	{
-		return item && item->GetType() == ITEM_ARMOR && IsPlayerBotOutdatedGear(ch, worn) &&
+		if (!(item && item->GetType() == ITEM_ARMOR && IsPlayerBotOutdatedGear(ch, worn) &&
 				!IsPlayerBotOutdatedGear(ch, item) && item->GetSubType() == worn->GetSubType() &&
-				(int)item->GetLevelLimit() <= (int)ch->GetLevel();
+				(int)item->GetLevelLimit() <= (int)ch->GetLevel()))
+			return false;
+		// MT2009_PLUS_BOT_LAW_GEAR_V1: a piece outdated by the law's window
+		// alone gives way to one at most PLAYERBOT_LAW_SWAP_PLUS_DROP pluses
+		// under it (or under the law's plus): a lv21 helmet +4 for a lv0 +7,
+		// not a bare +0 armour for a +9 the bot fights in.
+		if (IsPlayerBotLawStaleGear(ch, worn))
+		{
+			const int wearCell = worn->GetSubType() == ARMOR_BODY ? WEAR_BODY : WEAR_HEAD;
+			const int need = std::min<int>(worn->GetRefineLevel(), GetPlayerBotLawPlusForSlot(ch, wearCell));
+			if ((int)item->GetRefineLevel() + PLAYERBOT_LAW_SWAP_PLUS_DROP < need)
+				return false;
+		}
+		return true;
 	}
 
 	// A counter's piece that would replace an outdated one worn, for a bot
@@ -432,10 +518,14 @@ namespace
 		const int minLevel = offer && offer->GetType() == ITEM_ARMOR && offer->GetSubType() != ARMOR_BODY
 				? PLAYERBOT_HELM_SHIELD_LADDER_MIN_LEVEL : PLAYERBOT_OUTDATED_GEAR_MIN_LEVEL;
 		if (!ch || !offer || offer->GetType() != ITEM_ARMOR || !IsPlayerBotOutdatedGearSubType(offer->GetSubType()) ||
-				(int)ch->GetLevel() < minLevel || !IsPlayerBotEquipmentCandidate(ch, offer))
+				!IsPlayerBotEquipmentCandidate(ch, offer))
 			return false;
 		const int wearCell = offer->FindEquipCell(ch);
 		LPITEM worn = wearCell >= 0 && wearCell < WEAR_MAX_NUM ? ch->GetWear((BYTE)wearCell) : NULL;
+		// MT2009_PLUS_BOT_LAW_GEAR_V1: a piece under the law's level is
+		// replaced at any level the law asks for it.
+		if ((int)ch->GetLevel() < minLevel && !IsPlayerBotLawStaleGear(ch, worn))
+			return false;
 		if (!worn || !PlayerBotOutdatedGearGivesWay(ch, worn, offer))
 			return false;
 		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
@@ -2672,12 +2762,25 @@ namespace
 		return at >= plus ? proto : NULL;
 	}
 
+	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LEVEL75_V1: a level-75 weapon (the Stalki
+	// weapon families, playerbot_stalki_rules.h).
+	bool IsPlayerBotLevel75Weapon(LPITEM item)
+	{
+		return item && item->GetType() == ITEM_WEAPON &&
+				playerbot_stalki_rules::KindOf(item->GetVnum()) == playerbot_stalki_rules::KIND_WEAPON;
+	}
+
 	// A weapon whose lines are worth more than any blacksmith's odds: refined
 	// under a scroll at every step or not at all (PLAYERBOT_WEAPON_SCROLL_ONLY_*).
+	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LEVEL75_V1: and a level-75 weapon, whatever
+	// its lines - the plain anvil never takes one; a scroll that hands it back
+	// on a failure does, or it waits (PlayerBotNeedsScrollForWeapon buys them).
 	bool IsPlayerBotScrollOnlyWeapon(LPITEM item)
 	{
 		if (!item || item->GetType() != ITEM_WEAPON)
 			return false;
+		if (IsPlayerBotLevel75Weapon(item))
+			return true;
 		long avg = 0, skill = 0;
 		for (int i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; ++i)
 		{
@@ -2760,6 +2863,24 @@ namespace
 		// The bow or fan a keeper builds for its sash is not goods.
 		if (IsPlayerBotSashGrailProject(ch, item))
 			return false;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1 (point 3: "ogranicz ulepszanie
+		// przedmiotow tylko na sprzedaz"): the anvil grinds a weapon for sale
+		// only while the market wants its family - the bots' counters hold
+		// fewer than SHOP_MGMT_L30_SALE_LINES of it at any plus (the ledger,
+		// once a minute); 0 grinds none. Otherwise it is goods as it is.
+		if (IsPlayerBotShopMgmtOn())
+		{
+			const int cap = GetPlayerBotShopMgmt(PLAYERBOT_SM_L30_SALE_LINES);
+			if (cap <= 0)
+				return false;
+			const DWORD base = item->GetVnum() - (DWORD)std::max(0, item->GetRefineLevel());
+			DWORD supply = 0;
+			for (DWORD plus = 0; plus <= 9; ++plus)
+				if (const TPlayerBotMarketLedgerEntry* entry = GetPlayerBotMarketLedgerEntry(base + plus))
+					supply += entry->dwSupplyUnits;
+			if ((int)supply >= cap)
+				return false;
+		}
 		// Two of a family in the bag at most, and the rest are goods at once
 		// (PLAYERBOT_HELD_FAMILY_LIMIT): what a bot grinds for sale is still
 		// what it holds. A copy counts when it lies ahead of this one - or
@@ -3580,6 +3701,33 @@ namespace
 	// Defined in playerbot_economy.h, beside the prize line it asks for.
 	LPITEM FindPlayerBotLinesProject(LPCHARACTER ch);
 
+	// MT2009_PLUS_UPSTREAM_BOTLOGIC_*_V1 (playerbot_upstream_botlogic.h).
+	bool IsPlayerBotLottery30Piece(LPCHARACTER ch, LPITEM item);
+	bool IsPlayerBotFutureProject(LPCHARACTER ch, LPITEM item);
+	BYTE GetPlayerBotFutureProjectTarget(LPCHARACTER ch, LPITEM item);
+
+	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOW_GEAR_V1: a mature bot (from
+	// PLAYERBOT_MATURE_GEAR_LEVEL) puts no more yang into its weakest gear - a
+	// weapon or armour piece PLAYERBOT_MATURE_LOW_GEAR_GAP levels and more under
+	// its own level. The refine target stops at the plus the piece has, so the
+	// planner, the material shopping and both refine passes agree. Not the
+	// level-30 weapons (their own rules), an Archer's stone dagger, a piece a
+	// sale rule raises for a counter, the scroll rule's piece or the sash's
+	// grail; and the Law of Advancement's plus (GetPlayerBotLawRefinePlus) is
+	// asked beside the target, so a piece the law is short of still climbs.
+	bool IsPlayerBotMatureLowGear(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || (int)ch->GetLevel() < PLAYERBOT_MATURE_GEAR_LEVEL ||
+				(item->GetType() != ITEM_WEAPON && item->GetType() != ITEM_ARMOR) ||
+				(int)item->GetLevelLimit() + PLAYERBOT_MATURE_LOW_GEAR_GAP > (int)ch->GetLevel())
+			return false;
+		if (IsPlayerBotSpecialLevel30Weapon(item) || IsPlayerBotArcherStoneWeapon(ch, item) ||
+				IsPlayerBotSashGrailProject(ch, item) || IsPlayerBotScrollRulePiece(ch, item) ||
+				PlayerBotRefinesLowArmourForSale(ch, item) || PlayerBotRefinesSpareForSale(ch, item))
+			return false;
+		return true;
+	}
+
 	BYTE GetPlayerBotRefineTargetOwnBase(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item)
@@ -3615,6 +3763,14 @@ namespace
 		// One of another class, ground for sale, as far as its ceiling.
 		if (PlayerBotRefinesLevel30ForSale(ch, item))
 			return GetPlayerBotLevel30SaleTarget(item);
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1: a surplus one the anvil
+		// took today (IsPlayerBotLottery30Piece), as far as its ceiling.
+		if (IsPlayerBotLottery30Piece(ch, item))
+			return GetPlayerBotLevel30SaleTarget(item);
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_FUTURE_V1: the piece a rich bot makes
+		// ready for its next tier (GetPlayerBotFutureProjectTarget).
+		if (IsPlayerBotFutureProject(ch, item))
+			return GetPlayerBotFutureProjectTarget(ch, item);
 		// Under Iwakura's personalities the helmet, the boots and the jewellery
 		// go no further than +4 until the weapon, the armour and the shield
 		// stand at +7 (GetPlayerBotRefineAmbition) - and a scroll in the bag,
@@ -3656,6 +3812,10 @@ namespace
 	// then agree that the step is wanted.
 	BYTE GetPlayerBotRefineTargetOwn(LPCHARACTER ch, LPITEM item)
 	{
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOW_GEAR_V1: no step on a mature bot's
+		// weakest gear.
+		if (IsPlayerBotMatureLowGear(ch, item))
+			return item->GetRefineLevel();
 		BYTE target = GetPlayerBotRefineTargetOwnBase(ch, item);
 		// The helmet worn from level fifty goes to +6 at least, past the
 		// persona's cap on the small pieces: it was the outdated gear's slot

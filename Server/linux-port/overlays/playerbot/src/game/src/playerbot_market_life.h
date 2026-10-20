@@ -281,8 +281,15 @@ namespace
 	bool IsPlayerBotImpulseHour(LPCHARACTER ch)
 	{
 		const DWORD hour = (DWORD)(get_global_time() / 3600);
-		return (int)(PlayerBotNavHash(ch->GetPlayerID() ^ (hour * 0x9E3779B9U) ^ 0x494d5055U) % 100U) <
-				PLAYERBOT_IMPULSE_HOUR_PERCENT;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1 (point 1: "zachecac inne boty do
+		// kupowania"): while the bots' counters are glutted (IsPlayerBotShopGlut)
+		// SHOP_MGMT_IMPULSE_PCT of a bot's hours are impulse hours - the purse
+		// rules below (two hundredths of the spare over the reserves, the
+		// small price cap) are the same.
+		const int percent = IsPlayerBotShopGlut()
+				? std::max(PLAYERBOT_IMPULSE_HOUR_PERCENT, GetPlayerBotShopMgmt(PLAYERBOT_SM_IMPULSE_PCT))
+				: PLAYERBOT_IMPULSE_HOUR_PERCENT;
+		return (int)(PlayerBotNavHash(ch->GetPlayerID() ^ (hour * 0x9E3779B9U) ^ 0x494d5055U) % 100U) < percent;
 	}
 
 	// The goods a whim takes: what a counter lists as goods - refine
@@ -399,6 +406,13 @@ namespace
 		std::map<DWORD, TPlayerBotCuriosity>::const_iterator known = s_mapPlayerBotCuriosity.find(ch->GetPlayerID());
 		if (known != s_mapPlayerBotCuriosity.end() && known->second.day == day)
 			return item->GetID() == known->second.itemId && (int)item->GetRefineLevel() < known->second.target;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1 (point 3): a new piece "to see" is gear
+		// refined for a counter and nothing else - the counters stood full of
+		// plain +4 (42 060 lines on the supporters' world, 20 October). Off
+		// under the shop management unless SHOP_MGMT_CURIOUS says otherwise; a
+		// pick made today runs out.
+		if (IsPlayerBotShopMgmtOn() && GetPlayerBotShopMgmt(PLAYERBOT_SM_CURIOUS) == 0)
+			return false;
 		if ((int)(PlayerBotNavHash(ch->GetPlayerID() ^ (day * 0x85EBCA6BU) ^ 0x44415953U) % 100U) >=
 				PLAYERBOT_CURIOUS_DAY_PERCENT || (long long)ch->GetGold() < PLAYERBOT_CURIOUS_MIN_GOLD)
 			return false;
@@ -530,7 +544,8 @@ namespace
 	{
 #if defined(PLAYERBOT_ENGINE_MT2009) && defined(ENABLE_IKASHOP_RENEWAL)
 		auto shop = ch ? ikashop::GetManager().GetShopByOwnerID(ch->GetPlayerID()) : nullptr;
-		return !shop || BotOfflineFreeCells(shop) < PLAYERBOT_STALL_WEAK_TAKEOFF_FULL_CELLS;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1: full is at the fill target now.
+		return !shop || BotOfflineRoomForGoods(shop) < PLAYERBOT_STALL_WEAK_TAKEOFF_FULL_CELLS;
 #else
 		return true;
 #endif
@@ -547,7 +562,7 @@ namespace
 		if (!ch || !PlayerBotHasCounter(ch))
 			return 0;
 		auto shop = ikashop::GetManager().GetShopByOwnerID(ch->GetPlayerID());
-		if (!shop || BotOfflineFreeCells(shop) < PLAYERBOT_HERB_SURPLUS_STALL_FREE_CELLS)
+		if (!shop || BotOfflineRoomForGoods(shop) < PLAYERBOT_HERB_SURPLUS_STALL_FREE_CELLS)   // MT2009_PLUS_BOT_SHOP_MGMT_V1
 			return 0;
 		return std::max(0, PLAYERBOT_HERB_SURPLUS_STALL_LINES - BotOfflineLinesOf(shop, vnum));
 #else

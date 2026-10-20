@@ -113,6 +113,10 @@ namespace
 	bool IsPlayerBotLppReleased(LPCHARACTER ch, DWORD itemId);
 	void NotePlayerBotLppDeposit();
 	bool IsPlayerBotZielarz(LPCHARACTER ch);
+	// MT2009_PLUS_BOT_STONE4_MARKET_V1 (playerbot_stone4.h, before the list).
+	int GetPlayerBotStone4BoxRelease(LPCHARACTER ch, LPITEM boxItem, int takenOfKind, int takenAll);
+	void NotePlayerBotStone4Released(int units);
+	bool IsPlayerBotStone4HeldBack(LPCHARACTER ch, LPITEM item);
 	// MT2009_PLUS_MARKET_V3: how the counters stand for a kind (-1 missing, 1
 	// too much of it, 0 otherwise), defined with the market index below.
 	int GetPlayerBotMarketSupplyState(DWORD vnum);
@@ -149,8 +153,17 @@ namespace
 	void CollectPlayerBotSafeboxBooks(LPCHARACTER ch, std::vector<WORD>& cells)
 	{
 		cells.clear();
-		if (!ch || (!IsPlayerBotBagFull(ch) &&
-				CountPlayerBotFreeInventoryCells(ch) > PLAYERBOT_BAG_PRESSURE_FREE_CELLS))
+		if (!ch)
+			return;
+		const bool pressure = IsPlayerBotBagFull(ch) ||
+				CountPlayerBotFreeInventoryCells(ch) <= PLAYERBOT_BAG_PRESSURE_FREE_CELLS;
+		// MT2009_PLUS_BOT_BOOK_STACKS_V1: a bot that can reach no counter
+		// (PlayerBotCanReachCounter - a second channel's bot reaches the first
+		// channel's through the shop-channel move, and carries its dear books
+		// there) puts its dear surplus books (IsPlayerBotStallOnlyBook) in the
+		// box whatever its bag holds: the merchant may not have them.
+		const bool stallLess = !PlayerBotCanReachCounter(ch);
+		if (!pressure && !stallLess)
 			return;
 		int keep = PLAYERBOT_SAFEBOX_BOOK_KEEP;
 		if (GetPlayerBotPersonalityByPID(ch->GetPlayerID()) == BOT_PERSONALITY_METIN_DROPPER)
@@ -166,6 +179,12 @@ namespace
 			LPITEM item = ch->GetInventoryItem(cell);
 			if (!IsPlayerBotSurplusSkillBook(ch, item))
 				continue;
+			if (!pressure)
+			{
+				if (IsPlayerBotStallOnlyBook(item))
+					cells.push_back(cell);
+				continue;
+			}
 			if (counter && ch->GetSkillGroup() != 0 &&
 					!IsPlayerBotOwnSkill(ch, GetPlayerBotSkillBookSkillVnum(item)))
 				continue;
@@ -542,6 +561,14 @@ namespace
 		if (!pGambler)
 			CollectPlayerBotLppBoxRelease(ch, box, lppRelease);
 		int taken = 0;
+		// MT2009_PLUS_BOT_MEDAL_DROPPER_SELL_V1: the medal droppers' books
+		// taken out this visit (PLAYERBOT_MEDAL_DROPPER_BOX_BOOK_STACKS).
+		int medalBooksTaken = 0;
+		const bool medalDropper = !IsPlayerBotSidekickServing(ch) && IsPlayerBotMedalDropperBot(ch);
+		// MT2009_PLUS_BOT_STONE4_MARKET_V1: the +4 this visit gave back for a
+		// counter, by kind and in all.
+		std::map<DWORD, int> stone4Taken;
+		int stone4TakenAll = 0;
 		for (DWORD pos = 0; pos < SAFEBOX_MAX_NUM &&
 				taken < PLAYERBOT_SAFEBOX_WITHDRAW_MAX; ++pos)
 		{
@@ -578,6 +605,23 @@ namespace
 				// limit rose with it, or the bot finally has a skill group.
 				wanted = !IsPlayerBotSurplusSkillBook(ch, item);
 				why = "book";
+				// MT2009_PLUS_BOT_MEDAL_DROPPER_SELL_V1: a medal dropper's box
+				// lets its surplus books go, a few stacks a visit, into a bag
+				// clear of pressure: a book its counter sells goes up there
+				// (a counter of its own only - the second channel's box keeps
+				// them for the visit after the move), a cheap one to the
+				// merchant on the next visit (IsPlayerBotMedalDropperSurplus).
+				// 14 933 books lay in their boxes on 20 October.
+				if (!wanted && medalDropper && medalBooksTaken < PLAYERBOT_MEDAL_DROPPER_BOX_BOOK_STACKS &&
+						(PlayerBotHasCounter(ch) || IsPlayerBotJunkItem(ch, item)))
+				{
+					const int freeAfter = CountPlayerBotFreeInventoryCells(ch) - (int)item->GetSize();
+					wanted = freeAfter > PLAYERBOT_BAG_PRESSURE_FREE_CELLS &&
+							(PLAYERBOT_BAG_CELLS - freeAfter) * 100 < PLAYERBOT_BAG_CELLS * PLAYERBOT_BAG_FULL_PERCENT;
+					why = "medal_dropper_book";
+					if (wanted)
+						++medalBooksTaken;
+				}
 				// And another class's book comes out for the counter, into a
 				// bag that stays clear of the pressure the deposit waits for -
 				// the deposit keeps them in the bag now, so it does not go
@@ -686,6 +730,18 @@ namespace
 				wanted = freeAfter > PLAYERBOT_BAG_PRESSURE_FREE_CELLS;
 				why = "stalki";
 			}
+			else if (!pGambler && !IsPlayerBotSidekickServing(ch) && IsPlayerBotPersonaEnabled() &&
+					IsPlayerBotOwnBoxGear(ch, item))
+			{
+				// MT2009_PLUS_UPSTREAM_BOTLOGIC_OWN_BOX_V1: a weapon or armour
+				// piece of its own that beats what it wears comes out before
+				// the counters sell it one (IsPlayerBotOfferBeatenByOwnBox), into
+				// a bag with room for it; the equipment pass puts it on. Iwakura's
+				// list keeps a gambler's stock, not a piece its keeper would wear.
+				const int freeAfter = CountPlayerBotFreeInventoryCells(ch) - (int)item->GetSize();
+				wanted = freeAfter >= 1;
+				why = "own_gear";
+			}
 			else if (!pGambler && IsPlayerBotFinishedSpareGoods(ch, item) && PlayerBotHasCounter(ch))
 			{
 				// A weapon, armour or shield from +7 that what the bot fights in
@@ -730,6 +786,46 @@ namespace
 				// A soul stone the list kept, now that the bot has a socket for it.
 				wanted = CanPlayerBotSeatSoulStone(ch, item->GetVnum(), (DWORD)item->GetValue(5));
 				why = "lpp_stone";
+				// MT2009_PLUS_BOT_STONE4_MARKET_V1: a +4 over the bot's own, for
+				// a counter while the market has room (playerbot_stone4.h) - as
+				// many as the box's surplus, the room and the visit allow, cut
+				// off the box's stack into a stack of its own in the bag.
+				if (!wanted && !pGambler && !IsPlayerBotSidekickServing(ch))
+				{
+					const DWORD vnum = item->GetVnum();
+					const int units = GetPlayerBotStone4BoxRelease(ch, item, stone4Taken[vnum], stone4TakenAll);
+					if (units > 0 && units < (int)item->GetCount())
+					{
+						const int cell = ch->GetEmptyInventory(1);
+						if (cell < 0)
+							break;
+						LPITEM part = ITEM_MANAGER::instance().CreateItem(vnum, units);
+						if (!part)
+							continue;
+						item->SetCount(item->GetCount() - units);
+						ITEM_MANAGER::instance().FlushDelayedSave(item);
+						part->AddToCharacter(ch, TItemPos(INVENTORY, (WORD)cell));
+						FlushPlayerBotItemRow(part);
+						char szHint[128];
+						snprintf(szHint, sizeof(szHint), "%s %d", part->GetName(), units);
+						LogManager::instance().ItemLog(ch, part, "SAFEBOX GET", szHint);
+						sys_log(0, "PLAYERBOT_TOWN: safebox withdraw pid=%u name=%s vnum=%u count=%d reason=stone4_market left=%u",
+								ch->GetPlayerID(), ch->GetName(), vnum, units, (unsigned int)item->GetCount());
+						stone4Taken[vnum] += units;
+						stone4TakenAll += units;
+						NotePlayerBotStone4Released(units);
+						++taken;
+						continue;
+					}
+					if (units > 0)
+					{
+						wanted = true;
+						why = "stone4_market";
+						stone4Taken[vnum] += units;
+						stone4TakenAll += units;
+						NotePlayerBotStone4Released(units);
+					}
+				}
 			}
 			else if (IsPlayerBotHerbalismHerb(item->GetVnum()))
 			{
@@ -1201,7 +1297,8 @@ namespace
 				(IsPlayerBotGambling(state, dwNow) && !state.persona.bGambleSafeboxChecked) ||
 				PlayerBotWantsLppRelease(ch, state, dwNow) ||
 				PlayerBotWantsMaterialRelease(ch, state, dwNow) ||
-				PlayerBotSidekickWantsBoxSweep(ch);	// MT2009_PLUS_SIDEKICK_KEEP_VALUABLES_V1
+				PlayerBotSidekickWantsBoxSweep(ch) ||	// MT2009_PLUS_SIDEKICK_KEEP_VALUABLES_V1
+				PlayerBotWantsOwnBoxGear(ch, state, dwNow);	// MT2009_PLUS_UPSTREAM_BOTLOGIC_OWN_BOX_V1
 		// MT2009_PLUS_SIDEKICK_SELL_SCRAP_V2: a companion sent to sell its scrap
 		// ("sprzedaj") calls on the merchants with scrap of theirs and nobody else.
 		if (IsPlayerBotSidekickSellOnly(ch))
@@ -2086,12 +2183,18 @@ namespace
 	// A medal dropper with its stock in the bag (PLAYERBOT_MEDAL_DROPPER_MEDAL_STOCK)
 	// has a counter to put up. The Monkey Dungeon sends it out at that count
 	// and will not take it back until the medals have gone on a counter.
+	// MT2009_PLUS_BOT_MEDAL_DROPPER_SELL_V1: at the stock less its margin -
+	// the Monkey Dungeon's gate keeps a dropper out from there
+	// (PLAYERBOT_MEDAL_DROPPER_STOCK_MARGIN, MT2009_PLUS_HORSE_ECONOMY_V2), so
+	// at fifty no dropper ever got to sell: 156 of the supporters' 163 medal
+	// droppers sat at exactly 47 medals on 20 October, and none of the 46 on
+	// the second channel ever asked for the shop channel to stand them.
 	bool IsPlayerBotMedalStockReady(LPCHARACTER ch, const TPlayerBotAIState& state)
 	{
 		return ch && ch->IsItemLoaded() &&
 				state.bPersonality == BOT_PERSONALITY_MEDAL_DROPPER &&
 				(int)ch->CountSpecifyItem(PLAYERBOT_HORSE_MEDAL_VNUM) >=
-					PLAYERBOT_MEDAL_DROPPER_MEDAL_STOCK;
+					PLAYERBOT_MEDAL_DROPPER_MEDAL_STOCK - PLAYERBOT_MEDAL_DROPPER_STOCK_MARGIN;
 	}
 
 	// MT2009_PLUS_BOT_BOOKS_TO_STALL_V1 / MT2009_PLUS_BOT_SASH_CLEAR_V1: a
@@ -4107,6 +4210,13 @@ namespace
 				PlayerBotPriceStep(per::STEP_WALLET, unit, wallet, permille, worthPercent);
 			}
 		}
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_MATERIAL_PRICE_V1: a refine material on
+		// a bot's counter starts PLAYERBOT_UPSTREAM_MATERIAL_PRICE_PERCENT of its
+		// prior (the scrolls not) - the sale memory, the index and the step
+		// limiter move it from there as before.
+		if (unit > 0 && IsPlayerBotTradeableMaterial(item) && !IsPlayerBotSafeRefineScroll(item->GetVnum()))
+			unit = (DWORD)std::min<unsigned long long>(0xFFFFFFFFULL, (unsigned long long)unit *
+					(unsigned long long)PLAYERBOT_UPSTREAM_MATERIAL_PRICE_PERCENT / 100ULL);
 		// And never under what the blacksmith was paid.
 		if (investment > unit)
 		{
@@ -4842,6 +4952,10 @@ namespace
 		if (ch && (IsPlayerBotOneWeakBonusPiece(item) || IsPlayerBotUnsoldBonusGoods(item->GetID(), get_dword_time())) &&
 				IsPlayerBotJunkItem(ch, item))
 			return -1;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1: nor a line the shop management took
+		// home for the merchant (IsPlayerBotShopMgmtMerchant).
+		if (ch && IsPlayerBotShopMgmtMerchant(item->GetID(), get_dword_time()) && IsPlayerBotJunkItem(ch, item))
+			return -1;
 		// A Stalki (playerbot_stalki.h): the one a bot keeps for the level it is
 		// about to reach is not goods, nor the one the blacksmith is making into
 		// its next armour or weapon (IsPlayerBotHigherTierSpare); any other - of
@@ -4850,6 +4964,11 @@ namespace
 		// merchant's. Before the caps below, which would have sent Lwi Miecz
 		// home as one of the junk weapons and a black-steel armour at +0..+4 as
 		// one of a flooded family.
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_*_V1: the next tier's piece a rich bot
+		// makes ready, and the surplus level-30 weapon at the anvil today, are
+		// no goods (playerbot_upstream_botlogic.h).
+		if (ch && (IsPlayerBotFutureProject(ch, item) || IsPlayerBotLottery30Piece(ch, item)))
+			return -1;
 		if (IsPlayerBotStalkiItem(item))
 		{
 			if (ch && (IsPlayerBotKeptStalki(ch, item) || IsPlayerBotHigherTierSpare(ch, item)))
@@ -5209,6 +5328,10 @@ namespace
 		if (item->GetType() == ITEM_METIN)
 		{
 			if (CanPlayerBotSeatSoulStone(ch, item->GetVnum(), (DWORD)item->GetValue(5)))
+				return -1;
+			// MT2009_PLUS_BOT_STONE4_MARKET_V1: a +4 is goods only as the
+			// counter's surplus while the market has room (playerbot_stone4.h).
+			if (IsPlayerBotStone4HeldBack(ch, item))
 				return -1;
 #if defined(PLAYERBOT_ENGINE_MT2009)
 			if (IsPlayerBotSoulStoneVnum(item->GetVnum()) &&
@@ -8113,7 +8236,9 @@ namespace
 		switch (item->GetType())
 		{
 			case ITEM_SKILLBOOK:
-				if (!IsPlayerBotSurplusSkillBook(ch, item) || IsPlayerBotMissionBook(item->GetVnum()))
+				// MT2009_PLUS_BOT_BOOK_STACKS_V1: nor a dear book, the stall's.
+				if (!IsPlayerBotSurplusSkillBook(ch, item) || IsPlayerBotMissionBook(item->GetVnum()) ||
+						IsPlayerBotStallOnlyBook(item))
 					return 0;
 				stallWorthy = true;
 				break;

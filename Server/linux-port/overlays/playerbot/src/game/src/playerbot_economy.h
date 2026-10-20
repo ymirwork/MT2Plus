@@ -1428,6 +1428,12 @@ namespace
 		// hundred over the keep or not at all (the box takes a smaller spare).
 		if (IsPlayerBotHerbalismHerb(vnum))
 			return avail >= PLAYERBOT_HERB_SURPLUS_LINE_UNITS ? PLAYERBOT_HERB_SURPLUS_LINE_UNITS : 0;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1 (point 4: "niech wystawia je w jednym
+		// stacku"): a heap or a refine material goes up as one stack of
+		// everything over the keep, to the item's own stack size - a buyer
+		// takes the part it needs (the part purchase, playerbot_offline_market.h).
+		if (IsPlayerBotShopMgmtStacking() && (IsPlayerBotBulkGoods(item) || IsPlayerBotTradeableMaterial(item)))
+			return std::min<int>(avail, std::max<int>(1, (int)item->GetMaxStack()));
 		if (IsPlayerBotBulkGoods(item))
 			return playerbot_stall_rules::HeapLineFromStack((int)item->GetCount(), spare, seed);
 		if (IsPlayerBotTradeableMaterial(item))
@@ -1448,6 +1454,10 @@ namespace
 		// ten and no other size (playerbot_energy_shards.h).
 		if (IsPlayerBotEnergyShardVnum(item->GetVnum()))
 			return count == PLAYERBOT_ENERGY_SHARD_LINE_UNITS;
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1: one stack of any size is the shape now.
+		if (IsPlayerBotShopMgmtStacking() && !IsPlayerBotSafeRefineScroll(item->GetVnum()) &&
+				(IsPlayerBotBulkGoods(item) || IsPlayerBotTradeableMaterial(item)))
+			return true;
 		if (IsPlayerBotBulkGoods(item))
 			return playerbot_stall_rules::IsHeapLine(count);
 		if (IsPlayerBotSafeRefineScroll(item->GetVnum()) || IsPlayerBotTradeableMaterial(item))
@@ -1981,6 +1991,10 @@ namespace
 
 	// Iwakura's Useful Items List (playerbot_lpp.h).
 	bool IsPlayerBotLppKeptItem(LPCHARACTER ch, LPITEM item);
+	// MT2009_PLUS_BOT_STONE4_MARKET_V1 (playerbot_stone4.h).
+	bool IsPlayerBotStone4ForMerchant(LPCHARACTER ch, LPITEM item);
+	bool IsPlayerBotStone4Vnum(DWORD vnum);
+	void NotePlayerBotStone4Sold(int units);
 
 	// "Jesli bot chce wystawic taki przedmiot, musi najpierw ulepszyc go
 	// minimum do poziomu +5" (Iwakura's Patch 3, point 4): a body armour of a
@@ -2056,7 +2070,8 @@ namespace
 				IsPlayerBotSashGrailProject(ch, item))
 			return false;
 		if (IsPlayerBotUpgradeForSelf(ch, item) || IsPlayerBotHigherTierSpare(ch, item) ||
-				IsPlayerBotWearableUpgrade(ch, item, item->GetCell()))
+				IsPlayerBotWearableUpgrade(ch, item, item->GetCell()) ||
+				IsPlayerBotFutureProject(ch, item))	// MT2009_PLUS_UPSTREAM_BOTLOGIC_FUTURE_V1
 			return false;
 		if (item->GetType() == ITEM_WEAPON)
 			return !IsPlayerBotKeptBackupWeapon(ch, item) && item != FindPlayerBotLinesProject(ch) &&
@@ -2362,6 +2377,10 @@ namespace
 	{
 		if (!ch || !item)
 			return false;
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_*_V1: the next tier's piece and the
+		// surplus level-30 weapon at the anvil today.
+		if (IsPlayerBotFutureProject(ch, item) || IsPlayerBotLottery30Piece(ch, item))
+			return true;
 		if (IsPlayerBotUpgradeForSelf(ch, item) || IsPlayerBotHigherTierSpare(ch, item) ||
 				IsPlayerBotWearableUpgrade(ch, item, item->GetCell()) || IsPlayerBotTowerSmithReserve(ch, item) ||
 				(item->GetType() == ITEM_WEAPON ? IsPlayerBotKeptBackupWeapon(ch, item)
@@ -2395,6 +2414,99 @@ namespace
 		if (!ch || !item || item->IsEquipped() || !IsPlayerBotUnsoldBonusGoods(item->GetID(), get_dword_time()))
 			return false;
 		return !IsPlayerBotGearKeptForSelf(ch, item);
+	}
+
+	// MT2009_PLUS_BOT_MEDAL_DROPPER_SELL_V1 (the owner, 17 October: the medal
+	// droppers "maja sprzedawac to, co zbieraja", one of them with 42 books of
+	// Aura Miecza). A medal dropper picks up every skill book in the Monkey
+	// Dungeon (IsPlayerBotMedalDropperLoot), and a skill book is never the
+	// merchant's (below), so the books rode in its bag for good: on the
+	// supporters' world on 20 October 163 medal droppers (level 33-35) carried
+	// 19 392 books in 2 981 stacks (about 120 a bot, up to 803) and 14 933 more
+	// in their safeboxes. The 46 on the second channel have no counter at all
+	// (PlayerBotCanOpenShop) and held 10 338 of them (about 225 a bot, 34 cells
+	// of a ninety-cell bag); the first channel's counters show at most
+	// PLAYERBOT_OTHER_CLASS_BOOK_SKILL_LINES lines of a skill, and the rest
+	// waited in the bag. What a medal dropper keeps now: its own skill's
+	// reading stock (IsPlayerBotSurplusSkillBook) and, with a counter, the next
+	// PLAYERBOT_MEDAL_DROPPER_BOOK_BAG_STOCK books of each skill to restock it;
+	// every further book is the merchant's. With no counter to sell from, the
+	// refine materials it does not refine with and the herbs go to the merchant
+	// too, instead of to a safebox it never empties. The stall and merchant
+	// rules do the rest.
+	const int PLAYERBOT_MEDAL_DROPPER_BOOK_BAG_STOCK = 6;
+	// Book stacks a medal dropper's box lets go of a visit (WithdrawPlayerBotSafebox).
+	const int PLAYERBOT_MEDAL_DROPPER_BOX_BOOK_STACKS = 4;
+
+	// MT2009_PLUS_BOT_MEDAL_DROPPER_SELL_V1 (the owner, 20 October: "sprzedaz
+	// niech sie przenosi na CH1, tak samo jak dotychczas"): a counter this bot
+	// keeps, or one it gets by the shop channel's move (the assignment table,
+	// EnsurePlayerBotPrivateShopChannel) - a bot of the second channel with
+	// that table on sells its goods on the first like every other keeper, so
+	// they are not the merchant's for want of a counter here.
+	bool PlayerBotCanReachCounter(LPCHARACTER ch)
+	{
+		if (PlayerBotHasCounter(ch))
+			return true;
+#if defined(PLAYERBOT_ENGINE_MT2009) && defined(ENABLE_IKASHOP_RENEWAL)
+		return ch && g_bChannel != playerbot_channel_rules::SHOP_CHANNEL &&
+				CPlayerBotManager::instance().IsChannelTableMode() && ch->CanOpenShop() &&
+				!IsPlayerBotSidekickPID(ch->GetPlayerID());
+#else
+		return false;
+#endif
+	}
+
+	bool IsPlayerBotMedalDropperBot(LPCHARACTER ch)
+	{
+		return ch && (GetPlayerBotPersonalityByPID(ch->GetPlayerID()) == BOT_PERSONALITY_MEDAL_DROPPER ||
+				CPlayerBotManager::instance().IsMedalDropperCohortPID(ch->GetPlayerID()));
+	}
+
+	// MT2009_PLUS_BOT_BOOK_STACKS_V1 (the owner, 20 October): a skill book
+	// whose price-list value a piece (the bots' asking price, by the piece) is
+	// over SHOP_BOOK_STALL_MIN_PRICE (450 000) always goes to the stall and is
+	// never the merchant's - from any rule, the medal droppers' included. A
+	// bot that can reach no counter (PlayerBotCanReachCounter; a second
+	// channel's bot carries it to the first channel's) puts it in its safebox
+	// (CollectPlayerBotSafeboxBooks).
+	DWORD GetPlayerBotShopAskingPrice(LPITEM item);
+	bool IsPlayerBotStallOnlyBook(LPITEM item)
+	{
+		if (!item || item->GetType() != ITEM_SKILLBOOK || IsPlayerBotMissionBook(item->GetVnum()))
+			return false;
+		const int floor = GetPlayerBotShopMgmt(PLAYERBOT_SM_BOOK_STALL_MIN_PRICE);
+		if (floor <= 0)
+			return false;
+		const long long unit = (long long)GetPlayerBotShopAskingPrice(item) /
+				std::max<long long>(1, (long long)item->GetCount());
+		return unit > floor;
+	}
+
+	bool IsPlayerBotMedalDropperSurplus(LPCHARACTER ch, LPITEM item)
+	{
+		if (!item || !IsPlayerBotMedalDropperBot(ch))
+			return false;
+		if (item->GetType() == ITEM_SKILLBOOK)
+		{
+			if (!IsPlayerBotSurplusSkillBook(ch, item))
+				return false;
+			// MT2009_PLUS_BOT_BOOK_STACKS_V1: a dear book is stall goods.
+			if (IsPlayerBotStallOnlyBook(item))
+				return false;
+			if (!PlayerBotHasCounter(ch))
+				return true;
+			const DWORD skill = GetPlayerBotSkillBookSkillVnum(item);
+			const int keep = IsPlayerBotOwnSkill(ch, skill) ? GetPlayerBotBookKeepLimit(ch, skill) : 0;
+			return CountPlayerBotSkillBooksAhead(ch, item, skill) >= keep + PLAYERBOT_MEDAL_DROPPER_BOOK_BAG_STOCK;
+		}
+		if (PlayerBotCanReachCounter(ch))
+			return false;
+		const DWORD vnum = item->GetVnum();
+		if (IsPlayerBotTradeableMaterial(item))
+			return !PlayerBotNeedsRefineMaterial(ch, vnum) && !IsPlayerBotKeptCraftMaterial(ch, item);
+		return vnum >= PLAYERBOT_HERB_VNUM_FIRST && vnum <= PLAYERBOT_HERB_VNUM_LAST &&
+				!IsPlayerBotHerbGatherer(ch);
 	}
 
 	bool IsPlayerBotJunkItem(LPCHARACTER ch, LPITEM item)
@@ -2436,6 +2548,18 @@ namespace
 				return false;
 		}
 
+		// MT2009_PLUS_BOT_BOOK_STACKS_V1: a dear book is never the merchant's.
+		if (IsPlayerBotStallOnlyBook(item))
+			return false;
+
+		// MT2009_PLUS_BOT_SHOP_MGMT_V1: a line the shop management took home
+		// for the merchant is the merchant's, unless the bot has since found a
+		// use for it itself. Before the keeps below, which hold some goods for
+		// a counter: the counter is what gave it back.
+		if (IsPlayerBotShopMgmtMerchant(item->GetID(), get_dword_time()))
+			return !((item->GetType() == ITEM_WEAPON || item->GetType() == ITEM_ARMOR) &&
+					IsPlayerBotGearKeptForSelf(ch, item));
+
 		// The guild building materials are goods now (playerbot_guild_land.h):
 		// the counters, never the merchant.
 		if (IsPlayerBotGuildBuildMaterial(item->GetVnum()))
@@ -2475,6 +2599,11 @@ namespace
 		// merchant's, whatever the rules below would make of it.
 		if (IsPlayerBotLppKeptItem(ch, item))
 			return false;
+		// MT2009_PLUS_BOT_MEDAL_DROPPER_SELL_V1: a medal dropper's surplus books
+		// (and, with no counter, its spare materials and herbs) are the
+		// merchant's - IsPlayerBotMedalDropperSurplus.
+		if (IsPlayerBotMedalDropperSurplus(ch, item))
+			return true;
 		// Nor what a gambler's session made or took off for it, which goes on
 		// the counter at any plus, nor a base one of Community Patch 5's four
 		// gamblers holds for its anvil (playerbot_gambler.h): the merchant's
@@ -2931,8 +3060,10 @@ namespace
 		// A soul stone is somebody's socket: this bot's, or across a counter
 		// another's. The merchant paid one yang for a Potwora +4. One of the
 		// grades Iwakura bans waits in the bag for the Alchemist.
+		// MT2009_PLUS_BOT_STONE4_MARKET_V1: but a +4 past the market's cap and
+		// the box's (playerbot_stone4.h) is the merchant's.
 		if (item->GetType() == ITEM_METIN)
-			return false;
+			return IsPlayerBotStone4ForMerchant(ch, item);
 		// And what the Alchemist gave for it is counter goods: the merchant
 		// pays fifty yang for a dust that cost five hundred and a stone.
 		if (vnum == PLAYERBOT_MAGIC_DUST_VNUM)
@@ -3429,6 +3560,14 @@ namespace
 			const long long salePrice = GetPlayerBotJunkSalePrice(item);
 			totalSoldGold += salePrice;
 			PlayerBotChangeGold(ch, salePrice);
+			// MT2009_PLUS_BOT_STONE4_MARKET_V1: a +4 past the market's and the
+			// box's caps, counted for the report.
+			if (item->GetType() == ITEM_METIN && IsPlayerBotStone4Vnum(item->GetVnum()))
+			{
+				NotePlayerBotStone4Sold((int)item->GetCount());
+				sys_log(0, "PLAYERBOT_STONE4: merchant pid=%u name=%s vnum=%u units=%u gold=%lld",
+						ch->GetPlayerID(), ch->GetName(), item->GetVnum(), (unsigned int)item->GetCount(), salePrice);
+			}
 			ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_SHOP_SELL");
 			++soldCount;
 		}
@@ -3975,6 +4114,11 @@ namespace
 		// and never junk.
 		if (PlayerBotRefinesLevel30ForSale(ch, item))
 			return item->GetRefineLevel() < GetPlayerBotRefineTarget(ch, item);
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1: the surplus one the anvil
+		// took today; MT2009_PLUS_UPSTREAM_BOTLOGIC_FUTURE_V1: the next tier's
+		// piece a rich bot makes ready (its target is nought for a poor one).
+		if (IsPlayerBotLottery30Piece(ch, item) || IsPlayerBotFutureProject(ch, item))
+			return item->GetRefineLevel() < GetPlayerBotRefineTarget(ch, item);
 		// A body armour taken to +5 before it may go on a counter (Iwakura's
 		// Patch 3, point 4).
 		if (PlayerBotRefinesLowArmourForSale(ch, item))
@@ -4226,6 +4370,9 @@ namespace
 		return false;
 	}
 
+	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1 (playerbot_upstream_botlogic.h).
+	bool TryPickPlayerBotLottery30(LPCHARACTER ch, LPITEM item);
+
 	bool ManagePlayerBotRefining(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 	{
 		if (!ch || !ch->IsItemLoaded() || dwNow < state.dwNextRefineCheckTime || IsPlayerBotGearFrozen(ch))
@@ -4284,7 +4431,9 @@ namespace
 		// Perfectionist's half: its step is the scroll's and the materials'
 		// (Community Patch 5, point 4), and a rule a purse's share can stop at
 		// every visit is not the rule.
-		if (perfectSpent && !classLevel30 && !PlayerBotHasScrollRuleWork(ch))
+		// MT2009_PLUS_BOT_LAW_GEAR_V1: nor a worn piece the Law of Advancement
+		// is short of (GetPlayerBotLawRefinePlus).
+		if (perfectSpent && !classLevel30 && !PlayerBotHasScrollRuleWork(ch) && !PlayerBotHasLawRefineWork(ch))
 			return false;
 		const BYTE wearSlots[] = {
 			WEAR_WEAPON, WEAR_BODY, WEAR_SHIELD, WEAR_HEAD,
@@ -4300,7 +4449,16 @@ namespace
 
 			const BYTE plusLevel = item->GetRefineLevel();
 			const bool coreProgression = IsPlayerBotCoreProgressionItem(ch, item);
-			if (plusLevel >= GetPlayerBotRefineTarget(ch, item))
+			// MT2009_PLUS_BOT_LAW_GEAR_V1: at least to the law's plus.
+			const BYTE lawPlus = GetPlayerBotLawRefinePlus(ch, item, wearSlots[i]);
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOW_GEAR_V1: said once in a while -
+			// the target (IsPlayerBotMatureLowGear) holds it, the law does not.
+			if (lawPlus == 0 && IsPlayerBotMatureLowGear(ch, item))
+				PlayerBotLogThrottled("p20_low_gear", dwNow,
+						"PLAYERBOT_REFINE: low gear held pid=%u name=%s level=%d item=%u vnum=%u plus=%u item_level=%d",
+						ch->GetPlayerID(), ch->GetName(), (int)ch->GetLevel(), item->GetID(), item->GetVnum(),
+						(unsigned int)plusLevel, (int)item->GetLevelLimit());
+			if (plusLevel >= std::max<BYTE>(GetPlayerBotRefineTarget(ch, item), lawPlus))
 				continue;
 			// A worn piece is taken off for the anvil below, so a step the bag
 			// cannot pay for - a material short, or the fee - is not queued at
@@ -4325,6 +4483,15 @@ namespace
 			if (personaOn && state.persona.bMedalGoalDone && cand.priority != 0 &&
 					wearSlots[i] == (ch->GetLevel() >= PLAYERBOT_MEDAL_GOAL_WEAPON_FIRST_LEVEL ? WEAR_WEAPON : WEAR_BODY))
 				cand.priority = 1;
+			// MT2009_PLUS_BOT_LAW_GEAR_V1: the piece the law is short of goes
+			// with the weapon, right after the class's level-30 one - the helmet
+			// was last in the order and saw a twentieth of the weapon's steps.
+			if (lawPlus != 0 && cand.priority > 1)
+				cand.priority = 1;
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_LEVEL75_V1: a level-75 weapon is
+			// first in the plan, with the class's level-30 one.
+			if (IsPlayerBotLevel75Weapon(item))
+				cand.priority = 0;
 			candidates.push_back(cand);
 		}
 
@@ -4338,6 +4505,10 @@ namespace
 			// is worth raising; the rest is scrap and stays at what it is.
 			// The planner asks the same function, above.
 			LPITEM item = ch->GetInventoryItem(cell);
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1: a surplus level-30
+			// weapon may go to the anvil today (playerbot_upstream_botlogic.h).
+			if (item && item->GetCell() == cell && IsPlayerBotSpecialLevel30Weapon(item))
+				TryPickPlayerBotLottery30(ch, item);
 			// "Na 341 broni na serwerze praktycznie wszystkie sa +0 (max +2),
 			// boty ich wcale nie ulepszaja" (Iwakura, 13 September). Four
 			// different rules can pass a bag piece over here and from outside
@@ -4393,6 +4564,13 @@ namespace
 			// after everything the bot refines for itself.
 			if (PlayerBotRefinesSpareForSale(ch, item))
 				cand.priority = PLAYERBOT_SPARE_SALE_REFINE_PRIORITY;
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1: so does the surplus
+			// level-30 weapon; MT2009_PLUS_UPSTREAM_BOTLOGIC_LEVEL75_V1: and a
+			// level-75 weapon comes first.
+			if (IsPlayerBotLottery30Piece(ch, item))
+				cand.priority = PLAYERBOT_SPARE_SALE_REFINE_PRIORITY;
+			else if (IsPlayerBotLevel75Weapon(item))
+				cand.priority = 0;
 			candidates.push_back(cand);
 		}
 
@@ -4438,7 +4616,9 @@ namespace
 			const bool saleSpare = candidates[i].priority == PLAYERBOT_SPARE_SALE_REFINE_PRIORITY;
 			// What comes off the anvil must still fit. See IsPlayerBotWearableAtLevel
 			// for why the engine will not stop this on its own.
-			if (!saleSpare && !IsPlayerBotWearableAtLevel(ch, nextVnum))
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_FUTURE_V1: the next tier's piece is
+			// raised before the bot can wear it - that is what it is for.
+			if (!saleSpare && !IsPlayerBotFutureProject(ch, item) && !IsPlayerBotWearableAtLevel(ch, nextVnum))
 			{
 				PlayerBotLogThrottled("refine_outgrows", dwNow,
 						"PLAYERBOT_AI: refine would outgrow the bot pid=%u name=%s level=%u vnum=%u next=%u plus=%u",
@@ -4491,7 +4671,8 @@ namespace
 			}
 			// Past the Perfectionist's half only the level-30 weapon goes on,
 			// and the scroll rule's piece.
-			if (perfectSpent && item != classLevel30 && !rulePiece)
+			if (perfectSpent && item != classLevel30 && !rulePiece &&
+					GetPlayerBotLawRefinePlus(ch, item, wearCell != 255 ? (int)wearCell : -1) == 0)   // MT2009_PLUS_BOT_LAW_GEAR_V1
 				continue;
 			// The level-30 weapon's purchase and anvil share one budget
 			// (GetPlayerBotLevel30BudgetLeft): the step's fee has to fit in

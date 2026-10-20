@@ -59,6 +59,14 @@ quest biblioteka_wiedzy begin
 				wave_kills = 60,
 				seals = 3,
 				chests_min = 1, chests_max = 3,
+				-- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1: the targets of stages 2-4 (the regen files eggs5.txt, queens.txt, eggs4.txt before),
+				-- each an instance unique, and how often the watch looks (MT2009_PLUS_DUNGEON_TARGET_RESPAWN_V1: a lost one comes back).
+				targets = {
+					[2] = {vnum = 8006, points = {{270, 252}, {270, 265}, {270, 276}, {259, 265}, {280, 265}}},
+					[3] = {vnum = 9705, points = {{271, 284}, {259, 268}, {286, 268}}},
+					[4] = {vnum = 8006, points = {{280, 282}, {280, 267}, {259, 267}, {259, 282}}},
+				},
+				target_watch = 15,
 				path = "data/dungeon/biblioteka_wiedzy/",
 			}
 		end
@@ -281,16 +289,16 @@ quest biblioteka_wiedzy begin
 				d.set_regen_file(c.path.."wave.txt")
 			elseif stage == 2 then
 				d.setf("left", 5)
-				d.regen_file(c.path.."eggs5.txt")
+				biblioteka_wiedzy.spawn_targets(2) -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (was eggs5.txt)
 				biblioteka_wiedzy.weaken_metins()
 				d.set_regen_file(c.path.."guards.txt")
 			elseif stage == 3 then
 				d.setf("left", 3)
-				d.regen_file(c.path.."queens.txt")
+				biblioteka_wiedzy.spawn_targets(3) -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (was queens.txt)
 				d.set_regen_file(c.path.."guards.txt")
 			elseif stage == 4 then
 				d.setf("left", 4)
-				d.regen_file(c.path.."eggs4.txt")
+				biblioteka_wiedzy.spawn_targets(4) -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (was eggs4.txt)
 				biblioteka_wiedzy.weaken_metins()
 				d.set_regen_file(c.path.."guards.txt")
 			elseif stage == 5 then
@@ -324,6 +332,76 @@ quest biblioteka_wiedzy begin
 			end
 		end
 
+		-- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (the owner, 20 October: "popraw wszystkie dungi"; the pattern of
+		-- MT2009_PLUS_WUKONG_TARGETS_V1): the targets a stage counts are instance uniques (cfg().targets, the
+		-- regen files' points before), looked at every target_watch seconds.
+		-- MT2009_PLUS_DUNGEON_TARGET_RESPAWN_V1 (the owner, 20 October: "jak nie jest dotkniêty, to respi siê nowy
+		-- czy coœ, bo to za du¿e u³atwienie, jak same siê bêd¹ zbija³y"): a stage ends only by its kills. A target
+		-- not alive whose kill never counted (it left the map without a kill event) comes back at its spot - the
+		-- same race, the same unique, the same kill event - and "left" stays as it is; a target alive but
+		-- untouched is left be. target<i>: its VID while it stands, 0 once its kill counted, -1 after a failed spawn.
+		function target_key(stage, i)
+			return "tw"..stage.."_"..i
+		end
+
+		-- n targets are watched from now on (target1..n).
+		function watch_start(n)
+			d.setf("targets", n)
+			clear_server_timer("biblioteka_watch", d.get_map_index())
+			server_timer("biblioteka_watch", biblioteka_wiedzy.cfg().target_watch, d.get_map_index())
+		end
+
+		function spawn_target(stage, i, vnum, x, y)
+			local vid = d.spawn_mob(vnum, x, y)
+			if vid ~= 0 then
+				d.set_unique(biblioteka_wiedzy.target_key(stage, i), vid)
+			else
+				vid = -1
+			end
+			d.setf("target"..i, vid)
+			d.setf("tvnum"..i, vnum)
+			d.setf("tx"..i, x)
+			d.setf("ty"..i, y)
+		end
+
+		function spawn_targets(stage)
+			local t = biblioteka_wiedzy.cfg().targets[stage]
+			local n = table.getn(t.points)
+			for i = 1, n do
+				biblioteka_wiedzy.spawn_target(stage, i, t.vnum, t.points[i][1], t.points[i][2])
+			end
+			biblioteka_wiedzy.watch_start(n)
+		end
+
+		-- A kill event of a target: its kill counted, never brought back.
+		function target_down(vid)
+			for i = 1, d.getf("targets") do
+				if d.getf("target"..i) == vid then
+					d.setf("target"..i, 0)
+				end
+			end
+		end
+
+		-- true while the watch goes on
+		function watch_targets()
+			local st = d.getf("stage")
+			if biblioteka_wiedzy.cfg().targets[st] == nil or d.getf("left") <= 0 then
+				return false
+			end
+			local n = 0
+			for i = 1, d.getf("targets") do
+				local v = d.getf("target"..i)
+				if v ~= 0 and (v < 0 or d.is_unique_dead(biblioteka_wiedzy.target_key(st, i))) then
+					biblioteka_wiedzy.spawn_target(st, i, d.getf("tvnum"..i), d.getf("tx"..i), d.getf("ty"..i))
+					n = n + 1
+				end
+			end
+			if n > 0 then
+				d.notice("Biblioteka Wiedzy: Zaginione cele etapu pojawiaj¹ siê ponownie ("..n..").")
+			end
+			return true
+		end
+
 		function init()
 			local c = biblioteka_wiedzy.cfg()
 			d.setf("init", 1)
@@ -335,8 +413,16 @@ quest biblioteka_wiedzy begin
 			d.setf("seals", 0)
 			d.setf("minutes", c.limit_min)
 			d.notice("Biblioteka Wiedzy: Witajcie. Za 5 sekund z pó³ek wype³zn¹ paj¹ki.")
-			server_timer("biblioteka_stage", 5, d.get_map_index())
-			server_timer("biblioteka_tick", 60, d.get_map_index())
+			-- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (timers): an earlier instance with the same index may have
+			-- left its timers behind; they would run this instance's clock and stages, and block its own.
+			local idx = d.get_map_index()
+			clear_server_timer("biblioteka_tick", idx)
+			clear_server_timer("biblioteka_stage", idx)
+			clear_server_timer("biblioteka_watch", idx)
+			clear_server_timer("biblioteka_seal", idx)
+			clear_server_timer("biblioteka_end", idx)
+			server_timer("biblioteka_stage", 5, idx)
+			server_timer("biblioteka_tick", 60, idx)
 		end
 
 		function finish()
@@ -842,6 +928,18 @@ quest biblioteka_wiedzy begin
 		end
 
 		-- MT2009_PLUS_DUNGEON_END_V1: the countdown after the last boss (end_count), a second at a time.
+		-- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1: the counted targets, every target_watch seconds.
+		when biblioteka_watch.server_timer begin
+			if d.select(get_server_timer_arg()) then
+				if d.getf("closed") == 1 then
+					return
+				end
+				if biblioteka_wiedzy.watch_targets() then
+					server_timer("biblioteka_watch", biblioteka_wiedzy.cfg().target_watch, get_server_timer_arg())
+				end
+			end
+		end
+
 		when biblioteka_end.server_timer begin
 			if d.select(get_server_timer_arg()) then
 				if d.getf("closed") == 1 then
@@ -895,6 +993,7 @@ quest biblioteka_wiedzy begin
 
 		-- Stages 2-5. Stages 2 and 4 are Metins, as in Arezzo (8006, a stone every client shows).
 		when 8006.kill with biblioteka_wiedzy.inside() and (d.getf("stage") == 2 or d.getf("stage") == 4) begin
+			biblioteka_wiedzy.target_down(npc.get_vid()) -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1
 			local left = d.getf("left") - 1
 			d.setf("left", left)
 			if left <= 0 then
@@ -905,6 +1004,7 @@ quest biblioteka_wiedzy begin
 		end
 
 		when 9705.kill with biblioteka_wiedzy.inside() and d.getf("stage") == 3 begin
+			biblioteka_wiedzy.target_down(npc.get_vid()) -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1
 			local left = d.getf("left") - 1
 			d.setf("left", left)
 			if left <= 0 then

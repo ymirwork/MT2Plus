@@ -259,7 +259,9 @@ RUN set -eux; \
     # for the pony and each upgrade (16 September, 2.0.56).
     # fishing_pass_shop opens the Fisherman's special shop, the only seller
     # of Karta Wedkarska, which no stock quest ever opened (2.0.68).
-    # collect_quest_lv85 is the Biologist's red-branch row with its hand-in
+        # collect_quest_lv70 drops its Konar Zelkova (30165) whatever the bag
+    # already holds - the branch stacks (MT2009_PLUS_UPSTREAM_BOTLOGIC_ZELKOVA_V1).
+# collect_quest_lv85 is the Biologist's red-branch row with its hand-in
     # asking for the right item: the stock quest counted 30166, the level-80
     # row's, so nobody could hand in a single 30167 (2.0.95).
     # towarzysz is the letter that makes and commands a player's companion
@@ -332,7 +334,7 @@ RUN set -eux; \
     # zodiac_temples (the twelve portals of the day on 358 and the Teleporter's entry),
     # zodiac_milbon (Mnich Milbon's insignia exchange), zodiac_prism_mission and
     # zodiac_emergency_mission are the Zodiac Temple (MT2009_PLUS_ZODIAC_V1, Autor: Digi Rasta).
-    for q in web_admin speed_boost starter_chest starter_kit konie horse_inventory gm_profile new_quest_lv19 teleport_ring pony_buy horse_upgrade horse_upgrade2 deviltower_zone fishing_pass_shop collect_quest_lv85 towarzysz devilcatacomb_zone check_trans_ticket heavens_cave_keyquest tanaka_ears acce_costume_uriel ah_yu_shop costume_bonus_transfer dragon_soul dragon_soul_refine dragon_soul_shop autohunt_time antiexp_ring seon_pyeong wytwarzanie_jae_seon_kim flea_market temple_of_the_ochao razador_dungeon nemere_dungeon blue_dragon_lair goblin_skarbow biblioteka_wiedzy map_warp dungeon_panel wzgorze_wukonga ruiny_skorpiona starozytna_dzungla ruiny_atlantydy seonhae minigame_rumi minigame_catchking minigame_yutnori tp_bookmarks ksiegi_seonhae usun_misje guild_building kolekcjoner_item pasy energia_alchemik zywioly mapa_tab zodiac_temples zodiac_milbon zodiac_prism_mission zodiac_emergency_mission recykling_bonusow guild_war_join shop_unlock_slots; do \
+    for q in web_admin speed_boost starter_chest starter_kit konie horse_inventory gm_profile new_quest_lv19 teleport_ring pony_buy horse_upgrade horse_upgrade2 deviltower_zone fishing_pass_shop collect_quest_lv85 collect_quest_lv70 towarzysz devilcatacomb_zone check_trans_ticket heavens_cave_keyquest tanaka_ears acce_costume_uriel ah_yu_shop costume_bonus_transfer dragon_soul dragon_soul_refine dragon_soul_shop autohunt_time antiexp_ring seon_pyeong wytwarzanie_jae_seon_kim flea_market temple_of_the_ochao razador_dungeon nemere_dungeon blue_dragon_lair goblin_skarbow biblioteka_wiedzy map_warp dungeon_panel wzgorze_wukonga ruiny_skorpiona starozytna_dzungla ruiny_atlantydy seonhae minigame_rumi minigame_catchking minigame_yutnori tp_bookmarks ksiegi_seonhae usun_misje guild_building kolekcjoner_item pasy energia_alchemik zywioly mapa_tab zodiac_temples zodiac_milbon zodiac_prism_mission zodiac_emergency_mission recykling_bonusow guild_war_join shop_unlock_slots; do \
       [ -f "/quest-add/$q.quest" ] || continue; \
       sed 's/\r$//' "/quest-add/$q.quest" > "/tmp/qc-work/$q.quest"; \
       ( cd /tmp/qc-work && /src/Server/game/src/quest/qc "$q.quest" ); \

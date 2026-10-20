@@ -821,6 +821,74 @@ namespace
 		return 0;
 	}
 
+	// MT2009_PLUS_UPSTREAM_BOTLOGIC_HUNT70_V1: from level seventy a bot hunts
+	// only where it still earns experience. Sohan, the Hwang Temple, the first
+	// Spider Dungeon and everything under them sit fifteen levels and more under
+	// it and pay next to nothing, and the draw below sent two bots in three of
+	// seventy there. Now the ground is the second Spider Dungeon (60-68, to its
+	// ceiling, with the dungeon's gear), Doyyumhwaji (69-72) and the Red Forest
+	// (74-82; the Forest, 65-71, for a bot of seventy that the Red Forest does
+	// not open yet). A Metin hunter takes Doyyumhwaji or the Red Forest, the two
+	// with stones, and a bot in a party of PLAYERBOT_HUNT70_GROUP_MEMBERS or
+	// more goes to the two maps with room for a group, V2 and the Red Forest.
+	// The Grotto rows from seventy-eight and the Temple of Ochao stand as they
+	// were; this is the draw under them.
+	bool IsPlayerBotNoExpGroundAt(long map, int level)
+	{
+		if (level < PLAYERBOT_HUNT70_MIN_LEVEL)
+			return false;
+		return map == PLAYERBOT_MAP_SOHAN || map == PLAYERBOT_MAP_HWANG || map == PLAYERBOT_MAP_SPIDER_V1 ||
+				map == PLAYERBOT_MAP_ORC_VALLEY || map == PLAYERBOT_MAP_DESERT ||
+				(map == PLAYERBOT_MAP_FOREST && IsPlayerBotMapOverCeiling(PLAYERBOT_MAP_FOREST, level));
+	}
+
+	// The experience ground for a bot of seventy and up, by the draw; 0 when
+	// none of it is hosted here (the caller keeps its own answer then).
+	long GetPlayerBotHunt70Map(LPCHARACTER ch, int level, DWORD draw, bool stoneHunter, bool spiderAllowed)
+	{
+		if (!ch || level < PLAYERBOT_HUNT70_MIN_LEVEL)
+			return 0;
+		using namespace playerbot_progression;
+		const long red = level >= (int)MapFrom(MAP_RED_FOREST) && IsPlayerBotMapHostedHere(PLAYERBOT_MAP_RED_FOREST)
+				? PLAYERBOT_MAP_RED_FOREST
+				: (level >= (int)MapFrom(MAP_FOREST) && !IsPlayerBotMapOverCeiling(PLAYERBOT_MAP_FOREST, level) &&
+					IsPlayerBotMapHostedHere(PLAYERBOT_MAP_FOREST) ? PLAYERBOT_MAP_FOREST : 0);
+		const long fire = level >= (int)MapFrom(MAP_FIRE_LAND) && level <= (int)MapTo(MAP_FIRE_LAND) &&
+				IsPlayerBotMapHostedHere(PLAYERBOT_MAP_FIRE_LAND) ? PLAYERBOT_MAP_FIRE_LAND : 0;
+		const long v2 = spiderAllowed && !stoneHunter && level >= (int)MapFrom(MAP_SPIDER2) &&
+				!IsPlayerBotMapOverCeiling(PLAYERBOT_MAP_SPIDER_V2, level) &&
+				IsPlayerBotMapHostedHere(PLAYERBOT_MAP_SPIDER_V2) &&
+				IsPlayerBotSpiderGearReady(ch, PLAYERBOT_MAP_SPIDER_V2) ? PLAYERBOT_MAP_SPIDER_V2 : 0;
+		// A Metin hunter: the two maps with stones (the Forest has its own
+		// too, but only the Red Forest is its ground here).
+		if (stoneHunter)
+		{
+			const long stoneRed = red == PLAYERBOT_MAP_RED_FOREST ? red : 0;
+			if (stoneRed && fire)
+				return (draw % 2U) == 0 ? stoneRed : fire;
+			return stoneRed ? stoneRed : fire;
+		}
+		LPPARTY party = ch->GetParty();
+		const bool group = party && (int)party->GetMemberCount() >= PLAYERBOT_HUNT70_GROUP_MEMBERS;
+		long rows[3];
+		int n = 0;
+		if (group)
+		{
+			if (v2) rows[n++] = v2;
+			if (red) rows[n++] = red;
+			if (n == 0 && fire) rows[n++] = fire;
+		}
+		else
+		{
+			if (v2) rows[n++] = v2;
+			if (fire) rows[n++] = fire;
+			if (red) rows[n++] = red;
+		}
+		if (n == 0)
+			return 0;
+		return rows[(draw / 7U) % (DWORD)n];
+	}
+
 	// A new draw after the town: the bot is in a village and has not set off.
 	void RedrawPlayerBotSpiderSession(TPlayerBotAIState& state)
 	{
@@ -966,6 +1034,16 @@ namespace
 				return spider;
 			if (role != s_mapPlayerBotAIStates.end() && role->second.dwSpiderSessionRoll != 0)
 				draw = PlayerBotNavHash(ch->GetPlayerID() ^ role->second.dwSpiderSessionRoll ^ 0x45534f54U);
+		}
+		// MT2009_PLUS_UPSTREAM_BOTLOGIC_HUNT70_V1: seventy to the Grotto's
+		// first level (GetPlayerBotHunt70Map), only where experience is earned;
+		// a Metin hunter at any level from seventy (the Grottos have no stone,
+		// and it was sent to Sohan).
+		if ((int)level >= PLAYERBOT_HUNT70_MIN_LEVEL && ((int)level < (int)MapFrom(MAP_GROTTO1) || stoneHunter))
+		{
+			const long hunt70 = GetPlayerBotHunt70Map(ch, (int)level, draw, stoneHunter, true);
+			if (hunt70 != 0)
+				return hunt70;
 		}
 		if (level >= MapFrom(MAP_FIRE_LAND) && level <= MapTo(MAP_FIRE_LAND) &&
 				PlayerBotNavHash(ch->GetPlayerID() ^ 0x464c414dU) % 3U == 0)
@@ -1140,7 +1218,18 @@ namespace
 		if (IsPlayerBotSpiderMap(map) && !IsPlayerBotSpiderGearReady(ch, map) &&
 				map != GetPlayerBotHuntingMobHome(GetPlayerBotBiologistHuntMob(ch)) &&
 				map != GetPlayerBotGuildErrandMap(ch))
+		{
 			map = PlayerBotMapUnderCeiling(PLAYERBOT_MAP_SOHAN, (int)ch->GetLevel(), false);
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_HUNT70_V1: from seventy not to
+			// Sohan, where nothing pays, but to Doyyumhwaji or the Red Forest.
+			if (IsPlayerBotNoExpGroundAt(map, (int)ch->GetLevel()))
+			{
+				const long hunt70 = GetPlayerBotHunt70Map(ch, (int)ch->GetLevel(),
+						PlayerBotNavHash(ch->GetPlayerID() ^ 0x48373030U), false, false);
+				if (hunt70 != 0)
+					map = hunt70;
+			}
+		}
 		// MT2009_PLUS_SIDEKICK_TRIP_V1: a companion that could not get there
 		// takes the next ground down for a while.
 		if (map != 0 && IsPlayerBotSidekickTripBlocked(ch, map))
@@ -2076,6 +2165,164 @@ namespace
 				mapIndex != PLAYERBOT_MAP_DEMON_TOWER && mapIndex != PLAYERBOT_MAP_CATACOMB;
 	}
 
+	// MT2009_PLUS_BOT_FAR_TELEPORT_V1 (the owner's decision of 20 October): a
+	// bot whose own kingdom's gate is far away takes the Teleport Ring or the
+	// map's Teleporter home instead of the long walk. Rabitu on Ziemia Ognia
+	// walked 92 000 units to Chunjo's gate (596400, 620400) for
+	// "frontier_services_to_m2", "portal walk stalled" whenever a fight held it
+	// up; on the supporters' world 95 of the 206 stalled frontier walks home
+	// logged from 5 to 19 October were longer than 30 000 units, 42 longer
+	// than 60 000. The ring already recalls a bot that holds one
+	// (MovePlayerBotToWorldPortal, TryPlayerBotTeleportRingHome - 1 465
+	// characters hold one; a frontier bot of 30+ without one wishes for it in
+	// the item shop, playerbot_itemshop.h); without a ring, or with it on its
+	// cooldown, a bot farther than PLAYERBOT_FAR_TELEPORT_MIN_DISTANCE from
+	// the gate walks to the map's Teleporter (NPC 9012, which every frontier
+	// map has) when he is nearer by PLAYERBOT_FAR_TELEPORT_MIN_GAIN, and pays
+	// what a player pays him outside a city (map_warp.quest: the fare times
+	// one and a half; teleport_ring.quest asks the same for the ring). Out
+	// there he takes a player to the kingdom's two villages only, so only a
+	// walk home is turned. The choice holds for PLAYERBOT_FAR_TELEPORT_HOLD_MS
+	// on that map and trip, so the walk does not flip back to the gate once it
+	// comes within the distance; log "PLAYERBOT_WORLD: far gate".
+	const int PLAYERBOT_FAR_TELEPORT_MIN_DISTANCE = 30000;
+	const int PLAYERBOT_FAR_TELEPORT_MIN_GAIN = 10000;
+	const DWORD PLAYERBOT_FAR_TELEPORT_HOLD_MS = 10 * 60 * 1000;
+	const DWORD PLAYERBOT_TELEPORTER_NPC_VNUM = 9012;
+
+	bool PlayerBotHoldsTeleportRing(LPCHARACTER ch);
+
+	// What a player pays outside a city: the Teleporter's (and the ring's)
+	// fare times one and a half.
+	int GetPlayerBotFarTeleporterFee(LPCHARACTER ch)
+	{
+		return GetPlayerBotTeleporterFee(ch) * 3 / 2;
+	}
+
+	struct FPlayerBotFindTeleporterNpc
+	{
+		long m_lNearX, m_lNearY;
+		LPCHARACTER m_found;
+		long m_lBest;
+		FPlayerBotFindTeleporterNpc(long nearX, long nearY)
+			: m_lNearX(nearX), m_lNearY(nearY), m_found(NULL), m_lBest(-1) {}
+		void operator()(LPENTITY entity)
+		{
+			if (!entity || !entity->IsType(ENTITY_CHARACTER))
+				return;
+			LPCHARACTER npc = static_cast<LPCHARACTER>(entity);
+			if (!npc->IsNPC() || npc->GetRaceNum() != PLAYERBOT_TELEPORTER_NPC_VNUM)
+				return;
+			const long d = DISTANCE_APPROX(npc->GetX() - m_lNearX, npc->GetY() - m_lNearY);
+			if (m_lBest < 0 || d < m_lBest)
+			{
+				m_lBest = d;
+				m_found = npc;
+			}
+		}
+	};
+
+	// The map's Teleporter, the living NPC, remembered per map for
+	// PLAYERBOT_WARP_NPC_CACHE_MS like the gates (FindPlayerBotWarpNpc).
+	bool FindPlayerBotTeleporterNpc(long mapIndex, long nearX, long nearY, DWORD dwNow, long& outX, long& outY)
+	{
+		struct TAnswer { DWORD dwStamp; bool bFound; long lX; long lY; };
+		static std::map<long, TAnswer> s_mapAnswers;
+		std::map<long, TAnswer>::iterator it = s_mapAnswers.find(mapIndex);
+		if (it != s_mapAnswers.end() && dwNow - it->second.dwStamp < PLAYERBOT_WARP_NPC_CACHE_MS)
+		{
+			outX = it->second.lX;
+			outY = it->second.lY;
+			return it->second.bFound;
+		}
+		LPSECTREE_MAP pMap = SECTREE_MANAGER::instance().GetMap(mapIndex);
+		if (!pMap)
+			return false;
+		FPlayerBotFindTeleporterNpc finder(nearX, nearY);
+		pMap->for_each(finder);
+		TAnswer& answer = s_mapAnswers[mapIndex];
+		answer.dwStamp = dwNow;
+		answer.bFound = finder.m_found != NULL;
+		answer.lX = answer.bFound ? finder.m_found->GetX() : 0;
+		answer.lY = answer.bFound ? finder.m_found->GetY() : 0;
+		outX = answer.lX;
+		outY = answer.lY;
+		return answer.bFound;
+	}
+
+	struct TPlayerBotFarTeleportChoice { long lMap; long lTargetMap; long lX; long lY; DWORD dwUntil; bool bTeleporter; };
+	std::map<DWORD, TPlayerBotFarTeleportChoice> s_mapPlayerBotFarTeleport;
+
+	// Whether this walk to a gate goes to the map's Teleporter instead; the
+	// point to walk to replaces portalX/portalY when it does.
+	bool ChoosePlayerBotFarTeleporter(LPCHARACTER ch, DWORD dwNow, long targetMap, const char* reason,
+			long& portalX, long& portalY)
+	{
+		if (!ch)
+			return false;
+		const long mapIndex = ch->GetMapIndex();
+		const int fee = GetPlayerBotFarTeleporterFee(ch);
+		std::map<DWORD, TPlayerBotFarTeleportChoice>::iterator held = s_mapPlayerBotFarTeleport.find(ch->GetPlayerID());
+		if (held != s_mapPlayerBotFarTeleport.end() && held->second.lMap == mapIndex &&
+				held->second.lTargetMap == targetMap && (int)(held->second.dwUntil - dwNow) > 0)
+		{
+			if (!held->second.bTeleporter)
+				return false;
+			if (ch->GetGold() >= fee)
+			{
+				portalX = held->second.lX;
+				portalY = held->second.lY;
+				return true;
+			}
+			// The fee is gone meanwhile: decided afresh below.
+		}
+		if (!IsPlayerBotRingRecallMap(mapIndex) ||
+				(targetMap != GetPlayerBotHomeMap(ch, playerbot_empire_rules::MAP_ROLE_M1) &&
+				 targetMap != GetPlayerBotHomeMap(ch, playerbot_empire_rules::MAP_ROLE_M2)))
+			return false;
+		const int gateDistance = DISTANCE_APPROX(ch->GetX() - portalX, ch->GetY() - portalY);
+		if (gateDistance <= PLAYERBOT_FAR_TELEPORT_MIN_DISTANCE)
+			return false;
+		TPlayerBotFarTeleportChoice& choice = s_mapPlayerBotFarTeleport[ch->GetPlayerID()];
+		choice.lMap = mapIndex;
+		choice.lTargetMap = targetMap;
+		choice.dwUntil = dwNow + PLAYERBOT_FAR_TELEPORT_HOLD_MS;
+		choice.bTeleporter = false;
+		choice.lX = choice.lY = 0;
+		const char* walkWhy = NULL;
+		long teleX = 0, teleY = 0;
+		int teleDistance = -1;
+		if (!FindPlayerBotTeleporterNpc(mapIndex, ch->GetX(), ch->GetY(), dwNow, teleX, teleY))
+			walkWhy = "no_teleporter";
+		else
+		{
+			teleDistance = DISTANCE_APPROX(ch->GetX() - teleX, ch->GetY() - teleY);
+			CPlayerBotNavigation& nav = CPlayerBotNavigation::instance(mapIndex);
+			if (ch->GetLevel() < PLAYERBOT_TELEPORTER_MIN_LEVEL)
+				walkWhy = "level";
+			else if (ch->GetGold() < fee)
+				walkWhy = "gold";
+			else if (teleDistance + PLAYERBOT_FAR_TELEPORT_MIN_GAIN > gateDistance)
+				walkWhy = "gate_nearer";
+			else if (nav.Init(mapIndex) && !nav.CanReach(ch->GetX(), ch->GetY(), teleX, teleY))
+				walkWhy = "teleporter_unreachable";
+		}
+		if (!walkWhy)
+		{
+			choice.bTeleporter = true;
+			choice.lX = teleX;
+			choice.lY = teleY;
+			portalX = teleX;
+			portalY = teleY;
+		}
+		sys_log(0, "PLAYERBOT_WORLD: far gate pid=%u name=%s map=%ld pos=(%ld,%ld) gate_distance=%d choice=%s%s "
+				"teleporter=(%ld,%ld) teleporter_distance=%d fee=%d gold=%lld ring=%d to=%ld reason=%s",
+				ch->GetPlayerID(), ch->GetName(), mapIndex, ch->GetX(), ch->GetY(), gateDistance,
+				walkWhy ? "walk:" : "teleporter", walkWhy ? walkWhy : "", teleX, teleY, teleDistance, fee,
+				(long long)ch->GetGold(), PlayerBotHoldsTeleportRing(ch) ? 1 : 0, targetMap, reason ? reason : "?");
+		return walkWhy == NULL;
+	}
+
 	// A portal walk that stalled waits here PLAYERBOT_PORTAL_STALL_WAIT_MS plus
 	// up to as much again, and then plans afresh, rather than handing the tick
 	// back at once: the hunt that took the tick walked the bot back to its
@@ -2220,8 +2467,12 @@ namespace
 				portalY = gateY;
 			}
 		}
+		// MT2009_PLUS_BOT_FAR_TELEPORT_V1: a gate far away - the map's
+		// Teleporter instead (the ring was tried above).
+		const bool farTeleporter = !viaTeleporter &&
+				ChoosePlayerBotFarTeleporter(ch, dwNow, targetMap, reason, portalX, portalY);
 		// MT2009_PLUS_M1_LOOP_FIX_V1 (status): "Ide przez portal do Joan".
-		NotePlayerBotWalk(s_mapPlayerBotPortalWalkNote, ch, dwNow, targetMap, 0, viaTeleporter);
+		NotePlayerBotWalk(s_mapPlayerBotPortalWalkNote, ch, dwNow, targetMap, 0, viaTeleporter || farTeleporter);
 
 		// Warp NPCs trigger at 300 units and hand the client to whichever core
 		// hosts the target map, which is not a conversation a bot descriptor can
@@ -2238,14 +2489,18 @@ namespace
 			state.iPortalWalkBest = 0;
 			state.wPortalWalkTicks = 0;
 			state.wPortalWalkRouteIndex = 0;
-			const int fee = viaTeleporter ? GetPlayerBotTeleporterFee(ch) : 0;
+			const int fee = farTeleporter ? GetPlayerBotFarTeleporterFee(ch)	// MT2009_PLUS_BOT_FAR_TELEPORT_V1
+					: viaTeleporter ? GetPlayerBotTeleporterFee(ch) : 0;
 			if (!TransitionPlayerBotMap(ch, state, targetMap, targetX, targetY, dwNow, reason))
 				return false;
+			if (farTeleporter)
+				s_mapPlayerBotFarTeleport.erase(ch->GetPlayerID());
 			if (fee > 0)
 			{
 				PlayerBotChangeGold(ch, -fee);
-				sys_log(0, "PLAYERBOT_WORLD: teleporter fee pid=%u name=%s level=%u fee=%d to=%ld gold_left=%lld",
-						ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), fee, targetMap, (long long)ch->GetGold());
+				sys_log(0, "PLAYERBOT_WORLD: teleporter fee pid=%u name=%s level=%u fee=%d to=%ld gold_left=%lld%s",
+						ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), fee, targetMap, (long long)ch->GetGold(),
+						farTeleporter ? " far_gate=1" : "");
 			}
 			return true;
 		}
@@ -2476,6 +2731,16 @@ namespace
 				s_mapPlayerBotTeleportRingReady.find(ch->GetPlayerID());
 		if (it != s_mapPlayerBotTeleportRingReady.end() && dwNow < it->second)
 			return false;
+		// MT2009_PLUS_BOT_FAR_TELEPORT_V1: the ring's fare, as a player pays it
+		// outside a city (teleport_ring.quest); a bot without it walks.
+		const int fee = GetPlayerBotFarTeleporterFee(ch);
+		if (ch->GetGold() < fee)
+		{
+			PlayerBotLogThrottled("teleport_ring_fee", dwNow,
+					"PLAYERBOT_WORLD: teleport ring, no fare pid=%u name=%s gold=%lld fee=%d to_map=%ld (%s)",
+					ch->GetPlayerID(), ch->GetName(), (long long)ch->GetGold(), fee, destMap, reason ? reason : "");
+			return false;
+		}
 		// MT2009_PLUS_AREZZO_BOTS_V1 (ring): the Arezzo maps' gate lets the
 		// ring's warp through (RoutePlayerBotArezzoTransition asks this).
 		s_bPlayerBotArezzoRingWarp = true;
@@ -2484,8 +2749,9 @@ namespace
 		if (!moved)
 			return false;
 		s_mapPlayerBotTeleportRingReady[ch->GetPlayerID()] = dwNow + PLAYERBOT_TELEPORT_RING_COOLDOWN_MS;
-		sys_log(0, "PLAYERBOT_WORLD: teleport ring home pid=%u name=%s to_map=%ld (%s)",
-				ch->GetPlayerID(), ch->GetName(), destMap, reason ? reason : "");
+		PlayerBotChangeGold(ch, -fee);
+		sys_log(0, "PLAYERBOT_WORLD: teleport ring home pid=%u name=%s to_map=%ld fee=%d gold_left=%lld (%s)",
+				ch->GetPlayerID(), ch->GetName(), destMap, fee, (long long)ch->GetGold(), reason ? reason : "");
 		return true;
 	}
 

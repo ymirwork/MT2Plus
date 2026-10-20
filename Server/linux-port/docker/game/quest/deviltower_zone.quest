@@ -527,10 +527,8 @@ quest deviltower_zone begin
         when devil_jump_7.timer begin
             d.clear_regen()
 
-            d.spawn_mob(8018, 639, 658)
-            d.spawn_mob(8018, 611, 637)
-            d.spawn_mob(8018, 596, 674)
-            d.spawn_mob(8018, 629, 670)
+            -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1: the four Metins of Death, each an instance unique, watched.
+            deviltower_zone.spawn_death_stones()
 
 
             d.advance_level()
@@ -543,29 +541,107 @@ quest deviltower_zone begin
             d.jump_all(sixth_location.x, sixth_location.y)
         end
 
+        -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (the owner, 20 October: "popraw wszystkie dungi"; the pattern of
+        -- MT2009_PLUS_WUKONG_TARGETS_V1): the seventh floor counted the four Metins of Death (8018) by their kill
+        -- events, and a Metin that left the map without one (a kill the core gave no quest event, a Metin
+        -- removed) held the floor shut. They are instance uniques now, looked at every 15 s (devil_tw_watch).
+        -- MT2009_PLUS_DUNGEON_TARGET_RESPAWN_V1 (the owner, 20 October: "jak nie jest dotkniêty, to respi siê nowy
+        -- czy coœ, bo to za du¿e u³atwienie, jak same siê bêd¹ zbija³y"): the floor opens only by the four kills -
+        -- a Metin not alive whose kill never counted comes back at its spot (same race, same unique); one alive
+        -- but untouched is left be. tw_target<i>: its VID while it stands, 0 once its kill counted, -1 after a
+        -- failed spawn.
+        function death_stone_pos()
+            return {{639, 658}, {611, 637}, {596, 674}, {629, 670}}
+        end
+
+        function spawn_death_stone(i)
+            local pos = deviltower_zone.death_stone_pos()
+            local vid = d.spawn_mob(8018, pos[i][1], pos[i][2])
+            if vid ~= 0 then
+                d.set_unique("tw5_"..i, vid)
+            else
+                vid = -1
+            end
+            d.setf("tw_target"..i, vid)
+        end
+
+        function spawn_death_stones()
+            for i = 1, 4 do
+                deviltower_zone.spawn_death_stone(i)
+            end
+            d.setf("tw_open", 0)
+            clear_server_timer("devil_tw_watch", d.get_map_index())
+            server_timer("devil_tw_watch", 15, d.get_map_index())
+        end
+
+        function death_stone_down(vid)
+            for i = 1, 4 do
+                if d.getf("tw_target"..i) == vid then
+                    d.setf("tw_target"..i, 0)
+                end
+            end
+        end
+
+        -- The four have fallen (their kills): the floor's demons and the Metin of Murder.
+        function open_floor7()
+            if d.getf("tw_open") == 1 then
+                return
+            end
+            d.setf("tw_open", 1)
+            d.setf("7_stone_kill", 0)
+            local sixth_location = deviltower_zone.get_level_location(6)
+            -- The seventh floor's demons come once. deviltower7_regen.txt
+            -- respawned all 34 of its groups every minute for as long as the
+            -- floor lasted, and the floor lasts until a Metin of Murder's
+            -- chest holds the map, one in ten: the pack never thinned, the
+            -- dead stood up in the middle of it and every area skill hit the
+            -- same crowd. The respawn was there for Cor Draconis, which this
+            -- world does not have (prodnathin, 24 September). The stone in
+            -- that file still has to come back - see devil_7_stone.
+            d.regen_file(sixth_location.regen)
+
+            local start_loop_time = 15*60
+            if is_test_server() then
+                start_loop_time = 10
+            end
+            server_timer('devil_7_start_loop', start_loop_time, d.get_map_index())
+        end
+
+        -- true while the watch goes on
+        function watch_death_stones()
+            if d.get_level() ~= 5 or d.getf("tw_open") == 1 then
+                return false
+            end
+            local n = 0
+            for i = 1, 4 do
+                local v = d.getf("tw_target"..i)
+                if v ~= 0 and (v < 0 or d.is_unique_dead("tw5_"..i)) then
+                    deviltower_zone.spawn_death_stone(i)
+                    n = n + 1
+                end
+            end
+            if n > 0 then
+                d.notice("Wie¿a Demonów: Zaginione Metiny piêtra pojawiaj¹ siê ponownie ("..n..").")
+            end
+            return true
+        end
+
+        when devil_tw_watch.server_timer begin
+            if d.select(get_server_timer_arg()) then
+                if deviltower_zone.watch_death_stones() then
+                    server_timer("devil_tw_watch", 15, get_server_timer_arg())
+                end
+            end
+        end
+
         when 8018.kill with in_dungeon(66) and d.get_level() == 5 begin
+            deviltower_zone.death_stone_down(npc.get_vid()) -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1
             local cont = d.getf("7_stone_kill") + 1
             d.setf("7_stone_kill", cont)
 
             if cont >= 4 then
-                d.setf("7_stone_kill", 0)
-                local sixth_location = deviltower_zone.get_level_location(6)
-                -- The seventh floor's demons come once. deviltower7_regen.txt
-                -- respawned all 34 of its groups every minute for as long as the
-                -- floor lasted, and the floor lasts until a Metin of Murder's
-                -- chest holds the map, one in ten: the pack never thinned, the
-                -- dead stood up in the middle of it and every area skill hit the
-                -- same crowd. The respawn was there for Cor Draconis, which this
-                -- world does not have (prodnathin, 24 September). The stone in
-                -- that file still has to come back - see devil_7_stone.
-                d.regen_file(sixth_location.regen)
-                
-                local start_loop_time = 15*60
-                if is_test_server() then
-                    start_loop_time = 10
-                end
-                server_timer('devil_7_start_loop', start_loop_time, pc.get_map_index())
-            end	
+                deviltower_zone.open_floor7() -- MT2009_PLUS_DUNGEON_TARGET_WATCH_V1 (the body moved there)
+            end
         end
 
         when devil_7_start_loop.server_timer begin

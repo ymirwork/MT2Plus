@@ -11,6 +11,8 @@ Zmiany silnika opisane w `edits.json`, każda z własnym znacznikiem:
 | `MT2009_PLUS_AUTOHUNT_CROWD_V1` | `cmd_general.cpp` | Auto Łowy wychodzą z tłumu: `/autohunt_target` przyjmuje ósmy argument (po VID-zie do pominięcia). `1` oznacza „najbliższy potwór, bez kolejności” – bez pierwszeństwa potwora, który bije postać, Metinu i bossa. Klient (`uiautohunt.py`) wysyła go, gdy postać w drodze do celu utknie w grupce potworów: po chwili bierze najbliższego zamiast dalej biec za pierwszym. Klient bez tej zmiany wysyła siedem argumentów i nic się nie zmienia. |
 | `MT2009_PLUS_WUKONG_GUARDIANS_V1 (crush)` | `char_skill.cpp` | Odepchnięcie (umiejętności z flagą CRUSH – potworów i graczy) kończy się na ostatnim wolnym punkcie: linia od celu do końca odepchnięcia jest sprawdzana co 25 jednostek i odepchnięcie staje przed zablokowanym terenem (atrybut BLOCK/OBJECT), a gdy już pierwszy punkt jest zablokowany, cel zostaje w miejscu. Dotąd cel lądował tam, gdzie kończyła się długość odepchnięcia – za krawędzią platformy, w ścianie – a potwór szedł za nim. Na Wzgórzu Wukonga (3 października, serwer dla wspierających) Obrońcy Chmur zepchnęli towarzysza gracza 25 kratek poza arenę, jeden Obrońca poszedł za nim i został tam – nie dało się go dojść ani ukończyć lochu. Siatka zabezpieczająca w `wzgorze_wukonga.quest` (ten sam znacznik). |
 | `MT2009_PLUS_AREZZO_BALANCE_V1` (push, sync) | `char_battle.cpp`, `input_main.cpp` | Bossa (potwór rangi BOSS i KING) nie da się odepchnąć (właściciel, 5 października: „bossowie nie powinni ani odpychać gracza, ani być odpychani”). `IsResistPush` odpowiada „tak” dla bossa – to pytanie zadaje odepchnięcie umiejętności z flagą CRUSH (konne, łucznika, wojownika; `char_skill.cpp`) i odrzut strzału łucznika z konia. Przesunięcie, które klient atakującego nadaje potworowi przy ciosie (combo, szarża z konia) i zgłasza pakietem `SyncPosition`, dla bossa jest odrzucane – boss zostaje tam, gdzie ma go rdzeń, a klient wraca go na to miejsce przy jego następnym ataku lub kroku (oba niosą pozycję). Na zboczach map Arezzo nie da się już przyprzeć bossa do ściany z konia. Druga połowa – bossowie nie odpychają gracza – to dane: umiejętności potworów 256/258/260 bez flagi CRUSH (`mariadb/playerbot/apply.sh`, ten sam znacznik). |
+| `MT2009_PLUS_HERB_BUSY_V1` (field, init, set, hit, stun) | `char_player.h`, `char_player.cpp`, `char_battle.cpp`, `battle.h` | Zbieranie ziół (`BUSY_ACTION_HERB`) nie jest przerywane trafieniem ani ogłuszeniem od potwora. Rdzeń zapamiętuje typ trwającej akcji (`m_bBusyActionType`); atak gracza, ogłuszenie od gracza i ruch postaci przerywają jak dotąd, inne akcje bez zmian. Dotąd w miejscach z potworami (Jaskiniowy Grzyb w lochu małp) nie dało się nic zebrać. |
+| `MT2009_PLUS_TOOL_REFINE_POINTS_V1` (helper, packet, reopen) | `input_main.cpp` | Nożyk Zielarza i kilof ulepszają się tylko z zebranymi punktami (`socket0 >= value2`), jak sprawdza `ReceiveItem`. Pakiet ulepszania narzędzia bez punktów jest odrzucany, a okno ulepszania po ulepszeniu („keep open”) nie otwiera się ponownie dla takiego narzędzia – dotąd można było ulepszać je dalej bez punktów. |
 
 ## Pliki
 
@@ -36,3 +38,21 @@ ma dokładnie raz, przerywa całość, zanim cokolwiek zostanie zapisane.
 `exchange.cpp` (`AddItem`, `Check`): przedmiot o numerze pola powyżej rozmiaru ekwipunku był odrzucany jako
 „juki konne”, bez sprawdzenia okna – kamień Smoczej Alchemii (własne okno, duże numery pól) zawsze dostawał
 komunikat „Przywołaj konia…”. Teraz tylko pole okna INVENTORY za ekwipunkiem to juki (`IsHorseInventory`).
+
+## Kamienie Smoczej Alchemii w sklepie offline (`MT2009_PLUS_IKASHOP_DS_V1`)
+
+Przyczyna była w kliencie (`offlineshopmanage.py`, ten sam znacznik): siatka sklepu podawała typ pola myszy zamiast
+okna – dla plecaka to ta sama liczba (1), dla okna Smoczej Alchemii nie (11 zamiast 5), więc kamień był szukany
+i wysyłany z okna, którego nie ma. Rdzeń wystawia kamień z okna DRAGON_SOUL_INVENTORY bez zmian i daje go kupującemu
+do tego okna (`CanTakeInventoryItem`). `ikarus_shop_manager.cpp` (`IkashopHasRoomFor`): przed kupnem i przed zdjęciem
+linii ze sklepu miejsce na kamień jest sprawdzane w oknie Smoczej Alchemii (było: w plecaku – pełny plecak blokował
+kupno kamienia, a pełne okno alchemii przepuszczało go do depozytu sklepu); kupujący bez odblokowanej Smoczej
+Alchemii dostaje komunikat.
+
+## Zabójstwo gracza z gildii na wojnie liczy się dla questów (`MT2009_PLUS_WAR_KILL_QUEST_V1`)
+
+`char_battle.cpp` (`CHARACTER::Dead`): zabójca, którego gildia prowadzi wojnę, nie dostaje doświadczenia ani dropu,
+ale rdzeń pomijał całe `Reward()` – razem ze zdarzeniem `kill` questów. Licznik lochu („Pozostało: 2” na Wzgórzu
+Wukonga, 16.10) stał. Teraz w tej gałęzi idzie samo `CQuestManager::Kill` (z zaliczeniem zabójstwa towarzysza jego
+właścicielowi, jak w `Reward()`); doświadczenie, drop, karty, owoce rang i Przepustka Bojowa – dalej nie.
+- `MT2009_PLUS_BOT_SHOP_PAGES4_V1` (slot), (person) (`ikarus_shop_manager.cpp`): sklep offline bota ma 4 strony (320 pól, `playerbot_offline::BOT_SHOP_PAGES` w nakładce, czytane też przez silnik). Sklep gracza dalej najwyżej 2 strony (przełącznik większych sklepów) – linia gracza na polu 160+ jest odrzucana. Test pola premium/zablokowanego (`CanAddItemToShop`, argument BYTE) dla pola za pierwszą stroną pyta o pole 80 – czwarta strona (240–319) zawijała się na pierwszą. `pos` przedmiotu to WORD, pakiet otwarcia sklepu (320 × `TShopItem`) mieści się w rozmiarze WORD. Okno gościa: `client-patches/client-2.0.30/root/offlineshopguest.py` (strony 2×2) – potrzebny nowy klient 2.x.

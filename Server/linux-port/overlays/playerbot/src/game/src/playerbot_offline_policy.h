@@ -140,6 +140,14 @@ struct State {
     // MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1: weak-bonus scrap lines taken off
     // in this burst of chained steps (a full counter takes several a visit).
     uint32_t weakTakeoffBurst = 0;
+    // MT2009_PLUS_BOT_SHOP_MGMT_V1: shop-management take-offs in this burst
+    // of chained steps (a counter far over its fill target takes several a
+    // visit), and when this keeper last took a line home to stack it again.
+    uint32_t mgmtBurst = 0, restackAt = 0, restackVnum = 0;
+    // MT2009_PLUS_BOT_SHOP_MGMT_V1 (point 5): the buyer's pick is this many
+    // pieces of the line's stack (0: the whole line) - the shop window's part
+    // purchase (MT2009_PLUS_SHOP_QOL_V2, /ikashop_buy_part).
+    uint32_t buyQuantity = 0;
     // Which compiled price table this shop was last priced against.
     uint32_t priceGeneration = 0;
     // The empty-hand probe of the counter, and the last line taken back to
@@ -226,7 +234,13 @@ inline bool Fits(int cell, int height, int width, int cells) {
 // prodnathin, 28 September). The engine's add path (playerbotify's
 // apply_bot_shop_two_pages) reads this same number, so the two sides cannot
 // disagree.
-constexpr int BOT_SHOP_PAGES = 2;
+// MT2009_PLUS_BOT_SHOP_PAGES4_V1 (the owner, 20 October: "podwoj miejsce w
+// sklepach botow"): four pages, 320 cells - a bot's alone; a person's stays at
+// the bigger shops switch's two (server-patches/enginefixes, (person)). The
+// item's pos is a WORD and the shop's open packet stays under its WORD size
+// (320 lines of TShopItem), so four is safe; the guest window lays them out
+// two by two (client-patches/client-2.0.30/root/offlineshopguest.py).
+constexpr int BOT_SHOP_PAGES = 4;
 // Whether a line `height` cells tall at `cell` stands inside one page of a
 // shop of `pages` pages `width` wide and `rows` tall. Never across two: the
 // window draws each page in a grid of its own, side by side, and a page's

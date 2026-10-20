@@ -427,6 +427,31 @@ long long GetAuctionMinRaise(ikashop::CShopManager::AUCTION_HANDLE auction)
 	return static_cast<long long>(static_cast<double>(money) * percentage);
 }
 
+// MT2009_PLUS_IKASHOP_DS_V1 (helper) (server-patches/enginefixes): a Dragon Soul stone from an offline
+// shop goes to the Dragon Soul inventory (CanTakeInventoryItem), so the room asked for before a buy
+// or a take-back is there - HasSlotForItem only looks at the bag. A stone for someone without the
+// Dragon Soul inventory open (DragonSoul_IsQualified) finds no room.
+template <typename TShopLine>
+static bool IkashopHasRoomFor(LPCHARACTER ch, const TShopLine& line)
+{
+	const TItemTable* proto = ITEM_MANAGER::instance().GetTable(line->GetVnum());
+	if (!proto || proto->bType != ITEM_DS)
+		return ch->HasSlotForItem(line->GetVnum());
+	if (!ch->DragonSoul_IsQualified())
+	{
+		ch->ChatPacket(CHAT_TYPE_INFO, "Najpierw odblokuj Smocza Alchemie - kamien trafia do jej okna.");
+		return false;
+	}
+	LPITEM probe = line->CreateItem();
+	if (!probe)
+		return false;
+	TItemPos pos;
+	const bool room = ch->CanTakeInventoryItem(probe, &pos);
+	probe->SetSkipSave(true);
+	M2_DESTROY_ITEM(probe);
+	return room;
+}
+
 void MoveAndDestroyInstance(LPITEM item, BYTE window, WORD pos)
 {
 	auto ch = item->GetOwner();
@@ -3045,7 +3070,7 @@ namespace ikashop
 			mt2009PartQuantity = g_fleaBuyQuantity;
 		}
 
-		if (!ch->HasSlotForItem(pitem->GetVnum()))
+		if (!IkashopHasRoomFor(ch, pitem)) // MT2009_PLUS_IKASHOP_DS_V1 (buy): a stone's room is in the DS inventory
 		{
 			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("INVENTORY_FULL_ERROR"));
 			return false;
@@ -3847,8 +3872,12 @@ namespace ikashop
 		if(!item)
 			return false;
 
-		if (destPos < 0 || destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * 2 ||
-            !ch->CanAddItemToShop(item, destPos))
+		if (destPos < 0 || destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * playerbot_offline::BOT_SHOP_PAGES)
+			return false;
+
+		// MT2009_PLUS_BOT_SHOP_PAGES4_V1 (slot): the premium and locked cells are the first page's; a cell past it
+		// is asked as the first cell past it - CanAddItemToShop takes a BYTE, and a bot's fourth page (240-319) wrapped
+		if (!ch->CanAddItemToShop(item, destPos < SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT ? destPos : SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT))
 			return false;
 
 		if (!IsGoodSalePrice(price))
@@ -3866,6 +3895,13 @@ namespace ikashop
 		const bool secondPage = destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT;
 		// MT2009_PLUS_SHOP_QOL_V2 (big shop): and a person's too, while the panel's "bigger
 		// shops" switch (event flag m2_shop_big_on) is on, or when unlocked via wooden keys.
+		// MT2009_PLUS_BOT_SHOP_PAGES4_V1 (person): a bot's stand has playerbot_offline::BOT_SHOP_PAGES pages (four,
+		// 320 cells); a person's never more than the two of the bigger shops switch or wood key unlock
+		if (destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * 2 && !(ch->GetDesc() && ch->GetDesc()->IsBot()))
+		{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("SHOP_ITEM_WRONG_POS"));
+			return false;
+		}
 		if (secondPage && !(ch->GetDesc() && ch->GetDesc()->IsBot()) && !ikashop_qol::BigShopsOn() && !ch->CanAddItemToShop(item, destPos))
 		{
 			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("SHOP_ITEM_WRONG_POS"));
@@ -3956,7 +3992,7 @@ namespace ikashop
 			return false;
 
 #ifdef ENABLE_MT2009_DISABLE_IKASHOP_DEFAULT_SAFEBOX
-		if (!ch->HasSlotForItem(shopItem->GetVnum()))
+		if (!IkashopHasRoomFor(ch, shopItem)) // MT2009_PLUS_IKASHOP_DS_V1 (take back)
 		{
 			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("INVENTORY_FULL_ERROR"));
 			return false;

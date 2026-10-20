@@ -444,16 +444,16 @@
  },
  {
   "name": "pack\\gamedata.data",
-  "size": 23097600,
-  "md5": "7A53DABDF0AD0B609985E12C97EA1B87",
-  "uid": "7a53dabdf0ad0b609985e12c97ea1b87",
+  "size": 23388672,
+  "md5": "0F8B66E7B2522C86D64BFA531DA5C043",
+  "uid": "0f8b66e7b2522c86d64bfa531da5c043",
   "delete": 0
  },
  {
   "name": "pack\\gamedata.index",
-  "size": 4092,
-  "md5": "F723CD1B7E392EC6E55EF218DACA9585",
-  "uid": "f723cd1b7e392ec6e55ef218daca9585",
+  "size": 4084,
+  "md5": "7AF41BFE1AE8A91B36031C656AB26765",
+  "uid": "7af41bfe1ae8a91b36031c656ab26765",
   "delete": 0
  },
  {

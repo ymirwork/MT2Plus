@@ -10,9 +10,9 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 
 | Tag | Znaczenie i Cel | Zachowanie i Rola Asystenta |
 | :--- | :--- | :--- |
-| **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z oficjalnego repozytorium `mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Krok 1–5): analiza diffa, adaptacja na `dev`, a następnie **bezwzględne ponowne wgranie i zintegrowanie wszystkich naszych autorskich modyfikacji/addonów** z rejestru `Server/addons/` (Krok 3). Weryfikacja ewentualnych kolizji z upstreamem i bezpieczne usunięcie tylko tych addonów, które oficjalny kod sam wdrożył. |
-| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie paczki w `Server/addons/`, testy w `mt2dev`. |
-| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. |
+| **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z oficjalnego repozytorium `mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Krok 1–5): analiza diffa, adaptacja na `dev`, a następnie **bezwzględne ponowne wgranie i zintegrowanie wszystkich naszych autorskich modyfikacji** z rejestru `Server/server-patches/krystian/` (Krok 3). Weryfikacja ewentualnych kolizji z upstreamem i bezpieczne usunięcie tylko tych modów, które oficjalny kod sam wdrożył. |
+| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie modułu w `Server/server-patches/krystian/`, testy w `mt2dev`. |
+| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. **Po każdej modyfikacji i spakowaniu paczek bezwzględna synchronizacja serwera patchera (`python Server/tools/publish_patcher_web.py`), aby patcher nie nadpisał nowości!** (Zasada nr 15) |
 | **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa analiza logów (`syserr`, `syslog`, `docker logs`), identyfikacja przyczyny źródłowej (*root cause*), minimalny bezpieczny patch bez psucia logiki upstreamu. |
 | **`[DISCORD]`** | Przygotowanie materiałów, ogłoszeń i instrukcji dla społeczności graczy na Discordzie. | Przejście na język gracza: brak zbędnego żargonu kompilacji, zwięzły opis zmian oraz jasna instrukcja instalacji krok po kroku (patrz szablony poniżej). |
 | **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika), sformatowanego Changelogu z kropkami i podsumowaniami, a **na sam koniec bezwzględne utworzenie GitHub Release i wrzucenie obu paczek (serwera i klienta z naszymi modyfikacjami) na GitHub Releases**. |
@@ -28,9 +28,11 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | **Kod C++ Playerbots AI** | `Server/linux-port/overlays/playerbot/src/game/src/` | Moduły `playerbot_*.cpp / .h` |
 | **Skrypty i interfejsy klienta** | `Klient/pack/root/` oraz `Klient/pack/uiscript/` | Rozpakowane źródła Pythona klienta |
 | **Pakowanie paczek klienta** | `Klient/Kompiluj-Paczki.bat` / `Klient/Compile-ClientPack.ps1` | PackMakerLite-RS (klucz `22srh2fgh3`) |
-| **Katalog paczek dodatków** | `Server/addons/` | Wewnętrzne spakowane zipy modyfikacji i fixów |
+| **Serwer aktualizacji Patchera (CDN)** | `Server/tools/publish_patcher_web.py` | Generowanie i synchronizacja drzewa patchera na gałąź `gh-pages` (raw CDN) |
+| **Katalog autorskich modyfikacji** | `Server/server-patches/krystian/` | Podfoldery z autorskimi modyfikacjami i systemami |
+| **Bufor wydań i higiena dysku** | `dist/` \| `Klient/syserr.txt` | Tymczasowy bufor wydań i logi do okresowego czyszczenia (Zasada nr 14) |
 | **Kopie zapasowe bazy SQL** | `Server/backups/` | Zrzuty bazy przed zmianami w serwerze |
-| **Panele administracyjne** | Tieru: `http://localhost:7788` \| Seban: `http://localhost:7790` \| IS: `http://localhost:7791` | Login / zarządzanie / gospodarka botów |
+| **Panele i serwisy WWW** | Tieru: `http://localhost:7788` \| Seban: `http://localhost:7790` \| IS: `http://localhost:7791` | Login / zarządzanie / rynek |
 
 ---
 
@@ -127,15 +129,15 @@ Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-et
    - `Server/linux-port/docker/panel/app/VERSION` oraz `Server/linux-port/docker/seban-panel/VERSION`.
    - `Server/update-manifest-mt2009.json` oraz `Server/CHANGELOG.md`.
 
-### Krok 3: Ponowne wdrożenie wszystkich naszych modyfikacji i addonów z `Server/addons/`
-1. **Dynamiczne wgrywanie z Rejestru Addonów (`Server/addons/`):**
-   - Po udanym naniesieniu zmian z oficjalnego repozytorium (Krok 2), asystent i deweloper **nie polegają na sztywnej liście**, lecz dynamicznie sprawdzają **Rejestr Paczek (Sekcja 5.1)** oraz zawartość folderu `Server/addons/`.
-   - **Wszystkie aktywne paczki i moduły** znajdujące się w `Server/addons/` (zarówno obecne, jak i nowo dodane w przyszłości) są sekwencyjnie aplikowane na gałąź `dev`.
+### Krok 3: Ponowne wdrożenie wszystkich naszych modyfikacji z `Server/server-patches/krystian/`
+1. **Dynamiczne wgrywanie z Rejestru Modyfikacji (`Server/server-patches/krystian/`):**
+   - Po udanym naniesieniu zmian z oficjalnego repozytorium (Krok 2), asystent i deweloper **nie polegają na sztywnej liście**, lecz dynamicznie sprawdzają **Rejestr Modyfikacji (Sekcja 5.1)** oraz zawartość folderu `Server/server-patches/krystian/`.
+   - **Wszystkie aktywne podfoldery i moduły** znajdujące się w `Server/server-patches/krystian/` (zarówno obecne, jak i nowo dodane w przyszłości) są sekwencyjnie aplikowane na gałąź `dev`.
    - **Zasada Dodawania Nowego Modułu:** Każda nowa modyfikacja autorska tworzona w projekcie musi:
-     1. Posiadać spakowane archiwum `.zip` / skrypt w `Server/addons/`.
+     1. Posiadać dedykowany podfolder z dokumentacją `README.md` oraz skryptami/diffami w `Server/server-patches/krystian/`.
      2. Zostać dopisana do tabeli w **Sekcji 5.1** wraz z informacją o modyfikowanych plikach i statusie `Aktywny`.
      Dzięki temu podczas kolejnego `[AKTUALIZUJ]` nowy moduł zostanie automatycznie uwzględniony i ponownie wdrożony!
-2. **Bezpieczne usuwanie zaadoptowanych modyfikacji (Addon Cleanup):** Jeżeli Upstream w nowej wersji oficjalnie wprowadził identycznego fixa lub system, który dotychczas utrzymywaliśmy jako addon w `Server/addons/`, wówczas naszą paczkę/patch **bezpiecznie usuwamy z `Server/addons/`**, usuwamy wpis z Sekcji 5.1, przechodząc na oficjalne rozwiązanie z Upstream i eliminując duplikację kodu.
+2. **Bezpieczne usuwanie zaadoptowanych modyfikacji (Mod Cleanup):** Jeżeli Upstream w nowej wersji oficjalnie wprowadził identycznego fixa lub system, który dotychczas utrzymywaliśmy w `Server/server-patches/krystian/`, wówczas dany moduł **bezpiecznie oznaczamy lub usuwamy z `Server/server-patches/krystian/`**, usuwamy/aktualizujemy wpis z Sekcji 5.1, przechodząc na oficjalne rozwiązanie z Upstream i eliminując duplikację kodu.
 3. **Zasada Bezinwazyjności i Integralności:** Żadna nasza modyfikacja nie może usunąć ani zepsuć nowego kodu ani logiki wprowadzonej przez Upstream. Wszelkie nakładające się fragmenty są harmonijnie integrowane w Kroku 4.
 
 ### Krok 4: Rozwiązanie kolizji i weryfikacja w kontenerach (`dev`)
@@ -160,12 +162,17 @@ Dopiero po pomyślnym przejściu Kroków 1–4:
 3. **Paczki klienta i serwera:**
    - W przypadku modyfikacji plików klienta (`pack/root` itp.): skompilowanie nowej paczki za pomocą `Kompiluj-Paczki.bat` / `Compile-ClientPack.ps1` i wygenerowanie archiwum wydania dla graczy.
    - Zbudowanie gotowych archiwów Ready-to-Play: serwera (`metin2-server-update-[wersja].zip`) oraz klienta (`metin2-client-update-[wersja].zip` ze zaktualizowanym `pack/root`).
-4. **Bezwzględna Publikacja Wydania na GitHub Releases (Krok Końcowy):**
-   - **Na sam koniec procedury wydania `[DOCS]` / `[RELEASE]` asystent ZAWSZE ma obowiązek utworzyć i opublikować oficjalne wydanie na GitHub Releases** (`https://api.github.com/repos/ymirwork/MT2Plus/releases` przez REST API / curl).
+4. **Bezwzględna Publikacja Wydania na GitHub Releases:**
+   - **W procedurze wydania `[DOCS]` / `[RELEASE]` asystent ZAWSZE ma obowiązek utworzyć i opublikować oficjalne wydanie na GitHub Releases** (`https://api.github.com/repos/ymirwork/MT2Plus/releases` przez REST API / curl).
    - W załącznikach (Release Assets) muszą znaleźć się **obie paczki wydania**:
      1. Paczka serwera: `metin2-server-update-[wersja].zip`
      2. Paczka klienta z naszymi modyfikacjami: `metin2-client-update-[wersja].zip`
    - Opis wydania (Release Body) musi zawierać sformatowany Changelog (Szablon B) oraz sumy kontrolne SHA-256 obu plików.
+5. **Synchronizacja i Publikacja Serwera Patchera (`gh-pages` / CDN):**
+   - Na sam koniec asystent uruchamia generator i synchronizator patchera:
+     `python Server/tools/publish_patcher_web.py`
+   - Skrypt wstrzykuje nowe sumy MD5 i pliki naszych modyfikacji (`pack/root.data`, `pack/root.index`, `CLIENT_VERSION`, `MT2009-Patcher.exe.config`), synchronizuje pozostałe pliki upstreamu i automatycznie publikuje gotowe drzewo na gałąź `origin/gh-pages`.
+   - Dzięki temu patcher graczy (`MT2009-Patcher.exe`) pobiera aktualizacje z adresu `https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/` i zawsze zachowuje nasze modyfikacje.
 
 ---
 
@@ -196,6 +203,7 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
      - **Eksport Danych:** Eksport zestawień przedmiotów w obiegu do `.csv` oraz `.json`.
      - **Raporty Discord:** Wysyłanie dobowych raportów embed na skonfigurowany Webhook Discorda.
      - **Telemetria Modułu YmirWork (Krystian):** Statystyki przetapiania ulepszaczy M1/M2 i skupu ofert przez boty z pełnym graceful fallback.
+     - **Półautomatyczny Doradca Rotacji Botów (Asystent Emerytur):** Algorytm oceniający dojrzałość populacji (poziomy botów 35+, 40+, 50+, cooldown &ge;12h/24h), wskaźnik gotowości rynkowej (%), ochrona przed zaburzeniem rozgrywki i szybka akcja 1-klik `[Zastosuj rekomendację doradcy]`.
 6. **`seban-collector` & `seban-item-grants`**:
    - Demony tła odpowiedzialne za telemetrię, ogłoszenia ulepszeń +9 i transakcyjne nadawanie przedmiotów.
 7. **`itemshop` (Port 7791)**:
@@ -205,7 +213,9 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 
 ### 4.2. Warstwa Klienta (Windows)
 - Plik wykonywalny: `metin2client.exe` (binarny, brak źródeł C++ w tym repozytorium).
-- Patcher: `MT2009-Patcher.exe` (.NET 4.7.2).
+- Patcher: `MT2009-Patcher.exe` (.NET 4.7.2/4.8 WPF).
+  - Skonfigurowany w `MT2009-Patcher.exe.config` do pobierania aktualizacji z naszego repozytorium (`https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/`).
+  - Serwer aktualizacji jest w 100% zsynchronizowany z naszymi modyfikacjami (`publish_patcher_web.py`), dzięki czemu patcher nie nadpisuje autorskich zmian w `root.data` i wspiera aktualizacje upstreamu.
 - Paczki: format EterPack (`.data` / `.index`), spakowane narzędziem PackMakerLite (klucz `22srh2fgh3`) lub przez `m2clientpack` w panelu Seban.
 - Konfiguracja połączenia: pliki `channel.inf` oraz `coop.cfg`.
 - **Kompilacja i Pakowanie Klienta:**
@@ -231,11 +241,11 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
   - **Telemetria w panelu Seban:** Dynamiczne śledzenie mnożnika inflacji, aktualnego wskaźnika skupu botów (płynne %), zliczonej podaży ulepszaczy oraz historii przetopień.
   - *Uwaga:* Emerytury botów pozostają domyślnie wyłączone do późniejszej konfiguracji przez operatora.
 - **Świątynia Zodiaku (Zodiac Temple) & Towarzysz (v2.29.1):** Mapa 358 (`metin2_12zi_stage`), 12 portali, Kule Animy, broń/zbroje Zodiaku, instancje pięter; pełna obsługa Towarzysza (wskrzeszanie Pryzmatami Ożywienia, automatyczne czyszczenie flag Zodiaku i autowstanie po 30s).
-- **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu dla gracza. Paczka instalacyjna w `Server/addons/Paczka_Recykling_Bonusow.zip`.
-- **Sklep Offline 160 Pól (Odblokowanie Kluczami):** Dwa bloki sklepu offline (po 80 pól każdy, łącznie 160 pól). Pierwszy blok zachowuje 40 pól darmowych, 20 za klucze (po 1 Drewnianym Kluczu `30376` na 5 pól) oraz 20 pól premium. Drugi blok 80 pól odblokowywany jest krokami po 5 pól za 2 Drewniane Klucze (`shop_unlock_slots.quest`). Przy tworzeniu sklepu obowiązuje limit do 80 przedmiotów naraz; kolejne sloty uzupełnia się w otwartym sklepie. Zmiany silnikowe w `char_shop.cpp` i `ikarus_shop_manager.cpp`, interfejs w `dualshop.py`, `offlineshopui.py`, `offlineshopbuilder.py` i `offlineshopmanage.py`. Paczka w `Server/addons/MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip`.
+- **System Recyklingu Bonowanego Ekwipunku:** Quest `recykling_bonusow.quest` u Dozorcy – wymiana niepotrzebnych przedmiotów z 5 bonusami na Zaczarowania i Wzmocnienia Przedmiotu dla gracza. Moduł w [`Server/server-patches/krystian/recykling-bonusow/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/recykling-bonusow).
+- **Sklep Offline 160 Pól (Odblokowanie Kluczami):** Dwa bloki sklepu offline (po 80 pól każdy, łącznie 160 pól). Pierwszy blok zachowuje 40 pól darmowych, 20 za klucze (po 1 Drewnianym Kluczu `30376` na 5 pól) oraz 20 pól premium. Drugi blok 80 pól odblokowywany jest krokami po 5 pól za 2 Drewniane Klucze (`shop_unlock_slots.quest`). Przy tworzeniu sklepu obowiązuje limit do 80 przedmiotów naraz; kolejne sloty uzupełnia się w otwartym sklepie. Zmiany silnikowe w `char_shop.cpp` i `ikarus_shop_manager.cpp`, interfejs w `dualshop.py`, `offlineshopui.py`, `offlineshopbuilder.py` i `offlineshopmanage.py`. Moduł w [`Server/server-patches/krystian/sklep-160-slotow/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/sklep-160-slotow).
 - **Naprawa Łowienia Towarzysza:** Bezpośrednie sterowanie pętlą wędkowania w trybie "Na ryby" (`playerbot_sidekick.h`), zapobiegające porzucaniu łowienia przez bota.
 - **Dom Aukcyjny (AH_V1, Autor: Vekirion):** Wyszukiwarka i zakupy ofert ze sklepów offline (Ikarus) bez nowych pakietów binarnych, komendy `/ah_*` w `auction_house.cpp`, hooki transakcyjne w `ikarus_shop_manager.cpp` i `cmd.cpp`, quest `flea_market.quest` oraz interfejs klienta `uiauctionhouse.py`.
-- **Rozszerzony Pierścień Teleportacji:** Quest `teleport_ring.quest` ze skrótami do lochów (Loch Pająków V1, Trudny/Normalny/Łatwy Loch Małp) oraz map Arezzo (360 Dolina Cyklopów, 361 Pustkowie Faraona).
+- **Rozszerzony Pierścień Teleportacji:** Quest `teleport_ring.quest` ze skrótami do lochów (Loch Pająków V1, Trudny/Normalny/Łatwy Loch Małp) oraz map Arezzo (360 Dolina Cyklopów, 361 Pustkowie Faraona). Moduł w [`Server/server-patches/krystian/pierscien-teleportacji/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/pierscien-teleportacji).
 - **Ruiny Atlantydy (Ruins of Atlantis):** Mapa 158, dungeon grupowy/solo od poziomu 75+.
 - **Moduł Arezzo:** Nowe mapy exp (360-362) i dungeony (363-366).
 - **Playerbots AI:** Ponad 18 000 linii kodu C++ wbudowane w `game/src/` (`playerbot_manager.cpp`, `playerbot_types.h`), obsługa dungeonów, tobołków offline, farming linków, walki i zrzutek na ziemie gildii.
@@ -243,6 +253,13 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Alchemia Smoczych Kamieni (Dragon Soul):** Mityczna alchemia, pełny obieg uszlachetniania.
 - **Auto Hunting (Klawisz K):** Zautomatyzowane expienie dla gracza.
 - **Szybkie ulepszanie (Enter-refine) & TAB Minimap Warp.**
+- **Pakiet Optymalizacji Autołowów, Dropu, Sklepów i Magazynów (v2.33.0 / Krystian):**
+  - **Automatyczne stackowanie zakupów (AH, Sklep NPC, Depozyt):** Przedmioty kupowane w Domu Aukcyjnym (pojedyncze oferty i hurt `/ah_bulk_buy`), w sklepach NPC oraz wyciągane z depozytu/safeboxa łączą się natychmiast w jeden wspólny stos w ekwipunku (`AutoStackItem`) do limitu (np. 200) zamiast rozbijać się na osobne sloty (`ikarus_shop_manager.cpp`, `shop.cpp`, `char_item.cpp`, `safebox.cpp`, `input_main.cpp`). Umożliwiono zakup i wyciąganie z depozytu nawet przy pełnym ekwipunku, o ile przedmioty mieszczą się w istniejących stosach.
+  - **Usunięcie limitu +-15 poziomów na drop:** Zniesiono ograniczenia delty poziomu w silniku serwera (`item_manager.cpp`, `char_battle.cpp`, `playerbot_alchemy.h`, `playerbot_events.h`, `playerbot_newpet.h`, `dragon_soul.quest`). Drop przedmiotów, Yang, Odłamków Kamienia Smoczego, Cor Draconis, Szarf/Sukna oraz Jaj Zwierzaków leci niezależnie od poziomu postaci.
+  - **Usprawnienia i skrócenie akcji w Autołowach:** Zoptymalizowano `uiautohunt.py` (skrócenie `STUCK_SECONDS` z 8.0s do 3.0s, błyskawiczne pytanie o kolejny cel po 0.3s, szybsze zapytania `TARGET_REQUEST_INTERVAL` 0.35s i zbieranie lootu).
+  - **Usprawnienie Pathfindingu w Autołowach (Lochy Małp):** Wprowadzono filtr osiągalności celów `CPlayerBotManager::IsHumanTargetReachable` (`playerbot_manager.cpp`, `cmd_general.cpp`), zapobiegający obieraniu potworów za ścianami w odciętych komnatach. W kliencie (`WalkPath`) zwiększono margines punktów i dodano wygładzanie zakrętów.
+  - **Odblokowanie mapy Czerwonego Lasu:** Dodano atlas `metin2_map_trent02` w minimapie (`M`) klienta (`uiminimap.py`, `uitooltip.py`).
+  - **Zwiększenie stosu przedmiotów do 200:** Podniesiono limit stackowania z 5/10/20 do 200 sztuk dla Medalu Konnego, Ziół z Małp, Zwojów Błogosławieństwa/Wojny/Boga Smoków, Magicznych Metali/Kamieni Kowala, Małży, Pereł, Ryb, Przetopów Rud, Ksiąg Pasywnych (Sun Zi, Combo, Języki, Polimorfia, Instrukcje Konne) oraz Kluczy i Przedmiotów Specjalnych (`world.item_proto`, `apply.sh` + paczka binarnego `dbdata` 2.0.61-31f459ebe125).
 - **Pakiet Usprawnień Rozgrywki (Dev Gameplay V1):**
   - Czytanie Ksiąg Umiejętności (KU) bez wymogu posiadania punktów doświadczenia (EXP) w `char_skill.cpp`.
   - Zdjęcie limiterów Movement Speed i Attack Speed, odblokowanie górnego limitu obrażeń (damage cap) oraz usunięcie disconnectów i cofania gracza przez antyhack (`CheckComboHack` / `IS_SPEED_HACK`).
@@ -251,21 +268,27 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
   - Wprowadzanie kwot Yang ze skrótami `k`, `kk`, `kkk` w oknach dialogowych (np. `1kk` = `1.000.000`) w `uiPickMoney.py`, `uiCommon.py`, `uiexchange.py` i skryptach dialogów.
   - Zwiększenie obrażeń PvP o 5% przy ataku na gracza z wrogiego królestwa, jeśli napastnik posiada język tej nacji na poziomie minimum M1 w `char_battle.cpp`.
 
-### 5.1. Rejestr Paczek i Modułów w `Server/addons/`
+### 5.1. Rejestr Autorskich Modyfikacji w `Server/server-patches/krystian/`
 
-Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z **Zasadą nr 8**, jeśli dany fix/mod zostanie oficjalnie dodany w Upstream, jego paczka jest bezpiecznie usuwana.
+Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w dedykowanych, modularnych podfolderach w katalogu [`Server/server-patches/krystian/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian). Każdy podfolder zawiera kompletną dokumentację `README.md`, skrypty instalacyjne oraz kody źródłowe / diffy. Zgodnie z **Zasadą nr 8**, jeśli dany fix/mod zostanie oficjalnie dodany w Upstream, jego moduł jest oznaczany jako włączony w Upstream lub bezpiecznie usuwany.
 
-| Nazwa Pliku / Archiwum | Typ / Zawartość | Pliki i Obszary Modyfikacji | Status |
+| Podfolder w `server-patches/krystian/` | Typ / Warstwa | Pliki i Obszary Modyfikacji | Status |
 | :--- | :--- | :--- | :--- |
-| `Szybkie_Zbieranie_Autolowy.zip` | Klient (Python) | `Klient/pack/root/uiautohunt.py` (obszarowe podnoszenie dropu) | **Aktywny** |
-| `Ukrycie_Wartosci_HP_Celu.zip` | Klient (Python) | `Klient/pack/root/uitarget.py` (usunięcie cyfrowego HP innych graczy/mobów) | **Aktywny** |
-| `Wstawanie_100_Procent_HP.zip` | Serwer (C++) | `game/src/cmd_general.cpp`, `char.cpp` (100% HP po ożywieniu) | **Aktywny** |
-| `Fix_Boty_Gildia_Exp_Party.zip` | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Włączony w Upstream 2.32.0** |
-| `Seban_Panel_Rozszerzona_Ekonomia_V2.zip` | Web / Panel Seban | `Server/linux-port/overlays/seban-panel/` -> `docker/seban-panel/` (Centrum Gospodarki, YmirWork telemetria, interpretacja inflacji, bilans emerytur botów, zachowywane automatycznie po aktualizacjach z upstream) | **Aktywny (Auto-Overlay)** |
-| `MT2009-PLUS-SKLEP-160-SLOTOW-KLUCZE-2.30.0.zip` | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
-| `Paczka_Recykling_Bonusow.zip` | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |
-| `teleport_ring.quest` | Serwer (Quest) | Quest z dodatkowymi lochami i mapami Arezzo | **Aktywny** |
-| `MT2009-PLUS-DEV-GAMEPLAY-V1.zip` | Serwer + Klient | `char_skill.cpp`, `char.cpp`, `battle.cpp`, `input_main.cpp`, `char_battle.cpp`, `char_item.cpp`, `tp_bookmarks.quest`, `uipickmoney.py`, `uicommon.py`, `uiexchange.py` | **Aktywny** |
+| [`wstawanie-100hp`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/wstawanie-100hp) | Serwer (C++) | `game/src/cmd_general.cpp`, `char.cpp` (100% HP po ożywieniu) | **Aktywny** |
+| [`autolowy-szybkie-zbieranie`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/autolowy-szybkie-zbieranie) | Klient (Python) | `Klient/pack/root/uiautohunt.py` (obszarowe podnoszenie dropu) | **Aktywny** |
+| [`ukrycie-hp-celu`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/ukrycie-hp-celu) | Klient (Python) | `Klient/pack/root/uitarget.py` (usunięcie cyfrowego HP innych graczy/mobów) | **Aktywny** |
+| [`tracker-bossow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/tracker-bossow) | Klient + Serwer | Boss Tracker: aplikacja Windows, maintenance bot, patche serwera | **Aktywny** |
+| [`sklep-160-slotow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/sklep-160-slotow) | Serwer + Klient | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `dualshop.py`, `offlineshopui.py` | **Aktywny** |
+| [`recykling-bonusow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/recykling-bonusow) | Serwer (Quest/C++) | `recykling_bonusow.quest`, Dozorca, wymiana 5b na dodania/zmianki | **Aktywny** |
+| [`pierscien-teleportacji`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/pierscien-teleportacji) | Serwer (Quest) | Quest z dodatkowymi lochami i mapami Arezzo | **Aktywny** |
+| [`seban-panel-ekonomia`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/seban-panel-ekonomia) | Web / Panel Seban | `Server/linux-port/overlays/seban-panel/` -> `docker/seban-panel/` (Centrum Gospodarki, YmirWork telemetria, interpretacja inflacji, Doradca Rotacji Botów Półautomat, optymalizacja collector.py batch insert & auto-pruning, indeksy idx_time na log.log/item_meta_log/refinelog, Page Visibility API w live-widget/player/economy_shops, cache dashboard totals & live-bots) | **Aktywny (Auto-Overlay)** |
+| [`devgameplay`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/devgameplay) | Serwer + Klient | `char_skill.cpp`, `char.cpp`, `battle.cpp`, `input_main.cpp`, `char_battle.cpp`, `char_item.cpp`, `tp_bookmarks.quest`, `uipickmoney.py`, `uicommon.py`, `uiexchange.py` | **Aktywny** |
+| [`fix-boty-gildia-exp-party`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/fix-boty-gildia-exp-party) | Serwer (C++) | `playerbot_manager.cpp`, `char.cpp` (zrzutki botów na ziemie gildii, party exp) | **Włączony w Upstream 2.32.0** |
+| [`fix-podglad-ekwipunku-tooltipy`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/fix-podglad-ekwipunku-tooltipy) | Web / Panel Seban | `player.html`, `player-profile.css` (eliminacja ucinania dymków ekwipunku) | **Aktywny** |
+| [`autofish`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/autofish) | Serwer (C++) + Klient | `char.h`, `char.cpp`, `cmd.cpp`, `cmd_general.cpp`, `game.py`, `uiautohunt.py` (Auto-Wędkowanie w tle / minimalizacja) | **Aktywny** |
+| [`duze-czcionki-skilli-i-ilosci`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/duze-czcionki-skilli-i-ilosci) | Klient (UI/Zasoby) | `TaskBar.tga`, `0.sub`..`9.sub`, `m.sub`, `g.sub`, `p.sub` w `etc` (12px Bold z obrysem: 1-20, M1-M10, G1-G10, P, stacki 200) | **Aktywny** |
+| [optymalizacja-autolowy-drop-redlas](file:///d:/Github/MT2Plus/Server/server-patches/krystian/optymalizacja-autolowy-drop-redlas) | Serwer + Klient + Baza | item.h/item.cpp, char_item.cpp, shop.cpp, ikarus_shop_manager.cpp, safebox.cpp, input_main.cpp, item_manager.cpp, char_battle.cpp, uiautohunt.py, uiminimap.py, item_proto (zniesienie limitu +-15 lvl, optymalizacja autołowów, pathfinding komnat w lochach małp, mapa Red Lasu, stack przedmiotów 200 (Medale, Zioła, Ryby, Perły, Małże, Przetopy, Bodziaki, Metale, Księgi), auto-stackowanie przy zakupie z AH/sklepu/depozytu, twarda blokada stackowania rynsztunku CanStack) | **Aktywny** |
+| [`oferty-blyskawiczne-is`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/oferty-blyskawiczne-is) | Serwer + Klient + Baza + Panel | `itemshop_manager.cpp/h`, `main.cpp`, `92_itemshop_flash_offers.sql`, `itemshop.py` (seban-panel), `game.py`, `uiitemshop.py`, `itemshop_shopwindow.py`, `gamedata` ikony (pula 100 ofert Hard Edition, rotacja 10/100 co 30 min, odliczanie czasu, auto-zerowanie limitów, synchro CH1-4) | **Aktywny** |
 
 ---
 
@@ -292,13 +315,13 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
 5. **Wymóg wersji MariaDB 11.8+:** Nie wolno dokonywać downgrade'u do MariaDB 10.x z powodu twardego wymogu kolacji `utf8mb3_uca1400_ai_ci`.
 6. **Tabele MyISAM i czyste zatrzymywanie:** Zawsze stosować czyste zatrzymywanie usług (`docker compose down` lub `stop.bat`), aby chronić tabele MyISAM przed uszkodzeniem indeksów.
 7. **Edycja kodu C++ (i386):** Źródła serwera znajdują się w `Server/linux-port/docker/game/src/server/` oraz `Server/linux-port/overlays/playerbot/src/game/src/`. Wszelkie modyfikacje wymagają poprawnej kompilacji w kontenerze 32-bitowym (`i386`).
-8. **Katalog Addonów (`Server/addons/`) i Zasada Cyklu Życia Dodatków:** Wszystkie gotowe paczki dodatków, spakowane fixy i moduły przygotowywane dla serwera należy umieszczać w dedykowanym katalogu `Server/addons/`. Jeżeli w nowym wydaniu Upstream oficjalnie wprowadził fixa lub funkcjonalność, którą wcześniej realizowaliśmy jako addon, dany dodatek można **bezpiecznie usunąć z `Server/addons/`**, przechodząc w pełni na oficjalny kod bazowy.
+8. **Katalog Autorskich Modyfikacji (`Server/server-patches/krystian/`) i Cykl Życia Dodatków:** Wszystkie autorskie modyfikacje, fixy i rozszerzenia serwera/klienta są utrzymywane w czytelnych podfolderach w `Server/server-patches/krystian/`. Jeżeli w nowym wydaniu Upstream oficjalnie wprowadził fixa lub funkcjonalność, którą wcześniej realizowaliśmy własnym modułem, dany dodatek można **bezpiecznie oznaczyć lub usunąć**, przechodząc w pełni na oficjalny kod bazowy.
 9. **Synchronizacja Stanu Launchera Windows:** Przy każdej zmianie wersji serwera należy zaktualizować zarówno `Server/VERSION`, jak i plik `Server/.m2launcher-state.json`, aby GUI launchera (`Metin2-Launcher-GUI.bat`) natychmiast odczytywało aktualny stan wersji.
 10. **Raportowanie Poprawek z Discorda (Standard Opisu Błędów i Instalacji):**
     - W przypadku naprawy błędu pochodzącego ze zgłoszeń społeczności Discord (gdy użytkownik wskaże, że problem pochodzi z Discorda), asystent po wdrożeniu fixa bezwzględnie generuje zwięzły opis w formacie Markdown dla graczy na Discordzie zawierający:
       1. **Co dokładnie naprawia ten fix**
       2. **Dlaczego funkcja wcześniej nie działała (przyczyna techniczna / root cause)**
-      3. **Krótki opis jak zainstalować** (proste, precyzyjne kroki dla graczy pobierających udostępniony plik `.zip` / `.rar`; pamiętać, że `Server/addons/` to wyłącznie nasz wewnętrzny katalog projektowy, a społeczność na Discordzie otrzymuje bezpośrednią paczkę archiwum).
+      3. **Krótki opis jak zainstalować** (proste, precyzyjne kroki dla graczy pobierających udostępniony plik `.zip` / `.rar`; pamiętać, że `Server/server-patches/krystian/` to wyłącznie nasz wewnętrzny katalog projektowy, a społeczność na Discordzie otrzymuje bezpośrednią paczkę archiwum).
     - Wzorzec formatu:
       > **Opis poprawki:**
       > - Naprawia błąd w silniku (`char.cpp`), gdzie funkcja powrotu po wojnie przekazywała zerowe koordynaty (`m_posWarp`) zamiast zapamiętanych (`m_posExit`), przez co gracze zostawali uwięzieni na zamykanej instancji mapy.
@@ -328,3 +351,20 @@ Poniższa tabela stanowi bieżący stan modułów w `Server/addons/`. Zgodnie z 
 13. **Żelazna Zasada Końcowej Publikacji GitHub Release przy `[DOCS]` / `[RELEASE]`:**
     - Procedura `[DOCS]` / `[RELEASE]` **nigdy nie kończy się** na samym commitowaniu, pushu do gita czy wygenerowaniu tekstu changelogu.
     - **Na sam koniec każdego wydania asystent ma bezwzględny obowiązek utworzyć i opublikować wydanie na GitHub Releases**, dołączając do niego obie gotowe paczki aktualizacyjne (`metin2-server-update-*.zip` oraz `metin2-client-update-*.zip` ze zintegrowanymi naszymi autorskimi modyfikacjami) oraz udostępniając użytkownikowi bezpośredni link do opublikowanego wydania na GitHubie.
+
+14. **Zasada Higieny Dysku i Konserwacji Środowiska (Disk Hygiene & Space Reclamation Guard):**
+    - W miarę intensywnych prac deweloperskich, testów w grze i budowania wydań, środowisko lokalne generuje pliki tymczasowe i logi, które mogą niekontrolowanie zająć wiele gigabajtów dysku:
+      - **A. Logi błędów klienta (`Klient/syserr.txt`):** W przypadku zapętlonych ostrzeżeń graficznych lub brakujących pakietów plik ten potrafi szybko urosnąć do ponad 1–2 GB. Jest to plik czysto diagnostyczny – można go w dowolnym momencie bezpiecznie usunąć lub wyzerować (klient utworzy świeży plik przy kolejnym starcie gry).
+      - **B. Kompresja i czyszczenie kopii zapasowych (`Server/backups/`):** Kopie zapasowe baz danych zawsze należy przechowywać w postaci skompresowanej (`.zip`). Rozpakowane foldery z surowymi zrzutami SQL (w szczególności wielogigabajtowy plik `log.sql`) stanowią zbędną duplikację i powinny być usuwane po utworzeniu archiwum `.zip`, co oszczędza od 2 do 3 GB miejsca.
+      - **C. Czyszczenie bufora wydań (`dist/`):** Katalog `dist/` służy wyłącznie jako tymczasowy bufor roboczy skryptu `build_release_packages.py`. Po pomyślnej publikacji paczek na GitHub Releases, cała zawartość `dist/` może zostać bezpiecznie wyczyszczona do zera (~1.4 GB oszczędności).
+      - **D. Tymczasowe kopie pakerów i modułów (`Klient/pack/*.bak` oraz `Klient/backup-*`):** Automatyczne kopie `.bak` tworzone przez paker przy zapisie paczek (`root.data.bak` itp.) oraz foldery tymczasowe po testach modułów można bezpiecznie usuwać po zweryfikowaniu stabilności gry.
+
+15. **Żelazna Zasada Synchronizacji Patchera po Modyfikacjach Klienta (Patcher Guard Rule):**
+    - Patcher gry (`MT2009-Patcher.exe`) weryfikuje sumy kontrolne MD5 wszystkich plików klienta z listą `patchlist.json` na serwerze CDN (`gh-pages`).
+    - Każda modyfikacja skryptów Pythona lub interfejsów w `Klient/pack/root/` (np. autołowy, dom aukcyjny, sklep, UI) oraz rekompilacja paczek do `root.data` i `root.index` zmienia sumy MD5 tych archiwów.
+    - **Obowiązek natychmiastowej synchronizacji:** Po każdym wdrożeniu modyfikacji klienta i spakowaniu paczek asystent i deweloper mają **bezwzględny obowiązek** zsynchronizować serwer aktualizacji patchera poleceniem:
+      ```powershell
+      python Server/tools/publish_patcher_web.py
+      ```
+    - **Konsekwencje zaniechania:** Jeżeli pliki na CDN nie zostaną zaktualizowane, uruchomienie gry przez `MT2009-Patcher.exe` potraktuje lokalne modyfikacje jako "uszkodzone/niezgodne" i natychmiast **pobierze starszą wersję z CDN, bezpowrotnie nadpisując autorskie zmiany w `root.data`**. Synchronizacja patchera jest integralną częścią każdego taska modyfikującego klienta.
+

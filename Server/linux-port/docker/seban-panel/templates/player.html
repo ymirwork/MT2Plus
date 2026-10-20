@@ -2,7 +2,7 @@
 {% block title %}{{character.name}} · {{panel_brand}}{% endblock %}
 {% block content %}
 {% from '_macros.html' import tooltip %}
-<link rel="stylesheet" href="{{url_for('static',filename='player-profile.css')}}">
+<link rel="stylesheet" href="{{static_asset_url('player-profile.css')}}">
 <a class="back" href="{{url_for('players')}}">← Powrót do graczy</a>
 <p class="eyebrow">PODGLĄD POSTACI</p>
 <div class="player-identity"><img class="class-portrait class-portrait--profile" src="{{class_portrait(character.job)}}" alt="{{character.job_name}}"><div><h1>{{character.name}}{% if character.full_plus9_equipment %}<img class="plus9-set-badge plus9-set-badge--profile" src="{{static_asset_url('icons/plus9-set-badge.png')}}" alt="Pełny ekwipunek +9" title="Pełny ekwipunek +9">{% endif %}{% if character.gm_rank %}<img class="gm-badge" src="{{url_for('static',filename='icons/gm-badge.png')}}" alt="GM" title="Ranga GM: {{character.gm_rank}}">{% endif %} <span class="muted">· {{character.job_name}} · poziom {{level_badge(character.id,character.level)}}</span></h1>{% if character.legend %}<p><a href="{{url_for('legends_page')}}" class="legend-badge" style="display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid {{character.legend.colour}};color:{{character.legend.colour}};text-decoration:none">🏆 {{character.legend.label}} · reputacja {{character.legend.reputation}}{% if character.legend.player_kills %} · ☠ {{character.legend.player_kills}}{% endif %}</a></p>{% endif %}{% for link in character.farmer_links %}<p><a href="{{url_for('bot_farmers')}}" style="display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid #a3e635;color:#a3e635;text-decoration:none" title="{{link.kind_label}} · {{link.spot_label}} · zarobił {{'{:,}'.format(link.earned).replace(',', ' ')}} · przekazał {{'{:,}'.format(link.transferred).replace(',', ' ')}} yang">🌾 {% if link.role == 'main' %}Dropek: <b>{{link.farmer_name or ('#' ~ link.farmer_pid)}}</b>{% else %}Dropek postaci: <b>{{link.main_name or ('#' ~ link.main_pid)}}</b>{% endif %}</a> <span class="muted">{{link.kind_label}} · {{link.spot_label}} · przekazano {{'{:,}'.format(link.transferred).replace(',', ' ')}} yang</span> {% if link.role == 'main' %}<a href="{{url_for('player',pid=link.farmer_pid)}}">karta dropka →</a>{% else %}<a href="{{url_for('player',pid=link.main_pid)}}">karta postaci głównej →</a>{% endif %}</p>{% endfor %}<p class="muted">{{character.class_profile.gender}} · portret z klienta gry</p></div></div>
@@ -107,19 +107,67 @@
   </aside>
 </section>
 <script>
-// A tooltip that would be cut over the top of its panel (a long item's name) flips under the item.
-document.addEventListener('mouseover', function (ev) {
-  var slot = ev.target.closest && ev.target.closest('.equip-slot,.inv-slot,.safebox-slot,.shop-slot,.skill-slot');
-  if (!slot || slot.dataset.tipChecked === '1') return;
-  var tip = slot.querySelector('.item-tip'); if (!tip) return;
-  slot.classList.remove('tip-below');
-  var top = tip.getBoundingClientRect().top, limit = 0, p = slot.parentElement;
-  while (p && p !== document.body) {
-    var o = getComputedStyle(p); if (o.overflow !== 'visible' || o.overflowY !== 'visible') { limit = Math.max(limit, p.getBoundingClientRect().top); break; }
-    p = p.parentElement;
+// Dynamiczne dopasowanie dymków przedmiotów względem viewportu (góra/dół/lewo/prawo)
+(function () {
+  function adjustTip(slot) {
+    if (!slot) return;
+    var tip = slot.querySelector('.item-tip');
+    if (!tip) return;
+
+    // Reset temporary directional overrides so natural styles apply first
+    slot.classList.remove('tip-above', 'tip-below');
+
+    // Make tip temporarily measurable without visual flicker
+    var prevDisplay = tip.style.display;
+    var prevVisibility = tip.style.visibility;
+    tip.style.display = 'block';
+    tip.style.visibility = 'hidden';
+
+    var sRect = slot.getBoundingClientRect();
+    var tipRect = tip.getBoundingClientRect();
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+
+    tip.style.display = prevDisplay;
+    tip.style.visibility = prevVisibility;
+
+    var tipH = tipRect.height || 220;
+    var tipW = tipRect.width || 240;
+
+    var spaceAbove = sRect.top;
+    var spaceBelow = vh - sRect.bottom;
+
+    // Upper equipment slots (head, weapon, body, shield, ear, wrist, neck, arrow)
+    var isUpperEquip = slot.matches('.equip-slot.head,.equip-slot.weapon,.equip-slot.body,.equip-slot.shield,.equip-slot.ear,.equip-slot.wrist,.equip-slot.neck,.equip-slot.arrow');
+
+    if (spaceAbove < tipH + 20 || isUpperEquip) {
+      // Not enough space above (or upper mannequin slot) -> open downwards
+      slot.classList.add('tip-below');
+    } else if (spaceBelow < tipH + 20 && spaceAbove >= tipH) {
+      // Not enough space below -> open upwards
+      slot.classList.add('tip-above');
+    } else if (spaceAbove >= spaceBelow) {
+      slot.classList.add('tip-above');
+    } else {
+      slot.classList.add('tip-below');
+    }
+
+    // Horizontal bounds:
+    var slotCenterX = sRect.left + (sRect.width / 2);
+    if (!slot.classList.contains('tip-left') && !slot.classList.contains('tip-right')) {
+      if (slotCenterX - (tipW / 2) < 15) {
+        slot.classList.add('tip-left');
+      } else if (slotCenterX + (tipW / 2) > vw - 15) {
+        slot.classList.add('tip-right');
+      }
+    }
   }
-  if (top < limit + 2) slot.classList.add('tip-below');
-});
+
+  document.addEventListener('mouseover', function (ev) {
+    var slot = ev.target && ev.target.closest && ev.target.closest('.equip-slot,.inv-slot,.safebox-slot,.shop-slot,.skill-slot,.costume-slot,.ds-equip-slot,.ds-bag-slot');
+    if (slot) adjustTip(slot);
+  }, { passive: true });
+})();
 </script>
 <script>
 document.body.dataset.ajaxForms='1';
@@ -189,7 +237,7 @@ async function refreshInventory(){
     bindInventoryFragment();
   } catch (_) {}
 }
-window.__playerRefreshInterval=setInterval(refreshInventory, 5000);
+window.__playerRefreshInterval=setInterval(() => { if (!document.hidden) refreshInventory(); }, 5000);
 async function runTeleport(btn, statusEl, payload){
   btn.disabled = true; statusEl.textContent = '⏳ Teleportowanie Twojej postaci w grze...';
   try {
@@ -227,6 +275,7 @@ function renderLiveLogs(){
   liveLogBox.scrollTop=liveLogBox.scrollHeight;
 }
 async function fetchLiveLogs(){
+  if (document.hidden) return;
   try{
     const res=await fetch((window.SEBAN_ROOT||'')+`/api/bot-logs/${liveLogToggle.dataset.pid}`,{cache:'no-store'});
     const data=await res.json();
@@ -253,6 +302,12 @@ liveLogCopy?.addEventListener('click', async () => {
 });
 // Auto-start, like Tieru's panel: logs are already flowing by the time you look.
 liveLogToggle?.classList.add('active'); fetchLiveLogs(); liveLogTimer=window.__playerLiveLogTimer=setInterval(fetchLiveLogs, 1500);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    refreshInventory();
+    if (liveLogTimer) fetchLiveLogs();
+  }
+});
 document.querySelectorAll('[data-gear-filter]').forEach(button=>button.addEventListener('click',()=>{
   const selected=button.dataset.gearFilter;
   document.querySelectorAll('[data-gear-filter]').forEach(item=>item.classList.toggle('active',item===button));

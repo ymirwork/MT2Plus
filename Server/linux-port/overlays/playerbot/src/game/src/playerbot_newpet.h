@@ -1765,7 +1765,7 @@ namespace mt2009_newpet
 		if (!FirstRoll(victim))
 			return;
 		const int kind = victim->IsStone() ? 1 : (victim->GetMobRank() >= MOB_RANK_BOSS ? 2 : 0);
-		if (victim->GetLevel() >= 10 && victim->GetLevel() + 15 >= killer->GetLevel()
+		if (victim->GetLevel() >= 10
 				&& EGG_ONE_IN[kind] > 0 && number(1, EGG_ONE_IN[kind]) == 1)
 			GroundDrop(victim, killer, SPECIES[number(0, (int)SPECIES_COUNT - 1)].egg);
 		if (victim->IsStone() && victim->GetLevel() >= METIN_ITEM_MIN_LEVEL && number(1, 1000) <= METIN_ITEM_PER_MILLE)

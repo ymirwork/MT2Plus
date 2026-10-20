@@ -1,0 +1,343 @@
+{% extends 'base.html' %}{% block title %}Boty, które zakończyły grę · {{ panel_brand }}{% endblock %}{% block content %}
+<p class="eyebrow">ZAAWANSOWANE · AUDYT BOTÓW</p><h1>Boty, które zakończyły grę</h1>
+<p class="muted">Historia zaplanowanych emerytur botów (serwer hard: 1800 botów łącznie, po 600 na królestwo). Zielony status oznacza potwierdzone zdarzenie <code>BUY_ITEM</code> z silnika sklepu offline, a nie samo wystawienie oferty.</p>
+{% if advisor %}
+<section class="panel retirement-advisor" style="margin-bottom: 20px; border-left: 4px solid {% if advisor.state == 'optimal' %}#10b981{% elif advisor.state == 'moderate' %}#f59e0b{% elif advisor.state == 'active' %}#3b82f6{% else %}#ef4444{% endif %};">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 280px;">
+      <p class="eyebrow" style="color: {% if advisor.state == 'optimal' %}#10b981{% elif advisor.state == 'moderate' %}#f59e0b{% elif advisor.state == 'active' %}#3b82f6{% else %}#ef4444{% endif %}; margin-bottom: 4px; font-weight: 700;">
+        🧠 ASYSTENT GOSPODARKI · PÓŁAUTOMAT
+      </p>
+      <h2 style="margin: 0 0 6px 0; font-size: 20px;">{{ advisor.title }}</h2>
+      <p class="muted" style="margin: 0; line-height: 1.5; font-size: 13px;">{{ advisor.description }}</p>
+    </div>
+    <div>
+      <span class="retirement-control-state" style="font-weight: 700; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+        background: {% if advisor.state == 'optimal' %}rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981;
+                    {% elif advisor.state == 'moderate' %}rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b;
+                    {% elif advisor.state == 'active' %}rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid #3b82f6;
+                    {% else %}rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444;{% endif %}">
+        {{ advisor.badge_text }}
+      </span>
+    </div>
+  </div>
+
+  <div style="margin: 16px 0 12px; padding: 12px 14px; background: rgba(0,0,0,0.3); border: 1px solid var(--edge); border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px;">
+      <span><strong>Wskaźnik gotowości do bezpiecznej rotacji:</strong> {{ advisor.score }}%</span>
+      <span style="color: var(--muted);">Wymóg bezpiecznego balansu: 80+ botów na 40+ lvl i &ge;12h od ostatniej partii</span>
+    </div>
+    <div style="height: 8px; width: 100%; background: #132132; border-radius: 4px; overflow: hidden;">
+      <div style="height: 100%; width: {{ advisor.score }}%; background: linear-gradient(90deg, #ef4444 0%, #f59e0b 60%, #10b981 100%); border-radius: 4px; transition: width .5s ease;"></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px;">
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Boty &ge; 40 lvl</small>
+      <strong style="font-size: 16px; color: {% if advisor.lvl_40_plus >= 80 %}#10b981{% elif advisor.lvl_40_plus >= 40 %}#ffd16d{% else %}#ef4444{% endif %};">
+        {{ advisor.lvl_40_plus }} <span style="font-size: 12px; font-weight: normal; color: var(--muted);">/ 80 zalec.</span>
+      </strong>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Boty &ge; 35 lvl</small>
+      <strong style="font-size: 16px;">{{ advisor.lvl_35_plus }}</strong>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Średni poziom botów</small>
+      <strong style="font-size: 16px;">{{ advisor.avg_level }} lvl</strong>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Od ostatniej partii</small>
+      <strong style="font-size: 16px; color: {% if advisor.hours_ago >= 24 %}#10b981{% elif advisor.hours_ago >= 12 %}#ffd16d{% else %}#ef4444{% endif %};">
+        {% if advisor.hours_ago >= 900 %}Brak partii{% else %}{{ advisor.hours_ago }}h temu{% endif %}
+      </strong>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: rgba(0,0,0,0.18); padding: 10px 14px; border-radius: 6px;">
+    <div style="font-size: 13px;">
+      <span class="muted">Rekomendacja asystenta:</span> <strong>{{ advisor.recommendation }}</strong>
+    </div>
+    {% if not advisor.is_active and advisor.can_start %}
+    <button type="button" class="preset-btn" style="padding: 8px 18px; font-size: 13px; font-weight: 600; border-radius: 5px; cursor: pointer; transition: all .2s;
+      {% if advisor.state == 'optimal' %}background: #10b981; color: #fff; border: 1px solid #10b981;
+      {% elif advisor.state == 'moderate' %}background: #f59e0b; color: #000; border: 1px solid #f59e0b;
+      {% else %}background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444;{% endif %}"
+      onclick="applyAdvisorPreset({{ advisor.rec_bots }}, {{ advisor.rec_window }}, {{ advisor.rec_shop }})">
+      ⚡ {{ advisor.action_text }}
+    </button>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="panel retirement-control">
+<div class="retirement-control-heading"><div><p class="eyebrow">STEROWANIE SYSTEMEM</p><h2>Uruchom nową partię emerytur</h2><p class="muted">Boty zostaną wybrane ze środka rankingu poziomów. Każdy wystawi dozwolone przedmioty na rynku, wyloguje się na czas trwania sklepu, a następnie rozpocznie grę od nowa.</p></div>
+{% if retirement.state == 'active' %}<span class="retirement-control-state active">● Partia #{{retirement.batch_id}} trwa</span>{% elif retirement.state == 'complete' %}<span class="retirement-control-state complete">✓ Partia #{{retirement.batch_id}} zakończona</span>{% else %}<span class="retirement-control-state">Gotowy</span>{% endif %}</div>
+
+{% if retirement.batch_id %}
+<div class="retirement-current">
+  <span><b>{{retirement.queued_count}} / {{retirement.bot_count}}</b><small>wybrano do partii</small></span>
+  <span><b>{{retirement.active_count}}</b><small>w trakcie sprzedaży</small></span>
+  <span><b>{{retirement.reset_count}}</b><small>rozpoczęło nową grę</small></span>
+  <span><b>{{retirement.window_minutes}} / {{retirement.shop_minutes}} min</b><small>okno wyboru / czas sklepu</small></span>
+</div>
+
+{% if retirement.state == 'active' %}
+<div class="retirement-progress-wrap" style="margin: 14px 0 10px; padding: 14px; background: rgba(0,0,0,0.25); border: 1px solid var(--edge); border-radius: 8px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px;">
+    <span><strong>Postęp partii:</strong> {{ retirement.reset_count }} z {{ retirement.bot_count }} botów zresetowanych ({{ retirement.progress_pct }}%)</span>
+    <span style="color: #ffd16d;"><strong>Szacowany czas do końca (ETA):</strong> {{ retirement.eta_text }}</span>
+  </div>
+  <div style="height: 10px; width: 100%; background: #132132; border-radius: 5px; overflow: hidden; position: relative;">
+    <div style="height: 100%; width: {{ retirement.progress_pct }}%; background: linear-gradient(90deg, #2563eb, #10b981); border-radius: 5px; transition: width .5s ease;"></div>
+  </div>
+  <small class="muted" style="display: block; margin-top: 6px; font-size: 11px;">Strona automatycznie odświeży status, gdy partia jest w toku.</small>
+</div>
+{% endif %}
+{% endif %}
+
+<div style="margin-top: 14px; margin-bottom: 8px;">
+  <span style="font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 8px;">Szybkie presety (1800 botów na serwerze):</span>
+  <div style="display: inline-flex; gap: 8px; flex-wrap: wrap;">
+    <button type="button" class="preset-btn secondary" style="padding: 4px 10px; font-size: 12px; border-radius: 4px;" onclick="applyPreset(60, 15, 30)">Szybka rotacja (60 botów, ~3% świata)</button>
+    <button type="button" class="preset-btn secondary" style="padding: 4px 10px; font-size: 12px; border-radius: 4px;" onclick="applyPreset(180, 30, 45)">Standardowa rotacja (180 botów, 10% świata)</button>
+    <button type="button" class="preset-btn secondary" style="padding: 4px 10px; font-size: 12px; border-radius: 4px;" onclick="applyPreset(360, 60, 60)">Duża fala rynkowa (360 botów, 20% świata)</button>
+  </div>
+</div>
+
+<form id="retireStartForm" class="retirement-start-form" method="post" action="{{url_for('retired_bots_start')}}">
+<input type="hidden" name="retirement_csrf" value="{{retirement_csrf}}">
+<label><span>Liczba botów</span><input type="number" id="inputBotCount" name="bot_count" min="1" max="2500" value="{{retirement.bot_count or 180}}" required><small>Z puli 1800 botów</small></label>
+<label><span>Czas rozłożenia resetów</span><div class="number-unit"><input type="number" id="inputWindowMinutes" name="window_minutes" min="1" max="10080" value="{{retirement.window_minutes or 30}}" required><i>min</i></div><small>Stopniowe wybieranie postaci</small></label>
+<label><span>Czas otwarcia sklepu</span><div class="number-unit"><input type="number" id="inputShopMinutes" name="shop_minutes" min="1" max="10080" value="{{retirement.shop_minutes or 45}}" required><i>min</i></div><small>Czas działania sklepu offline</small></label>
+<button type="submit" id="btnStartRetire"{% if retirement.state == 'active' %} disabled{% endif %}>Uruchom system emerytury</button>
+</form>
+
+{% if retirement.state == 'active' %}
+<form id="retireStopForm" class="retirement-stop-form" method="post" action="{{url_for('retired_bots_stop')}}">
+<input type="hidden" name="retirement_csrf" value="{{retirement_csrf}}">
+<p class="retirement-control-note">Nową partię będzie można uruchomić po zakończeniu aktualnej. Jeśli partia stoi w miejscu, możesz ją zatrzymać: nowe boty nie będą wybierane, a te, które już sprzedają, dokończą sklep.</p>
+<button type="submit" id="btnStopRetire" class="secondary">Zatrzymaj partię</button>
+</form>
+{% if retirement.not_seen %}
+<p class="retirement-control-note retirement-control-warning">⚠ Serwer gry nie przyjął jeszcze tej partii (minęły ponad 2 minuty). Sprawdź, czy serwer działa; w razie potrzeby zatrzymaj partię i uruchom ją ponownie po starcie serwera.</p>
+{% endif %}
+{% else %}
+<p class="retirement-control-note">Każde kliknięcie tworzy nowy, jednorazowy numer partii. Rdzeń serwera zastosuje ustawienia bez konieczności restartu.</p>
+{% endif %}
+</section>
+
+<!-- Filtry i Wyszukiwarka -->
+<form class="search retirement-filter" method="get" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 20px 0;">
+  <label style="min-width: 220px;">
+    <span>Partia</span>
+    <select name="batch">
+      <option value="">Wszystkie partie</option>
+      {% for batch in batches %}
+      <option value="{{batch.id}}"{% if selected_batch == batch.id %} selected{% endif %}>#{{batch.id}} · {{batch.started_at}} · wybrano {{batch.picked}}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label style="min-width: 160px;">
+    <span>Status bota</span>
+    <select name="stage">
+      <option value="">Wszystkie statusy</option>
+      <option value="selling"{% if stage_filter == 'selling' %} selected{% endif %}>Sklep otwarty</option>
+      <option value="reset"{% if stage_filter == 'reset' %} selected{% endif %}>Zakończył grę (nowa postać)</option>
+      <option value="shopping"{% if stage_filter == 'shopping' %} selected{% endif %}>Zbiera przedmioty</option>
+      <option value="closing"{% if stage_filter == 'closing' %} selected{% endif %}>Zamyka sklep</option>
+      <option value="aborted"{% if stage_filter == 'aborted' %} selected{% endif %}>Przerwano</option>
+    </select>
+  </label>
+  <label style="flex: 1; min-width: 180px;">
+    <span>Szukaj (Nick lub PID)</span>
+    <input type="text" name="q" value="{{search_q}}" placeholder="Wpisz nick lub ID bota...">
+  </label>
+  <button type="submit">Filtruj</button>
+  {% if selected_batch or stage_filter or search_q %}
+  <a href="{{url_for('retired_bots')}}" class="button secondary" style="display: inline-flex; align-items: center;">Wyczyść filtry</a>
+  {% endif %}
+</form>
+
+<section class="cards retirement-kpi">
+  <article>
+    <span>Wybrane boty</span>
+    <strong>{{total_bots}}</strong>
+    <small>{% if selected_batch %}w partii #{{selected_batch}}{% else %}we wszystkich partiach{% endif %}</small>
+  </article>
+  <article>
+    <span>Nowa postać / sklep otwarty</span>
+    <strong>{{kpi.reset}} / {{kpi.selling}}</strong>
+    <small>na bieżącej stronie</small>
+  </article>
+  <article>
+    <span>Faktycznie kupiono</span>
+    <strong>{{kpi.sold_lines}} / {{ '{:,}'.format(kpi.sold_units).replace(',', ' ') }}</strong>
+    <small>pozycji / sztuk (widoczna strona)</small>
+  </article>
+  <article>
+    <span>Uzyskane Yang</span>
+    <strong title="{{ '{:,}'.format(kpi.sold_yang).replace(',', ' ') }} Yang">{{ format_yang(kpi.sold_yang) }}</strong>
+    <small>potwierdzone w logu (widoczna strona)</small>
+  </article>
+</section>
+
+<!-- Wpływ na gospodarkę / Bilans wypompowania (Sink) -->
+<section class="cards retirement-sink" style="margin-top: 14px;">
+  <article style="border-left: 4px solid #10b981; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(0,0,0,0.15));">
+    <span style="color: #6ee7b7; font-weight: 600;">🧯 Wypompowany Yang z rynku (Yang Sink)</span>
+    <strong title="{{ '{:,}'.format(kpi.yang_sunk_reset).replace(',', ' ') }} Yang" style="color: #67dfa5; font-size: 24px;">{{ format_yang(kpi.yang_sunk_reset) }}</strong>
+    <small style="color: var(--muted);">Yang zapłacony przez graczy na straganach, trwale wycofany z obiegu po resecie botów{% if selected_batch %} (partia #{{selected_batch}}){% else %} (łącznie ze wszystkich partii){% endif %}</small>
+  </article>
+  <article style="border-left: 4px solid #ef4444; background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(0,0,0,0.15));">
+    <span style="color: #fca5a5; font-weight: 600;">🗑️ Usunięte niesprzedane przedmioty (Item Sink)</span>
+    <strong style="color: #ff8976; font-size: 24px;">{{ '{:,}'.format(kpi.destroyed_lines).replace(',', ' ') }} poz. <small style="font-size: 14px; font-weight: normal; color: var(--muted);">({{ '{:,}'.format(kpi.destroyed_units).replace(',', ' ') }} szt.)</small></strong>
+    <small style="color: var(--muted);">Wycena zutylizowanego towaru: <b title="{{ '{:,}'.format(kpi.destroyed_yang_value).replace(',', ' ') }} Yang" style="color: #ffd16d;">{{ format_yang(kpi.destroyed_yang_value) }}</b> skasowane przy resecie botów</small>
+  </article>
+</section>
+
+{% set stage_labels={'shopping':'zbiera przedmioty','selling':'sklep otwarty','closing':'zamyka sklep','reset':'zakończył grę','aborted':'przerwano','error':'błąd resetu'} %}
+<section class="retirement-list">
+{% for bot in bots %}
+<details class="panel retirement-bot"{% if loop.first %} open{% endif %}>
+<summary>
+  <span class="retirement-name"><b>{{bot.name}}</b><small>PID {{bot.pid}} · poziom {{bot.level}} · partia #{{bot.batch_id}}</small></span>
+  <span class="retirement-stage stage-{{bot.stage}}">{{stage_labels.get(bot.stage,bot.stage)}}</span>
+  <span><b>{{bot.engine_sold_units}} / {{bot.listed_units}}</b><small>kupiono / wystawiono sztuk</small></span>
+  <span><b title="{{ '{:,}'.format(bot.engine_sold_yang).replace(',', ' ') }} Yang">{{ format_yang(bot.engine_sold_yang) }}</b><small>Yang ze sprzedaży</small></span>
+</summary>
+<div class="retirement-meta muted">
+  <span>Wybrany: {{bot.picked_at}}{% if bot.reset_at %} · nowa postać: {{bot.reset_at}}{% endif %} · potwierdzone sprzedaże: {{bot.engine_sold_lines}}/{{bot.listed_lines}} pozycji</span>
+  {% if bot.stage == 'reset' %}<a class="retirement-profile-link" href="{{url_for('player',pid=bot.pid)}}">↗ Zobacz nową postać i jej aktywność</a>{% endif %}
+</div>
+<div class="table-wrap">
+  <table class="retirement-items">
+    <thead>
+      <tr>
+        <th>Przedmiot</th>
+        <th>Wystawiono</th>
+        <th>Cena wystawienia</th>
+        <th>Kupiono</th>
+        <th>Uzyskano</th>
+        <th>Potwierdzenie</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in bot['items'] %}
+      <tr>
+        <td class="item-cell">
+          {% if item_icon(item.vnum) %}<img src="{{item_icon(item.vnum)}}" loading="lazy" alt="">{% endif %}
+          <span><a href="{{url_for('economy_item',vnum=item.vnum)}}">{{item.item_name}}</a><small>VNUM {{item.vnum}} · ID {{item.item_id}}</small></span>
+        </td>
+        <td>{{item.listed_count}}</td>
+        <td><span title="{{ '{:,}'.format(item.listed_price).replace(',', ' ') }} Yang">{{ format_yang(item.listed_price) }}</span></td>
+        <td>{{item.engine_count}}</td>
+        <td><span title="{{ '{:,}'.format(item.engine_yang).replace(',', ' ') }} Yang">{{ format_yang(item.engine_yang) }}</span></td>
+        <td>
+          {% if item.verified_status == 'sold' %}<span class="sale-proof sold">✓ kupiono</span>{% elif item.verified_status == 'partial' %}<span class="sale-proof partial">◐ część kupiona</span>{% else %}<span class="sale-proof unsold">— niesprzedane</span>{% endif %}
+          {% for tx in item.transactions %}
+          <small class="sale-transaction">{{tx.time}} · {{tx.buyer_name}} (PID {{tx.who}}) · {{tx.count}} szt. · <span title="{{ '{:,}'.format(tx.yang).replace(',', ' ') }} Yang">{{ format_yang(tx.yang) }}</span></small>
+          {% endfor %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">Bot nie wystawił żadnego przedmiotu.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if bot['events'] %}
+<details class="retirement-events"><summary>Pełny przebieg procesu ({{bot['events']|length}} zdarzeń)</summary>
+<ol>
+  {% for event in bot['events'] %}
+  <li><time>{{event.event_time}}</time><b>{{event.event_type}}</b>{% if event.details %}<span>{{event.details}}</span>{% endif %}</li>
+  {% endfor %}
+</ol>
+</details>
+{% endif %}
+</details>
+{% else %}
+<section class="panel"><p class="muted">Brak botów w wybranym zakresie lub dla podanych kryteriów wyszukiwania.</p></section>
+{% endfor %}
+</section>
+
+<!-- Paginacja -->
+{% if total_pages > 1 %}
+<nav class="pagination" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin: 24px 0;">
+  {% if page > 1 %}
+  <a class="button secondary" href="{{ url_for('retired_bots', batch=selected_batch or '', stage=stage_filter or '', q=search_q or '', page=page-1) }}">‹ Poprzednia</a>
+  {% endif %}
+  <span style="font-size: 13px; color: var(--muted); margin: 0 8px;">Strona <strong>{{ page }}</strong> z <strong>{{ total_pages }}</strong> (łącznie {{ total_bots }} botów)</span>
+  {% if page < total_pages %}
+  <a class="button secondary" href="{{ url_for('retired_bots', batch=selected_batch or '', stage=stage_filter or '', q=search_q or '', page=page+1) }}">Następna ›</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+<script>
+function applyPreset(count, windowMin, shopMin) {
+  var bInput = document.getElementById('inputBotCount');
+  var wInput = document.getElementById('inputWindowMinutes');
+  var sInput = document.getElementById('inputShopMinutes');
+  if (bInput) bInput.value = count;
+  if (wInput) wInput.value = windowMin;
+  if (sInput) sInput.value = shopMin;
+}
+
+function applyAdvisorPreset(count, windowMin, shopMin) {
+  applyPreset(count, windowMin, shopMin);
+  var form = document.getElementById('retireStartForm');
+  if (form) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    var btn = document.getElementById('btnStartRetire');
+    if (btn) {
+      btn.focus();
+      btn.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
+      setTimeout(function() { btn.style.boxShadow = ''; }, 2000);
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var startForm = document.getElementById('retireStartForm');
+  if (startForm) {
+    startForm.addEventListener('submit', function(e) {
+      var count = document.getElementById('inputBotCount').value;
+      var wMin = document.getElementById('inputWindowMinutes').value;
+      var sMin = document.getElementById('inputShopMinutes').value;
+      var msg = "Czy na pewno chcesz uruchomić nową partię emerytur?\n\n" +
+                "• Liczba botów: " + count + "\n" +
+                "• Okno wyboru: " + wMin + " min\n" +
+                "• Czas sklepu: " + sMin + " min\n\n" +
+                "Postacie zaczną wystawiać sklepy na rynku i po upływie czasu zresetują się do poziomu 1.";
+      if (!confirm(msg)) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  var stopForm = document.getElementById('retireStopForm');
+  if (stopForm) {
+    stopForm.addEventListener('submit', function(e) {
+      if (!confirm("Czy na pewno chcesz natychmiast zatrzymać obecną partię emerytur?\n\nNowe boty nie będą już wybierane, a boty aktualnie sprzedające dokończą swoje sklepy.")) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  {% if retirement.state == 'active' %}
+  // Auto-odświeżanie strony co 15 sekund, gdy partia jest w toku
+  setTimeout(function() {
+    // Odśwież tylko jeśli użytkownik nie pisze w żadnym polu
+    var activeEl = document.activeElement;
+    var isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
+    if (!isTyping) {
+      window.location.reload();
+    }
+  }, 15000);
+  {% endif %}
+});
+</script>
+{% endblock %}

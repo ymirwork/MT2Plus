@@ -1188,19 +1188,32 @@ namespace ikashop
 #ifdef ENABLE_CHANGELOOK_SYSTEM
 					part->SetTransmutation(partInfo.dwTransmutation);
 #endif
-					TItemPos partPos;
-					if (ch->CanTakeInventoryItem(part, &partPos))
+					bool bStacked = false;
+					if (part->CanStack())
 					{
-						part->AddToCharacter(ch, partPos);
-						part->Save();
-						ITEM_MANAGER::instance().FlushDelayedSave(part);
+						if (ch->AutoStackItem(part))
+						{
+							bStacked = true;
+							ch->Save();
+						}
 					}
-					else
+
+					if (!bStacked)
 					{
-						part->AddToGround(ch->GetMapIndex(), ch->GetXYZ());
-						part->StartDestroyEvent();
-						part->SetOwnership(ch, 300);
-						ch->ChatPacket(CHAT_TYPE_INFO, "Ekwipunek jest pelny - kupiona czesc stosu lezy pod Twoimi stopami.");
+						TItemPos partPos;
+						if (ch->CanTakeInventoryItem(part, &partPos))
+						{
+							part->AddToCharacter(ch, partPos);
+							part->Save();
+							ITEM_MANAGER::instance().FlushDelayedSave(part);
+						}
+						else
+						{
+							part->AddToGround(ch->GetMapIndex(), ch->GetXYZ());
+							part->StartDestroyEvent();
+							part->SetOwnership(ch, 300);
+							ch->ChatPacket(CHAT_TYPE_INFO, "Ekwipunek jest pelny - kupiona czesc stosu lezy pod Twoimi stopami.");
+						}
 					}
 				}
 				ch->ChatPacket(CHAT_TYPE_COMMAND, "FleaMarketStackUpdate %u %u %u %lld 0",
@@ -1245,22 +1258,34 @@ namespace ikashop
 				return false;
 			}
 
-			TItemPos pos;
-			if (!ch->CanTakeInventoryItem(itemInstance, &pos))
+			bool bStacked = false;
+			if (itemInstance->CanStack())
 			{
-				itemInstance->SetSkipSave(true);
-				M2_DESTROY_ITEM(itemInstance);
-
-				SendShopSafeboxAddItemDBPacket(ch->GetPlayerID(), *shopItem);
-				SendPopupMessage(ch, "IKASHOP_SERVER_POPUP_MESSAGE_SAFEBOX_RECV_ITEM");
+				if (ch->AutoStackItem(itemInstance))
+				{
+					bStacked = true;
+					ch->Save();
+				}
 			}
 
-			else
+			if (!bStacked)
 			{
-				itemInstance->AddToCharacter(ch, pos); 
-				itemInstance->SetSkipSave(false);
-				itemInstance->Save();
-				ITEM_MANAGER::instance().FlushDelayedSave(itemInstance);
+				TItemPos pos;
+				if (!ch->CanTakeInventoryItem(itemInstance, &pos))
+				{
+					itemInstance->SetSkipSave(true);
+					M2_DESTROY_ITEM(itemInstance);
+
+					SendShopSafeboxAddItemDBPacket(ch->GetPlayerID(), *shopItem);
+					SendPopupMessage(ch, "IKASHOP_SERVER_POPUP_MESSAGE_SAFEBOX_RECV_ITEM");
+				}
+				else
+				{
+					itemInstance->AddToCharacter(ch, pos); 
+					itemInstance->SetSkipSave(false);
+					itemInstance->Save();
+					ITEM_MANAGER::instance().FlushDelayedSave(itemInstance);
+				}
 			}
 
 			shop->BuyItem(shopItem->GetID());
@@ -2256,20 +2281,36 @@ namespace ikashop
 		if(!itemInstance)
 			return _SendFeedbackToDB(false);
 
-		// checking item can be moved to inventory
+		// checking item can be moved to inventory (or auto-stacked)
+		bool bStacked = false;
 		static TItemPos pos{};
-		if(!ch->CanTakeInventoryItem(itemInstance, &pos))
+		if (itemInstance->CanStack())
 		{
-			itemInstance->SetSkipSave(true);
-			M2_DESTROY_ITEM(itemInstance);
-			return _SendFeedbackToDB(false);
+			if (ch->AutoStackItem(itemInstance))
+			{
+				bStacked = true;
+				ch->Save();
+			}
+		}
+
+		if (!bStacked)
+		{
+			if(!ch->CanTakeInventoryItem(itemInstance, &pos))
+			{
+				itemInstance->SetSkipSave(true);
+				M2_DESTROY_ITEM(itemInstance);
+				return _SendFeedbackToDB(false);
+			}
 		}
 
 		// giving item to character
 		if (!safebox->RemoveItem(itemid))
 		{
-			itemInstance->SetSkipSave(true);
-			M2_DESTROY_ITEM(itemInstance);
+			if (!bStacked)
+			{
+				itemInstance->SetSkipSave(true);
+				M2_DESTROY_ITEM(itemInstance);
+			}
 			return _SendFeedbackToDB(false);
 		}
 
@@ -2294,10 +2335,13 @@ namespace ikashop
 			}
 		}
 
-		itemInstance->AddToCharacter(ch, pos);
-		itemInstance->SetSkipSave(false);
-		itemInstance->Save();
-		ITEM_MANAGER::Instance().FlushDelayedSave(itemInstance);
+		if (!bStacked)
+		{
+			itemInstance->AddToCharacter(ch, pos);
+			itemInstance->SetSkipSave(false);
+			itemInstance->Save();
+			ITEM_MANAGER::Instance().FlushDelayedSave(itemInstance);
+		}
 		return _SendFeedbackToDB(true);
 	}
 
@@ -4706,7 +4750,26 @@ namespace ikashop
 		// checking item can be stored
 		TItemPos itemPos;
 		auto ret = ch->CanTakeInventoryItem(item, &itemPos);
-		
+		if (!ret && item->CanStack())
+		{
+			for (int i = 0; i < ch->GetInventoryMaxCount(); ++i)
+			{
+				LPITEM invItem = ch->GetInventoryItem(i);
+				if (invItem && invItem->GetVnum() == item->GetVnum() && invItem->GetCount() < invItem->GetMaxStack())
+				{
+					int j = 0;
+					for (; j < ITEM_SOCKET_MAX_NUM; ++j)
+						if (invItem->GetSocket(j) != item->GetSocket(j))
+							break;
+					if (j == ITEM_SOCKET_MAX_NUM)
+					{
+						ret = true;
+						break;
+					}
+				}
+			}
+		}
+
 		// destroying temporary item
 		item->SetSkipSave(true);
 		M2_DESTROY_ITEM(item);

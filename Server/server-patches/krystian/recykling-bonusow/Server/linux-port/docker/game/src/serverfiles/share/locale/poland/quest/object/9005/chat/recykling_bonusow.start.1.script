@@ -1,0 +1,2 @@
+setskin ( NOWINDOW ) 
+item_exchange . open ( item_exchange . REINFORCE_ITEM_EXCHANGE ) 

@@ -214,9 +214,8 @@ namespace
 	{
 		if (!ch || ch->GetLevel() < PLAYERBOT_ALCHEMY_MIN_LEVEL || ArePlayerBotAlchemyOff())
 			return;
-		// The player's rule (dragon_soul.quest): only a monster at most 15
-		// levels under the killer, or any higher (operator, 27 September 2026).
-		if (!victim || (int)victim->GetLevel() < (int)ch->GetLevel() - 15)
+		// MT2009_PLUS_NO_LEVEL_DELTA_DROP: odlamki smoczego kamienia bez limitu poziomu
+		if (!victim)
 			return;
 		const int today = (int)(get_global_time() / 86400);
 		if (ch->GetQuestFlag(PLAYERBOT_DS_DAY_FLAG) != today)

@@ -48,13 +48,15 @@ def build_server_package(repo_root, dist_dir):
         zf.extractall(temp_dir)
 
     print("Injecting MT2Plus modifications into server package...")
-    # 1. Addons
-    addons_dst = os.path.join(temp_dir, 'addons')
-    os.makedirs(addons_dst, exist_ok=True)
-    for addon_file in os.listdir(os.path.join(server_root, 'addons')):
-        src = os.path.join(server_root, 'addons', addon_file)
-        if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(addons_dst, addon_file))
+    # 1. Addons (opcjonalne/archiwalne)
+    addons_src = os.path.join(server_root, 'addons')
+    if os.path.exists(addons_src):
+        addons_dst = os.path.join(temp_dir, 'addons')
+        os.makedirs(addons_dst, exist_ok=True)
+        for addon_file in os.listdir(addons_src):
+            src = os.path.join(addons_src, addon_file)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(addons_dst, addon_file))
 
     # 2. Server patches
     patches_dst = os.path.join(temp_dir, 'server-patches')

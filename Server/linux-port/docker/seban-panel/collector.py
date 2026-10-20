@@ -83,6 +83,36 @@ def check_plus9_refines(cur):
             (str(int(newest.timestamp())),))
 
 
+def prune_old_snapshots(cur):
+    """Prunes historic snapshot and log tables so the database remains compact, fast, and does not
+    accumulate millions of redundant records.
+    Runs every collect cycle. Uses a LIMIT per query to prevent locking large tables on systems
+    with an existing multi-million-row backlog."""
+    retention_rules = [
+        ("player.web_seban_bot_position_snapshot", "captured_at", 2),   # 48 hours: character cards only need the latest position
+        ("player.web_seban_item_snapshot", "captured_at", 15),          # 15 days: economy charts query at most the last 14 days
+        ("player.web_seban_shop_item_snapshot", "captured_at", 30),     # 30 days of market offer trends
+        ("player.web_seban_map_snapshot", "captured_at", 14),           # 14 days of map population heatmaps
+        ("player.web_seban_system_snapshot", "captured_at", 14),        # 14 days of host CPU/RAM metrics
+        ("player.web_seban_shop_snapshot", "captured_at", 30),          # 30 days of shop empire totals
+        ("player.web_seban_metric_snapshot", "captured_at", 60),        # 60 days of economy high-level metrics
+        ("player.web_seban_news_event", "time", 30),                    # 30 days of ticker/event news
+        ("player.web_seban_bot_chat_log", "captured_at", 14),           # 14 days of bot chat messages
+        ("log.log", "time", 30),                                        # 30 days of game activity log (prevents 100M+ backlog)
+        ("log.item_meta_log", "time", 30),                              # 30 days of item meta log
+        ("log.ikarusshop_log", "time", 30),                             # 30 days of offline shop logs
+        ("log.refinelog", "time", 30),                                  # 30 days of refine history
+    ]
+    for table, col, days in retention_rules:
+        try:
+            cur.execute(
+                f"DELETE FROM {table} WHERE {col} < NOW() - INTERVAL %s DAY LIMIT 50000",
+                (days,)
+            )
+        except pymysql.MySQLError:
+            pass
+
+
 def host_metrics(previous=None):
     try:
         with open("/host/proc/stat") as f:
@@ -231,6 +261,14 @@ def init(cur):
     # Upgrade method (blacksmith vs scroll, and which scroll) -- log.refinelog.setType,
     # see app.py's REFINE_METHOD_LABELS/_classify_refine_events (operator's ask 2026-09-25).
     cur.execute("ALTER TABLE player.web_seban_news_event ADD COLUMN IF NOT EXISTS method VARCHAR(64) NULL")
+    # Ensure performance indexes on high-traffic game log tables
+    for tbl, idx, col in [("log.log", "idx_time", "time"),
+                          ("log.item_meta_log", "idx_time", "time"),
+                          ("log.refinelog", "idx_time", "time")]:
+        try:
+            cur.execute(f"CREATE INDEX IF NOT EXISTS {idx} ON {tbl} ({col})")
+        except pymysql.MySQLError:
+            pass
     # Small JSON-blob cache for otherwise-expensive dashboard queries
     # (cached_dashboard_ranking() in app.py) -- web_seban_settings.value is
     # VARCHAR(255) by design for small config values, too small for a
@@ -429,11 +467,18 @@ def collect(con, previous):
             ram_used_mb=VALUES(ram_used_mb), ram_total_mb=VALUES(ram_total_mb), disk_percent=VALUES(disk_percent),
             disk_used_mb=VALUES(disk_used_mb), disk_total_mb=VALUES(disk_total_mb)""",
             (now, cpu, ram, used, total, disk_percent, disk_used, disk_total))
-        for (channel, map_index), count in live_map_counts().items():
-            cur.execute("INSERT IGNORE INTO player.web_seban_map_snapshot (captured_at,channel,map_index,character_count) VALUES (%s,%s,%s,%s)", (now, channel, map_index, count))
+        map_counts = live_map_counts()
+        if map_counts:
+            cur.executemany(
+                "INSERT IGNORE INTO player.web_seban_map_snapshot (captured_at,channel,map_index,character_count) VALUES (%s,%s,%s,%s)",
+                [(now, channel, map_index, count) for (channel, map_index), count in map_counts.items()]
+            )
         positions = live_positions()
-        for pid, (map_index, x, y, channel) in positions.items():
-            cur.execute("INSERT IGNORE INTO player.web_seban_bot_position_snapshot (captured_at,pid,channel,map_index,x,y) VALUES (%s,%s,%s,%s,%s,%s)", (now, pid, channel, map_index, x, y))
+        if positions:
+            cur.executemany(
+                "INSERT IGNORE INTO player.web_seban_bot_position_snapshot (captured_at,pid,channel,map_index,x,y) VALUES (%s,%s,%s,%s,%s,%s)",
+                [(now, pid, channel, map_index, x, y) for pid, (map_index, x, y, channel) in positions.items()]
+            )
         # Split by socket0 only for vnum 50300 (the generic Skill Book -- see
         # resolve_item_display_name in app.py): splitting every socketed
         # item this way would fragment ordinary equipment into one row per
@@ -505,6 +550,7 @@ def collect(con, previous):
                 cur.execute("INSERT IGNORE INTO player.web_seban_metric_snapshot VALUES (%s,%s,%s)",
                             (now, f"lvl_{int(bracket)}_{int(bracket)+9}", count))
         check_plus9_refines(cur)
+        prune_old_snapshots(cur)
     return previous
 
 

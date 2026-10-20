@@ -343,5 +343,15 @@
   if(insightToggle)insightToggle.addEventListener('click',()=>{const shell=document.querySelector('.live-shell'),visible=shell.classList.toggle('show-map-insights');insightToggle.setAttribute('aria-expanded',String(visible));insightToggle.textContent=visible?'← Ranking i aktywności':'▦ Diagramy mapy'});
   const sidebarTabs=$('live-sidebar-tabs');
   if(sidebarTabs)sidebarTabs.addEventListener('click',event=>{const btn=event.target.closest('button[data-tab]');if(!btn)return;sidebarTabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));document.querySelector('.live-sidebar').dataset.sidebarTab=btn.dataset.tab});
-  load(); refreshRestartInfo(); tickRateBonusCountdowns(); setInterval(load, 1500); setInterval(refreshRestartInfo, 30000); setInterval(tickRateBonusCountdowns, 1000);
+  const pollLoad = () => { if (!document.hidden) load(); };
+  load(); refreshRestartInfo(); tickRateBonusCountdowns();
+  setInterval(pollLoad, 1500);
+  setInterval(() => { if (!document.hidden) refreshRestartInfo(); }, 30000);
+  setInterval(tickRateBonusCountdowns, 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      load();
+      refreshRestartInfo();
+    }
+  });
 })();

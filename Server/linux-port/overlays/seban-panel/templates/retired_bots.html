@@ -1,6 +1,76 @@
 {% extends 'base.html' %}{% block title %}Boty, które zakończyły grę · {{ panel_brand }}{% endblock %}{% block content %}
 <p class="eyebrow">ZAAWANSOWANE · AUDYT BOTÓW</p><h1>Boty, które zakończyły grę</h1>
 <p class="muted">Historia zaplanowanych emerytur botów (serwer hard: 1800 botów łącznie, po 600 na królestwo). Zielony status oznacza potwierdzone zdarzenie <code>BUY_ITEM</code> z silnika sklepu offline, a nie samo wystawienie oferty.</p>
+{% if advisor %}
+<section class="panel retirement-advisor" style="margin-bottom: 20px; border-left: 4px solid {% if advisor.state == 'optimal' %}#10b981{% elif advisor.state == 'moderate' %}#f59e0b{% elif advisor.state == 'active' %}#3b82f6{% else %}#ef4444{% endif %};">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 280px;">
+      <p class="eyebrow" style="color: {% if advisor.state == 'optimal' %}#10b981{% elif advisor.state == 'moderate' %}#f59e0b{% elif advisor.state == 'active' %}#3b82f6{% else %}#ef4444{% endif %}; margin-bottom: 4px; font-weight: 700;">
+        🧠 ASYSTENT GOSPODARKI · PÓŁAUTOMAT
+      </p>
+      <h2 style="margin: 0 0 6px 0; font-size: 20px;">{{ advisor.title }}</h2>
+      <p class="muted" style="margin: 0; line-height: 1.5; font-size: 13px;">{{ advisor.description }}</p>
+    </div>
+    <div>
+      <span class="retirement-control-state" style="font-weight: 700; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+        background: {% if advisor.state == 'optimal' %}rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981;
+                    {% elif advisor.state == 'moderate' %}rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b;
+                    {% elif advisor.state == 'active' %}rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid #3b82f6;
+                    {% else %}rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444;{% endif %}">
+        {{ advisor.badge_text }}
+      </span>
+    </div>
+  </div>
+
+  <div style="margin: 16px 0 12px; padding: 12px 14px; background: rgba(0,0,0,0.3); border: 1px solid var(--edge); border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px;">
+      <span><strong>Wskaźnik gotowości do bezpiecznej rotacji:</strong> {{ advisor.score }}%</span>
+      <span style="color: var(--muted);">Wymóg bezpiecznego balansu: 80+ botów na 40+ lvl i &ge;12h od ostatniej partii</span>
+    </div>
+    <div style="height: 8px; width: 100%; background: #132132; border-radius: 4px; overflow: hidden;">
+      <div style="height: 100%; width: {{ advisor.score }}%; background: linear-gradient(90deg, #ef4444 0%, #f59e0b 60%, #10b981 100%); border-radius: 4px; transition: width .5s ease;"></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px;">
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Boty &ge; 40 lvl</small>
+      <strong style="font-size: 16px; color: {% if advisor.lvl_40_plus >= 80 %}#10b981{% elif advisor.lvl_40_plus >= 40 %}#ffd16d{% else %}#ef4444{% endif %};">
+        {{ advisor.lvl_40_plus }} <span style="font-size: 12px; font-weight: normal; color: var(--muted);">/ 80 zalec.</span>
+      </strong>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Boty &ge; 35 lvl</small>
+      <strong style="font-size: 16px;">{{ advisor.lvl_35_plus }}</strong>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Średni poziom botów</small>
+      <strong style="font-size: 16px;">{{ advisor.avg_level }} lvl</strong>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--edge);">
+      <small class="muted" style="display: block; font-size: 11px;">Od ostatniej partii</small>
+      <strong style="font-size: 16px; color: {% if advisor.hours_ago >= 24 %}#10b981{% elif advisor.hours_ago >= 12 %}#ffd16d{% else %}#ef4444{% endif %};">
+        {% if advisor.hours_ago >= 900 %}Brak partii{% else %}{{ advisor.hours_ago }}h temu{% endif %}
+      </strong>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: rgba(0,0,0,0.18); padding: 10px 14px; border-radius: 6px;">
+    <div style="font-size: 13px;">
+      <span class="muted">Rekomendacja asystenta:</span> <strong>{{ advisor.recommendation }}</strong>
+    </div>
+    {% if not advisor.is_active and advisor.can_start %}
+    <button type="button" class="preset-btn" style="padding: 8px 18px; font-size: 13px; font-weight: 600; border-radius: 5px; cursor: pointer; transition: all .2s;
+      {% if advisor.state == 'optimal' %}background: #10b981; color: #fff; border: 1px solid #10b981;
+      {% elif advisor.state == 'moderate' %}background: #f59e0b; color: #000; border: 1px solid #f59e0b;
+      {% else %}background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444;{% endif %}"
+      onclick="applyAdvisorPreset({{ advisor.rec_bots }}, {{ advisor.rec_window }}, {{ advisor.rec_shop }})">
+      ⚡ {{ advisor.action_text }}
+    </button>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
 
 <section class="panel retirement-control">
 <div class="retirement-control-heading"><div><p class="eyebrow">STEROWANIE SYSTEMEM</p><h2>Uruchom nową partię emerytur</h2><p class="muted">Boty zostaną wybrane ze środka rankingu poziomów. Każdy wystawi dozwolone przedmioty na rynku, wyloguje się na czas trwania sklepu, a następnie rozpocznie grę od nowa.</p></div>
@@ -214,6 +284,20 @@ function applyPreset(count, windowMin, shopMin) {
   if (bInput) bInput.value = count;
   if (wInput) wInput.value = windowMin;
   if (sInput) sInput.value = shopMin;
+}
+
+function applyAdvisorPreset(count, windowMin, shopMin) {
+  applyPreset(count, windowMin, shopMin);
+  var form = document.getElementById('retireStartForm');
+  if (form) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    var btn = document.getElementById('btnStartRetire');
+    if (btn) {
+      btn.focus();
+      btn.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
+      setTimeout(function() { btn.style.boxShadow = ''; }, 2000);
+    }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

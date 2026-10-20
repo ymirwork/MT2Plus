@@ -3478,6 +3478,11 @@ WHERE vnum % 10 < 9 AND refine_set = 316 + vnum % 10
     OR vnum BETWEEN 17500 AND 17509 OR vnum BETWEEN 17540 AND 17549 OR vnum BETWEEN 17560 AND 17569);" \
   || fail_step "could not move the Rubin / Szmaragd / Szafir jewellery to level 75 or add the jewellery recipes and gems (MT2009_PLUS_JEWELS75_V1)" >&2
 
+# MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
+# zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s).
+db -e "UPDATE world.item_proto SET limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
+  || fail_step "could not update amulets and rings duration to 30 days" >&2
+
 # MT2009_PLUS_ZODIAC_V1: Swiatynia Zodiaku (Autor: Digi Rasta, nowy-system 0.35.0;
 # server-patches/zodiak/README.md). zodiak.sql is idempotent (INSERT IGNORE, ADD COLUMN IF
 # NOT EXISTS): player.player.bead (Kule Animy) and player_deleted.bead, the merchant's
@@ -3560,6 +3565,15 @@ if [ "$regen_split" != "1" ]; then
         fail_step "could not copy the respawn settings to the Metins' rows" >&2
     fi
 fi
+
+# MT2009_PLUS_STACK_200_EXTENDED: Zwiekszenie stackowania wybranych przedmiotow do 200
+# Ziola malp, kowalstwo/ulepszanie, malze, perly, ryby, przetopy, ksiegi pasywne, klucze i przedmioty specjalne
+db -e "
+UPDATE world.item_proto SET stack = 200 WHERE vnum IN (50050, 50057, 50058, 50059, 25040, 25041, 25042, 25043, 70039, 25044, 25045, 71032, 70024, 25100, 71025, 71026, 27987, 27992, 27993, 27994, 50060, 50061, 50062, 50008, 50009, 70014, 70005, 70042, 70043, 72005, 72006);
+UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 27800 AND 27899;
+UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50621 AND 50640;
+UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50301 AND 50322;
+" >/dev/null 2>&1 || true
 
 # MT2009_PLUS_FRESH_INSTALL_FIX_V1: every row this script makes as a copy of another
 # (CREATE TEMPORARY TABLE ... AS SELECT * FROM world.<item|mob>_proto WHERE vnum = <source>, then

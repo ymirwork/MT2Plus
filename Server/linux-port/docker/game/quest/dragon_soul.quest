@@ -75,9 +75,8 @@ quest dragon_soul begin
 
 			-- Only a monster at most 15 levels under the character, or any
 			-- higher (operator, 27 September 2026).
-			if npc.get_level0() < pc.get_level() - 15 then
-				return
-			end
+			-- MT2009_PLUS_NO_LEVEL_DELTA_DROP: bez wymogu +-15 lvl
+			-- if npc.get_level0() < pc.get_level() - 15 then return end
 
 			if pc.count_item(30270) < 10 then
 				if drop_gamble_with_flag("ds_drop") then
@@ -130,9 +129,8 @@ quest dragon_soul begin
 
 			-- Only a monster at most 15 levels under the character, or any
 			-- higher (operator, 27 September 2026).
-			if npc.get_level0() < pc.get_level() - 15 then
-				return
-			end
+			-- MT2009_PLUS_NO_LEVEL_DELTA_DROP: bez wymogu +-15 lvl
+			-- if npc.get_level0() < pc.get_level() - 15 then return end
 
 			if drop_gamble_with_flag("ds_drop") then
 				local eye_left = pc.getf("dragon_soul", "eye_left")

@@ -353,8 +353,8 @@ function openCompare(){
     var rows = [[T.c_plus, o.plus >= 0 ? '+' + o.plus : '–'], [T.c_level, o.lvl || '–'],
       [T.c_bonuses, o.bonuses.length ? o.bonuses.map(function(b){ return (b.max ? '★ ' : '') + esc(b.t); }).join('<br>') : '–'],
       [T.avg, o.avg ? o.avg + '%' : '–'], [T.skl, o.skl ? o.skl + '%' : '–'],
-      [T.stones, o.stones.length ? o.stones.map(function(s){ return esc(s.n); }).join('<br>') : '–'],
       [T.c_price, num(o.price) + ' ' + esc(T.yang) + (o.cnt > 1 ? '<br><small>' + esc(fmt('per_unit', {p: num(o.unit)})) + '</small>' : '')],
+      [T.c_seller, esc(o.seller || ('#' + o.owner)) + (o.emp ? ' <img class="flag" src="' + esc(EMPIRES[o.emp - 1].flag) + '">' : '')]];
     var cmpItemLink = (D.economy_item || '/economy/item/') + o.vnum + (o.vnum === 50300 && o['var'] ? '?skill=' + o['var'] : '');
     return '<div class="col"><a class="mk-name" href="' + esc(cmpItemLink) +
       '" title="Przejdź do analizy gospodarczej przedmiotu (economy/item/' + o.vnum + ')">' + esc(o.name) + (o.plus >= 0 ? ' <span class="plus">+' + o.plus + '</span>' : '') +

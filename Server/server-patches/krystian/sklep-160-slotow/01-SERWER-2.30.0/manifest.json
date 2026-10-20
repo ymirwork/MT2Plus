@@ -1,0 +1,26 @@
+{
+  "src/server/game/src/char_shop.cpp": {
+    "before": "01793e9beab0f94d06b5fdefb60e355fc8764b9e2a143f24b021655a517b594a",
+    "after": "4f4441fb2590f6ec40d6b32f3cb90c08a08417d3a1e5147d591b2d0af32b8445"
+  },
+  "src/server/game/src/ikarus_shop_manager.cpp": {
+    "before": "c39c24c64044a1d78550f968462ee12f962a613f0a48339ba322de6721860be4",
+    "after": "8719c152116ae96eb1946510eeff70c0bbc05fc74417224ea6044bdd1d187399"
+  },
+  "quest/shop_unlock_slots.quest": {
+    "before": null,
+    "after": "bd2a7a422fe729e27e7509e7c493500ab9f132f46364d512dc9bec6ff3639687"
+  },
+  "src/serverfiles/share/locale/poland/quest/pre_qc/shop_unlock_slots.quest": {
+    "before": "3635a57d5e2c16fb96e36f26185e6e8a3f660b7da5b845facb7f14810fc713d8",
+    "after": "bd2a7a422fe729e27e7509e7c493500ab9f132f46364d512dc9bec6ff3639687"
+  },
+  "src/serverfiles/share/locale/poland/quest/quest/systems/shop_unlock_slots.quest": {
+    "before": "1dd286ca370ce7661c0b0feb9898639e5ca65b73f28748de35bd85e8ba5d24b0",
+    "after": "bd2a7a422fe729e27e7509e7c493500ab9f132f46364d512dc9bec6ff3639687"
+  },
+  "Dockerfile": {
+    "before": "8aa482ac1e99ac8b74f39426762e9a704633018ac0961c2a472b2167fe6ecf91",
+    "after": "d7bb6a671bdab99c91168eb7363cde98b74436b4fd0583f65b16d063f1060db4"
+  }
+}

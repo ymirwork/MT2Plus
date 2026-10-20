@@ -1,0 +1,38 @@
+[
+  {
+    "file": "char_skill.cpp",
+    "marker": "MT2009_PLUS_DEV_GAMEPLAY_V1 (char_skill.cpp)",
+    "old": "\tif (!IsLearnableSkill(dwSkillVnum))\n\t{\n\t\tChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"You cannot train this skill.\"));\n\t\treturn false;\n\t}\n",
+    "new": "\tif (!IsLearnableSkill(dwSkillVnum))\n\t{\n\t\tChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"You cannot train this skill.\"));\n\t\treturn false;\n\t}\n\n\t// MT2009_PLUS_DEV_GAMEPLAY_V1 (char_skill.cpp): Nie trzeba miec EXPA aby czytac ksiegi umiejetnosci\n"
+  },
+  {
+    "file": "battle.cpp",
+    "marker": "MT2009_PLUS_DEV_GAMEPLAY_V1 (battle.cpp)",
+    "old": "bool IS_SPEED_HACK(LPCHARACTER ch, LPCHARACTER victim, DWORD current_time, bool isBow, DWORD victimCount, DWORD dwSkillVnum)\n{\n",
+    "new": "bool IS_SPEED_HACK(LPCHARACTER ch, LPCHARACTER victim, DWORD current_time, bool isBow, DWORD victimCount, DWORD dwSkillVnum)\n{\n\t// MT2009_PLUS_DEV_GAMEPLAY_V1 (battle.cpp): usuniecie limiterow szybkosci atakow / speedhacka\n\treturn false;\n"
+  },
+  {
+    "file": "input_main.cpp",
+    "marker": "MT2009_PLUS_DEV_GAMEPLAY_V1 (input_main.cpp): wylaczony limiter combo",
+    "old": "bool CheckComboHack(LPCHARACTER ch, BYTE bArg, DWORD dwTime, bool CheckSpeedHack)\n{\n",
+    "new": "bool CheckComboHack(LPCHARACTER ch, BYTE bArg, DWORD dwTime, bool CheckSpeedHack)\n{\n\t// MT2009_PLUS_DEV_GAMEPLAY_V1 (input_main.cpp): wylaczony limiter combo / attack speedhack\n\treturn false;\n"
+  },
+  {
+    "file": "input_main.cpp",
+    "marker": "MT2009_PLUS_DEV_GAMEPLAY_V1 (input_main.cpp): usunieto odczekanie",
+    "old": "\tch->SetRefineTime();\n\n\tif (p->type == REFINE_TYPE_NORMAL ||",
+    "new": "\t// MT2009_PLUS_DEV_GAMEPLAY_V1 (input_main.cpp): usunieto odczekanie przed nastepnym ulepszaniem (latwiejsze ulepszanie spamujac Enter)\n\tch->SetRefineTime();\n\n\tif (p->type == REFINE_TYPE_NORMAL ||"
+  },
+  {
+    "file": "char_item.cpp",
+    "marker": "MT2009_PLUS_DEV_GAMEPLAY_V1 (char_item.cpp)",
+    "old": "\t\t\tiEmpireByMapIndex = -1;\n\t\t\tbreak;\n\n\t\tdefault:\n",
+    "new": "\t\t\tiEmpireByMapIndex = -1;\n\t\t\tbreak;\n\n\t\t// MT2009_PLUS_DEV_GAMEPLAY_V1 (char_item.cpp): Loch Pajakow V2 recall scroll VIP/pass check\n\t\tcase 71:\n\t\t\t{\n\t\t\t\tbool isVip = IsActivePremiumSubscription();\n\t\t\t\tbool hasTicket = (CountSpecifyItem(71095) + CountSpecifyItem(71130)) > 0;\n\t\t\t\tif (!isVip && !hasTicket)\n\t\t\t\t{\n\t\t\t\t\tChatPacket(CHAT_TYPE_INFO, LC_TEXT(\"Wejscie do Lochu Pajakow V2 wymaga Przepustki lub konta VIP.\"));\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tif (!isVip)\n\t\t\t\t{\n\t\t\t\t\tif (CountSpecifyItem(71130) > 0)\n\t\t\t\t\t\tRemoveSpecifyItem(71130, 1);\n\t\t\t\t\telse\n\t\t\t\t\t\tRemoveSpecifyItem(71095, 1);\n\t\t\t\t}\n\t\t\t}\n\t\t\tbreak;\n\n\t\tdefault:\n"
+  },
+  {
+    "file": "char_battle.cpp",
+    "marker": "MT2009_PLUS_DEV_GAMEPLAY_V1 (char_battle.cpp): bonus",
+    "old": "\t\t\tif (iEmpire && iMapEmpire && iEmpire != iMapEmpire)\n\t\t\t{\n\t\t\t\tdam = dam * 9 / 10;\n\t\t\t}\n\n\t\t\tif (!IsPC() && GetMonsterDrainSPPoint())\n",
+    "new": "\t\t\tif (iEmpire && iMapEmpire && iEmpire != iMapEmpire)\n\t\t\t{\n\t\t\t\tdam = dam * 9 / 10;\n\t\t\t}\n\n\t\t\t// MT2009_PLUS_DEV_GAMEPLAY_V1 (char_battle.cpp): bonus obrazen 5% PvP przy jezyku ofiary >= M1\n\t\t\tif (IsPC())\n\t\t\t{\n\t\t\t\tBYTE bAttackerEmpire = pAttacker->GetEmpire();\n\t\t\t\tBYTE bMyEmpire = GetEmpire();\n\n\t\t\t\tif (bAttackerEmpire != bMyEmpire && bMyEmpire >= 1 && bMyEmpire <= 3)\n\t\t\t\t{\n\t\t\t\t\tDWORD dwSkillVnum = SKILL_LANGUAGE1 + bMyEmpire - 1;\n\t\t\t\t\tint iSkillLevel = pAttacker->GetSkillLevel(dwSkillVnum);\n\t\t\t\t\tif (iSkillLevel >= 20)\n\t\t\t\t\t\tdam = dam * 105 / 100; // 5%\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif (!IsPC() && GetMonsterDrainSPPoint())\n"
+  }
+]

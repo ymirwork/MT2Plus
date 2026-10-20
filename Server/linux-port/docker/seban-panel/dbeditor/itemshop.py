@@ -84,7 +84,7 @@ TABS = (
 # Tabs filled by something else than the index; a new line gets a free index
 # here, outside every range above.
 MARK_TAB = ("znaki", "Smocze Znaki", ((700, 899),))       # every line priced in SZ
-AUCTION_TAB = ("blyskawiczne", "Oferty Błyskawiczne", ((906, 999),))  # every flash offer
+AUCTION_TAB = ("blyskawiczne", "Oferty Błyskawiczne", ((906, 999), (1001, 1100)))  # every flash offer
 HIDDEN_TAB = ("niewidoczne", "Niewidoczne w kliencie", ())
 TAB_TITLES = {t[0]: t[1] for t in TABS + (MARK_TAB, AUCTION_TAB, HIDDEN_TAB)}
 TAB_RANGES = {t[0]: t[2] for t in TABS + (MARK_TAB, AUCTION_TAB)}

@@ -41,10 +41,30 @@
 .inv-slot,.safebox-slot{left:calc(var(--col) * 20%);top:calc(var(--row) * 11.111%);width:20%;height:calc(var(--size) * 11.111%)}
 .inv-slot>b,.safebox-slot>b{position:absolute;right:4%;bottom:1%;font-size:11px;color:#fff;text-shadow:0 1px 2px #000;z-index:2}
 .metin-inventory .inv-slot[hidden]{display:none!important}
-.item-tip{display:none;position:absolute;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(100% + 4px);width:190px;background:color-mix(in srgb,var(--panel) 92%,#000);border:1px solid var(--edge);border-radius:5px;padding:8px;color:var(--text);font-size:12px;pointer-events:none;box-shadow:0 5px 14px #0008}
-.item-tip b,.item-tip span{display:block}.item-tip b{color:var(--gold);margin-bottom:3px}.item-tip .tip-vnum{color:var(--muted);font-size:10px;margin-bottom:5px}.item-tip .tip-base{color:color-mix(in srgb,var(--text) 76%,var(--muted))}.item-tip .tip-bonus{color:#73e7ae}.item-tip .tip-bonus--native{color:#63c993}.item-tip .tip-bonus--added{color:#9af4c5}
+.item-tip{display:none;position:absolute;z-index:1000;left:50%;transform:translateX(-50%);bottom:calc(100% + 6px);min-width:210px;max-width:290px;width:max-content;box-sizing:border-box;max-height:85vh;overflow-y:auto;scrollbar-width:thin;background:color-mix(in srgb,var(--panel) 94%,#000);border:1px solid var(--edge);border-radius:6px;padding:9px 11px;color:var(--text);font-size:12px;line-height:1.35;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.07);word-break:normal;overflow-wrap:break-word}
+.item-tip b,.item-tip span{display:block}.item-tip b{color:var(--gold);margin-bottom:3px;font-size:12.5px;font-weight:700}.item-tip .tip-vnum{color:var(--muted);font-size:10px;margin-bottom:5px}.item-tip .tip-base{color:color-mix(in srgb,var(--text) 76%,var(--muted))}.item-tip .tip-bonus{color:#73e7ae;font-size:11.5px}.item-tip .tip-bonus--native{color:#63c993}.item-tip .tip-bonus--added{color:#9af4c5}
 .equip-slot:hover .item-tip,.inv-slot:hover .item-tip,.safebox-slot:hover .item-tip{display:block}
-.item-tip:has(.tip-explain){width:280px}
+.item-tip:has(.tip-explain){min-width:260px;max-width:340px}
+/* Górne sloty ekwipunku domyślnie otwierają się w dół (na sylwetkę/ekwipunek), zapobiegając ucinaniu od góry */
+.equip-slot.head .item-tip,
+.equip-slot.weapon .item-tip,
+.equip-slot.body .item-tip,
+.equip-slot.shield .item-tip,
+.equip-slot.ear .item-tip,
+.equip-slot.wrist .item-tip,
+.equip-slot.neck .item-tip,
+.equip-slot.arrow .item-tip{top:calc(100% + 6px);bottom:auto}
+.equip-slot.foots .item-tip,
+.equip-slot.belt .item-tip,
+.equip-slot.unique1 .item-tip,
+.equip-slot.unique2 .item-tip{bottom:calc(100% + 6px);top:auto}
+/* Górne rzędy sakwy (0, 1, 2) domyślnie otwierają się w dół */
+.inv-slot[style*="--row:0;"] .item-tip,
+.inv-slot[style*="--row:1;"] .item-tip,
+.inv-slot[style*="--row:2;"] .item-tip,
+.safebox-slot[style*="--row:0;"] .item-tip,
+.safebox-slot[style*="--row:1;"] .item-tip,
+.safebox-slot[style*="--row:2;"] .item-tip{top:calc(100% + 6px);bottom:auto}
 .tip-explain{margin-top:5px;padding-top:5px;border-top:1px solid var(--edge);font-size:10.5px;line-height:1.4}
 .tip-explain-h{color:#fbbf24!important;font-weight:700;margin-bottom:2px}
 .tip-explain-line{color:color-mix(in srgb,var(--text) 76%,var(--muted))}
@@ -302,5 +322,8 @@
 .metin-inventory .inventory-native-tabs :is(.inventory-horse-button,.inventory-deposit-button,.inventory-shop-button) img{width:15px!important;height:15px!important}
 .metin-inventory .inventory-native-tabs .inventory-native-button:hover:not(:disabled){filter:brightness(1.3) drop-shadow(0 0 3px rgba(242,195,77,.85))}
 .metin-inventory .inventory-native-tabs .inventory-native-button,.metin-inventory .inventory-native-tabs .inventory-native-button img{transition:filter .12s ease}
-/* A tip that would leave the panel over the top shows under the item instead (the name of a long item was cut). */
-.tip-below .item-tip{top:calc(100% + 4px)!important;bottom:auto!important}
+/* Inteligentne pozycjonowanie dymków: góra / dół / lewo / prawo */
+:is(.equip-slot,.inv-slot,.safebox-slot,.shop-slot,.skill-slot,.costume-slot,.ds-equip-slot,.ds-bag-slot).tip-below .item-tip,.tip-below .item-tip{top:calc(100% + 6px)!important;bottom:auto!important}
+:is(.equip-slot,.inv-slot,.safebox-slot,.shop-slot,.skill-slot,.costume-slot,.ds-equip-slot,.ds-bag-slot).tip-above .item-tip,.tip-above .item-tip{bottom:calc(100% + 6px)!important;top:auto!important}
+:is(.equip-slot,.inv-slot,.safebox-slot,.shop-slot,.skill-slot,.costume-slot,.ds-equip-slot,.ds-bag-slot).tip-left .item-tip,.tip-left .item-tip{left:0!important;right:auto!important;transform:none!important}
+:is(.equip-slot,.inv-slot,.safebox-slot,.shop-slot,.skill-slot,.costume-slot,.ds-equip-slot,.ds-bag-slot).tip-right .item-tip,.tip-right .item-tip{left:auto!important;right:0!important;transform:none!important}

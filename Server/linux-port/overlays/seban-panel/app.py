@@ -4375,21 +4375,29 @@ def item_icon_url(vnum):
     return url_for("static", filename=f"icons/{quote(icon)}") if icon else None
 
 
+_TOP_LEVEL_RANK_CACHE = {"ts": 0.0, "data": None}
+_TOP_LEVEL_BADGE_CACHE = {"ts": 0.0, "data": None}
+_FULL_PLUS9_BADGE_CACHE = {"ts": 0.0, "data": None}
+_SHOP_EXPLAIN_CACHE = {"ts": 0.0, "data": None}
+
+
 def top_level_rank_map():
     """Top ten by the same level/EXP ordering used by the level ranking."""
-    cached = getattr(g, "_top_level_rank_map", None)
-    if cached is None:
-        leaders = rows("SELECT id FROM player.player WHERE " + ranking_scope_sql("") +
-                       " ORDER BY level DESC,exp DESC LIMIT 10")
-        cached = {int(row["id"]): rank for rank, row in enumerate(leaders, 1)}
-        g._top_level_rank_map = cached
+    now = time.time()
+    if _TOP_LEVEL_RANK_CACHE["data"] is not None and (now - _TOP_LEVEL_RANK_CACHE["ts"]) < 15.0:
+        return _TOP_LEVEL_RANK_CACHE["data"]
+    leaders = rows("SELECT id FROM player.player WHERE " + ranking_scope_sql("") +
+                   " ORDER BY level DESC,exp DESC LIMIT 10")
+    cached = {int(row["id"]): rank for rank, row in enumerate(leaders, 1)}
+    _TOP_LEVEL_RANK_CACHE["ts"] = now
+    _TOP_LEVEL_RANK_CACHE["data"] = cached
     return cached
 
 
 def top_level_badge_settings():
-    cached = getattr(g, "_top_level_badge_settings", None)
-    if cached is not None:
-        return cached
+    now = time.time()
+    if _TOP_LEVEL_BADGE_CACHE["data"] is not None and (now - _TOP_LEVEL_BADGE_CACHE["ts"]) < 30.0:
+        return _TOP_LEVEL_BADGE_CACHE["data"]
     try:
         stored = {row["name"]: str(row.get("value") or "") for row in rows(
             "SELECT name,value FROM common.m2_switches WHERE name IN "
@@ -4400,7 +4408,8 @@ def top_level_badge_settings():
     raw_places = stored.get("top_level_badge_places", "1,2,3,4,5,6,7,8,9,10")
     places = {int(value) for value in raw_places.split(",") if value.strip().isdigit() and 1 <= int(value) <= 10}
     cached = {"enabled": enabled, "places": places}
-    g._top_level_badge_settings = cached
+    _TOP_LEVEL_BADGE_CACHE["ts"] = now
+    _TOP_LEVEL_BADGE_CACHE["data"] = cached
     return cached
 
 
@@ -4417,39 +4426,43 @@ def write_top_level_badge_settings(enabled, places):
         ('top_level_badges_enabled',%s),('top_level_badge_places',%s)
         ON DUPLICATE KEY UPDATE value=VALUES(value)""",
         ("1" if enabled else "0", ",".join(map(str, selected))))
+    _TOP_LEVEL_BADGE_CACHE["ts"] = 0.0
 
 
 def full_plus9_badges_enabled():
-    cached = getattr(g, "_full_plus9_badges_enabled", None)
-    if cached is not None:
-        return cached
+    now = time.time()
+    if _FULL_PLUS9_BADGE_CACHE["data"] is not None and (now - _FULL_PLUS9_BADGE_CACHE["ts"]) < 30.0:
+        return _FULL_PLUS9_BADGE_CACHE["data"]
     try:
         stored = one("SELECT value FROM common.m2_switches WHERE name='full_plus9_badges_enabled'")
         cached = not stored or str(stored.get("value") or "1") == "1"
     except pymysql.MySQLError:
         cached = True
-    g._full_plus9_badges_enabled = cached
+    _FULL_PLUS9_BADGE_CACHE["ts"] = now
+    _FULL_PLUS9_BADGE_CACHE["data"] = cached
     return cached
 
 
 def write_full_plus9_badges_enabled(enabled):
     rows("""INSERT INTO common.m2_switches (name,value) VALUES ('full_plus9_badges_enabled',%s)
         ON DUPLICATE KEY UPDATE value=VALUES(value)""", ("1" if enabled else "0",))
+    _FULL_PLUS9_BADGE_CACHE["ts"] = 0.0
 
 
 def shop_explain_enabled():
     """Whether a bot's shop tooltip shows why an item is listed and how its
     price was set (decisions.py, Playerbots 2.2.39+'s log.playerbot_listing).
     Defaults on, same as the engine's own EXPLAIN retention default."""
-    cached = getattr(g, "_shop_explain_enabled", None)
-    if cached is not None:
-        return cached
+    now = time.time()
+    if _SHOP_EXPLAIN_CACHE["data"] is not None and (now - _SHOP_EXPLAIN_CACHE["ts"]) < 30.0:
+        return _SHOP_EXPLAIN_CACHE["data"]
     try:
         stored = one("SELECT value FROM common.m2_switches WHERE name='shop_explain_enabled'")
         cached = not stored or str(stored.get("value") or "1") == "1"
     except pymysql.MySQLError:
         cached = True
-    g._shop_explain_enabled = cached
+    _SHOP_EXPLAIN_CACHE["ts"] = now
+    _SHOP_EXPLAIN_CACHE["data"] = cached
     return cached
 
 
@@ -4635,9 +4648,13 @@ def setup():
     return render_template("setup.html", current=current)
 
 
-@app.route("/")
-@login_required
-def dashboard():
+_DASHBOARD_TOTALS_CACHE = {"ts": 0.0, "data": None}
+
+
+def get_dashboard_totals():
+    now = time.time()
+    if _DASHBOARD_TOTALS_CACHE["data"] is not None and (now - _DASHBOARD_TOTALS_CACHE["ts"]) < 30.0:
+        return _DASHBOARD_TOTALS_CACHE["data"]
     totals = one("""
         SELECT
           (SELECT COUNT(*) FROM player.player) AS characters,
@@ -4645,6 +4662,15 @@ def dashboard():
           (SELECT COUNT(*) FROM player.item) AS item_stacks,
           (SELECT COALESCE(SUM(gold),0) FROM player.player WHERE name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')) AS yang
     """)
+    _DASHBOARD_TOTALS_CACHE["ts"] = now
+    _DASHBOARD_TOTALS_CACHE["data"] = totals
+    return totals
+
+
+@app.route("/")
+@login_required
+def dashboard():
+    totals = get_dashboard_totals()
     empty_rankings = [{"title": "Ładowanie…", "subtitle": "Pobieranie danych", "items": []} for _ in range(11)]
     empty_world = {
         "bots": 0, "average_level": 0, "party_bots": 0, "max_level": 0,
@@ -4659,15 +4685,6 @@ def dashboard():
                            channel_map_rows=[], dashboard_channels=[], shop_map_rows=[], top=[],
                            global_top_id=None, quick_rankings=empty_rankings, world_summary=empty_world,
                            dashboard_deferred=True, panel_version=PANEL_VERSION,
-                           # Placeholder shape must match read_regen_settings()'s own
-                           # ({"delay":{...},"count":{...}}), not an arbitrary {} -- the
-                           # template nests this straight into #live-regen-data's JSON as
-                           # "global", and live-widget.js's insights() reads
-                           # global.delay.mob unconditionally. The old {"global":{},...}
-                           # here produced global.delay === undefined, throwing on every
-                           # single render() call and permanently stuck the live badge on
-                           # "Brak danych live", not just on genuine fetch failures
-                           # (reported [GA]Seban 2026-09-27).
                            latest_changelog=changelog_entries()[:1],
                            live_regen={"delay": {kind: 100 for kind in REGEN_DELAY_FLAGS},
                                        "count": {kind: 100 for kind in REGEN_COUNT_FLAGS}},
@@ -4676,13 +4693,7 @@ def dashboard():
 
 def _dashboard_deferred_context():
     """Build data for the dashboard widgets after the fast shell is visible."""
-    totals = one("""
-        SELECT
-          (SELECT COUNT(*) FROM player.player) AS characters,
-          (SELECT COUNT(*) FROM account.account) AS accounts,
-          (SELECT COUNT(*) FROM player.item) AS item_stacks,
-          (SELECT COALESCE(SUM(gold),0) FROM player.player WHERE name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')) AS yang
-    """)
+    totals = get_dashboard_totals()
     bots = one("SELECT COUNT(*) AS count FROM player.player WHERE account_id BETWEEN 4 AND 1003")
     # The collector creates this table with its first snapshot; before that -
     # the first minutes of a fresh installation - the dashboard has no host
@@ -7307,17 +7318,55 @@ def economy():
             WHERE how='PLAYERBOT_M1M2_LIQUIDATION' AND time >= NOW() - INTERVAL 24 HOUR
         """) or {}
 
-        # Bot count and buyers (15% populacji botow)
-        bot_row = one("""
-            SELECT 
-                COUNT(*) AS total_bots,
-                SUM(CASE WHEN MOD(p.id, 100) < 15 THEN 1 ELSE 0 END) AS buyer_bots
-            FROM player.player p
-            JOIN account.account a ON a.id = p.account_id
-            WHERE a.login LIKE 'playerbot_%%'
+        # Dynamiczna konfiguracja liczby botów z env.current lub zmiennych środowiskowych
+        env_curr = {}
+        try:
+            env_file = UPDATE_SPOOL / "env.current"
+            if env_file.exists():
+                with open(env_file, encoding="utf-8") as f:
+                    env_curr = json.load(f).get("values", {})
+        except Exception:
+            pass
+
+        try:
+            diff_name = read_difficulty().get("level", "hard").capitalize()
+        except Exception:
+            diff_name = "Hard"
+
+        per_kingdom = env_curr.get("PLAYERBOT_AUTOSPAWN_PER_KINGDOM") == "1"
+        if per_kingdom:
+            s_bots = int(env_curr.get("PLAYERBOT_AUTOSPAWN_SHINSOO") or 500)
+            c_bots = int(env_curr.get("PLAYERBOT_AUTOSPAWN_CHUNJO") or 500)
+            j_bots = int(env_curr.get("PLAYERBOT_AUTOSPAWN_JINNO") or 500)
+            total_bots = s_bots + c_bots + j_bots
+            per_k_str = f"{s_bots}/królestwo" if (s_bots == c_bots == j_bots) else f"{s_bots}/{c_bots}/{j_bots}"
+        else:
+            total_bots = int(env_curr.get("PLAYERBOT_AUTOSPAWN_COUNT") or 1500)
+            per_k_str = f"{total_bots // 3}/królestwo"
+
+        bot_config = {
+            "difficulty": diff_name,
+            "total_bots": total_bots,
+            "per_kingdom_str": per_k_str,
+            "label": f"Server {diff_name} · {total_bots} botów ({per_k_str})"
+        }
+
+        # Dynamiczny wskaźnik skupu botów YmirWork (3% - 35% wg podaży próbek na rynku):
+        supply_row = one("""
+            SELECT COALESCE(SUM(count), 0) AS total_supply
+            FROM player.item
+            WHERE window = 'IKASHOP_OFFLINESHOP'
+              AND vnum IN (30031, 30028, 30071, 30004, 30003, 30078)
         """) or {}
-        total_bots = int(bot_row.get("total_bots") or 1800)
-        buyer_bots_count = int(bot_row.get("buyer_bots") or int(total_bots * 0.15))
+        sample_supply = int(supply_row.get("total_supply") or 0)
+        if sample_supply < 300:
+            buyer_pct = 3
+        elif sample_supply >= 8000:
+            buyer_pct = 35
+        else:
+            buyer_pct = 5 + int((sample_supply - 300) * 25 / 7700)
+
+        buyer_bots_count = int(total_bots * buyer_pct / 100)
 
         # Obieg Zaczarowan i Wzmocnien w swiecie i na straganach
         bonus_circ = rows("""
@@ -7347,6 +7396,7 @@ def economy():
         """)
         for r in liq_recent:
             r["time_str"] = r["time"].strftime("%H:%M:%S") if r.get("time") else "—"
+            r["full_time_str"] = r["time"].strftime("%d.%m.%Y %H:%M:%S") if r.get("time") else "—"
             r["item_name"] = resolve_item_display_name(r["vnum"], 0, game_text(r.get("hint") or ""))
             r["icon_url"] = item_icon_url(r["vnum"])
 
@@ -7361,6 +7411,9 @@ def economy():
             "switches_24h": int(liq_24h.get("switches_24h") or 0),
             "total_bots": total_bots,
             "buyer_bots_count": buyer_bots_count,
+            "buyer_percent": buyer_pct,
+            "sample_supply": sample_supply,
+            "bot_config": bot_config,
             "bonus_71284": circ_map.get(71284, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
             "bonus_71285": circ_map.get(71285, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
             "recent": liq_recent
@@ -7375,8 +7428,11 @@ def economy():
             "count_24h": 0,
             "adds_24h": 0,
             "switches_24h": 0,
-            "total_bots": 1800,
-            "buyer_bots_count": 270,
+            "total_bots": 1500,
+            "buyer_bots_count": 225,
+            "buyer_percent": 15,
+            "sample_supply": 0,
+            "bot_config": {"difficulty": "Custom", "total_bots": 1500, "per_kingdom_str": "500/królestwo", "label": "Server Custom · 1500 botów (500/królestwo)"},
             "bonus_71284": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
             "bonus_71285": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
             "recent": []
@@ -7518,7 +7574,8 @@ def economy():
                                cat_filter=cat_filter, cat_counts=cat_counts, query=query,
                                kpi=kpi, watchlist=watchlist, wealth=wealth,
                                special_systems=special_systems, faucet_sink=faucet_sink,
-                               discord_configured=discord_configured, trend=trend)
+                               discord_configured=discord_configured, trend=trend,
+                               advisor=get_bot_retirement_advisor())
     if is_default_view:
         _ECONOMY_MAIN_CACHE["default"] = {"ts": now_ts, "html": rendered}
     return rendered
@@ -8145,13 +8202,19 @@ def economy_shops():
             totals["offers"] += int(m["offer_count"])
             totals["items"] += int(m["item_count"])
             totals["value"] += int(m["total_value"])
+    tx_total, tx_period = 0, 0
+    try:
+        tx_total = int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD'").get("n") or 0)
+        tx_period = int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL %s HOUR", (hours,)).get("n") or 0)
+    except Exception:
+        pass
     kpi = {
         "shops": sum(t["shops"] for t in empire_totals.values()),
         "offers": sum(t["offers"] for t in empire_totals.values()),
         "items": sum(t["items"] for t in empire_totals.values()),
         "value": sum(t["value"] for t in empire_totals.values()),
-        "transactions_total": int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD'").get("n") or 0),
-        "transactions_period": int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL %s HOUR", (hours,)).get("n") or 0),
+        "transactions_total": tx_total,
+        "transactions_period": tx_period,
     }
 
     # Same label/series pivot as maps(): one line per empire, values aligned
@@ -8542,9 +8605,139 @@ def world_reset_start():
     finally:
         temporary.unlink(missing_ok=True)
     app.logger.warning("world reset %s requested (%s)", kind, request_id)
-    flash(f"{WORLD_RESET_KINDS[kind]}: prośba przyjęta. Serwer zatrzyma się, zapisze kopię bazy, "
-          "wykona reset i uruchomi się ponownie.", "success")
-    return redirect(url_for("world_reset"))
+def get_bot_retirement_advisor():
+    """Semi-automatic economic advisor evaluating whether bot retirement should be triggered."""
+    try:
+        b_stats = one("""
+            SELECT 
+                COUNT(*) as total_bots,
+                COALESCE(SUM(p.level >= 35), 0) as lvl_35_plus,
+                COALESCE(SUM(p.level >= 40), 0) as lvl_40_plus,
+                COALESCE(SUM(p.level >= 50), 0) as lvl_50_plus,
+                ROUND(AVG(p.level), 1) as avg_level,
+                MAX(p.level) as max_level
+            FROM player.player p
+            JOIN account.account a ON a.id = p.account_id
+            WHERE a.login LIKE 'playerbot_%%'
+        """) or {}
+        
+        last_batch = one("""
+            SELECT MAX(started_at) as last_ts,
+                   ROUND((UNIX_TIMESTAMP() - MAX(started_at)) / 3600, 1) as hours_ago
+            FROM common.playerbot_retire_batch
+        """) or {}
+        
+        total_bots = int(b_stats.get("total_bots") or 0)
+        lvl_35_plus = int(b_stats.get("lvl_35_plus") or 0)
+        lvl_40_plus = int(b_stats.get("lvl_40_plus") or 0)
+        lvl_50_plus = int(b_stats.get("lvl_50_plus") or 0)
+        avg_level = float(b_stats.get("avg_level") or 0.0)
+        max_level = int(b_stats.get("max_level") or 0)
+        
+        hours_ago = float(last_batch.get("hours_ago")) if last_batch.get("hours_ago") is not None else 999.0
+        last_ts = int(last_batch.get("last_ts") or 0)
+        
+        # Check current active batch
+        curr_status = retirement_control_status()
+        is_active = (curr_status.get("state") == "active")
+        
+        if is_active:
+            state = "active"
+            score = 100
+            badge_class = "active"
+            badge_text = "Partia w toku"
+            title = "Partia emerytur aktualnie trwa"
+            description = "Trwa proces wyprzedaży i resetowania wytypowanych botów. Nowa partia będzie mogła zostać uruchomiona po zakończeniu obecnej."
+            recommendation = "Poczekaj na zakończenie trwającej partii."
+            action_text = "Partia w toku"
+            can_start = False
+            rec_bots = 0
+            rec_window = 30
+            rec_shop = 45
+        elif lvl_40_plus < 80 or hours_ago < 12.0:
+            state = "early"
+            badge_class = "early"
+            badge_text = "🔴 Za wcześnie (Niezalecane)"
+            title = "Boty jeszcze dojrzewają – zresetowanie popsułoby rozgrywkę"
+            if hours_ago < 12.0:
+                description = f"Od ostatniej partii minęło zaledwie {hours_ago:.1f}h. Zbyt częste resety zaburzają naturalny cykl życia serwera i wyludniają spoty expa."
+                action_text = f"Odczekaj jeszcze {max(0.1, 12.0 - hours_ago):.1f}h"
+                recommendation = f"Odczekaj co najmniej 12h od poprzedniego resetu (pozostało ~{max(0.1, 12.0 - hours_ago):.1f}h)."
+            else:
+                description = f"Większość botów rozwija się we wczesnej fazie gry (średni poziom: {avg_level} lvl, tylko {lvl_40_plus} botów posiada 40+ lvl). Wystawione przedmioty byłyby niskiej wartości (+0..+4), a cofnięcie postaci do 1 lvl opóźni dropienie cennych itemów."
+                action_text = "Uruchom małą partię ostrożnościową (30 botów)"
+                recommendation = "Zaczekaj, aż co najmniej 80–100 botów osiągnie 40+ poziom."
+            score = min(45, max(10, int((lvl_40_plus / 80.0) * 35 + min(hours_ago / 12.0, 1.0) * 10)))
+            can_start = True
+            rec_bots = 30
+            rec_window = 20
+            rec_shop = 45
+        elif lvl_40_plus < 160 or hours_ago < 24.0:
+            state = "moderate"
+            badge_class = "moderate"
+            badge_text = "🟡 Umiarkowany (Opcjonalna mała rotacja)"
+            title = "Dobra okazja na małe odświeżenie M1"
+            description = f"W świecie gry jest {lvl_35_plus} botów na 35+ lvl ({lvl_40_plus} na 40+ lvl), a od ostatniej partii minęło {hours_ago:.0f}h. Możesz bezpiecznie uruchomić małą partię, by wpuścić trochę uzbrojenia na rynek bez szkody dla expa."
+            score = min(85, max(50, 50 + int(((lvl_40_plus - 80) / 80.0) * 35)))
+            action_text = "Zastosuj bezpieczną małą partię (30 botów)"
+            recommendation = "Zalecana bezpieczna partia: 30 botów (okno 20 min, sklep 45 min)."
+            can_start = True
+            rec_bots = 30
+            rec_window = 20
+            rec_shop = 45
+        else:
+            state = "optimal"
+            badge_class = "optimal"
+            badge_text = "🟢 Optymalny moment na rotację"
+            title = "Gospodarka gotowa na falę emerytów!"
+            description = f"Ponad {lvl_40_plus} botów osiągnęło poziom 40–50+, a od ostatniej partii upłynęło {hours_ago:.0f}h. Rynek zyska cenne uzbrojenie i wybonowane przedmioty ze zminimalizowanym ryzykiem utraty tempa farmy."
+            score = 100
+            action_text = "Zastosuj rekomendowaną partię (60 botów)"
+            recommendation = "Zalecana partia standardowa: 60 botów (okno 30 min, sklep 45 min)."
+            can_start = True
+            rec_bots = 60
+            rec_window = 30
+            rec_shop = 45
+
+        return {
+            "state": state,
+            "badge_class": badge_class,
+            "badge_text": badge_text,
+            "title": title,
+            "description": description,
+            "recommendation": recommendation,
+            "action_text": action_text,
+            "score": score,
+            "can_start": can_start,
+            "is_active": is_active,
+            "rec_bots": rec_bots,
+            "rec_window": rec_window,
+            "rec_shop": rec_shop,
+            "total_bots": total_bots,
+            "lvl_35_plus": lvl_35_plus,
+            "lvl_40_plus": lvl_40_plus,
+            "lvl_50_plus": lvl_50_plus,
+            "avg_level": avg_level,
+            "max_level": max_level,
+            "hours_ago": hours_ago,
+            "last_ts": last_ts
+        }
+    except Exception as e:
+        return {
+            "state": "unknown",
+            "badge_class": "early",
+            "badge_text": "Brak danych",
+            "title": "Doradca niedostępny",
+            "description": str(e),
+            "recommendation": "Sprawdź połączenie z bazą danych.",
+            "action_text": "Brak danych",
+            "score": 0,
+            "can_start": False,
+            "is_active": False,
+            "rec_bots": 30,
+            "rec_window": 20,
+            "rec_shop": 45
+        }
 
 
 @app.route("/advanced/retired-bots")
@@ -8705,7 +8898,8 @@ def retired_bots():
                            page=page, total_pages=total_pages, total_bots=total_bots,
                            kpi=kpi,
                            retirement=retirement_control_status(),
-                           retirement_csrf=update_csrf_token())
+                           retirement_csrf=update_csrf_token(),
+                           advisor=get_bot_retirement_advisor())
 
 
 def item_name_search(query):
@@ -9744,15 +9938,24 @@ _LIVE_BOT_API_FIELDS = ("id", "name", "level", "job", "empire", "action", "actio
                         "goal", "channel", "map_index", "x", "y", "in_party", "stuck", "fighting_metin")
 
 
+_LIVE_BOTS_CACHE = {"ts": 0.0, "data": None}
+
+
 @app.route("/api/live-bots")
 @login_required
 def api_live_bots():
+    now_ts = time.time()
+    if _LIVE_BOTS_CACHE["data"] is not None and (now_ts - _LIVE_BOTS_CACHE["ts"]) < 1.5:
+        return _LIVE_BOTS_CACHE["data"]
     all_level_ranks = top_level_rank_map()
     level_ranks = top_level_badge_rank_map()
     slim_bots = [{field: bot.get(field) for field in _LIVE_BOT_API_FIELDS} for bot in live_bots()]
-    return {"ok": True, "updated_at": int(datetime.now().timestamp() * 1000), "maps": MAP_NAMES, "bounds": MAP_BOUNDS,
-            "global_top_id": next((pid for pid, rank in all_level_ranks.items() if rank == 1), None),
-            "top_level_ranks": level_ranks, "bots": slim_bots, "channels": discovered_channels()}
+    res = {"ok": True, "updated_at": int(datetime.now().timestamp() * 1000), "maps": MAP_NAMES, "bounds": MAP_BOUNDS,
+           "global_top_id": next((pid for pid, rank in all_level_ranks.items() if rank == 1), None),
+           "top_level_ranks": level_ranks, "bots": slim_bots, "channels": discovered_channels()}
+    _LIVE_BOTS_CACHE["ts"] = now_ts
+    _LIVE_BOTS_CACHE["data"] = res
+    return res
 
 
 @app.route("/api/news-feed")

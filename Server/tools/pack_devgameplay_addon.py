@@ -2,7 +2,9 @@ import os
 import zipfile
 
 addon_name = 'MT2009-PLUS-DEV-GAMEPLAY-V1'
-zip_path = os.path.join('Server', 'addons', f'{addon_name}.zip')
+out_dir = os.path.join('Server', 'server-patches', 'krystian', 'devgameplay')
+os.makedirs(out_dir, exist_ok=True)
+zip_path = os.path.join(out_dir, f'{addon_name}.zip')
 
 files_to_pack = [
     ('Server/server-patches/devgameplay/edits.json', 'server-patch/edits.json'),

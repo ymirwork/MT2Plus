@@ -1,0 +1,48 @@
+================================================================================
+FIX PODGLĄDU EKWIPUNKU I DYMKÓW PRZEDMIOTÓW (SEBAN PANEL / MT2009 / MT2PLUS)
+Autor: Krystian | MT2Plus
+================================================================================
+
+CO NAPRAWIA TEN FIX?
+--------------------------------------------------------------------------------
+1. Ucinanie dymków przedmiotów (.item-tip) od góry na karcie postaci (/player/<PID>):
+   - Poprzednio dymki dla zbroi, hełmu, broni, tarczy, kolczyków itp. otwierały
+     się sztywno do góry (bottom: calc(100% + 4px)).
+   - Przez to wysokie dymki (bonusy, Kamienie Dusz, przetopy) wystawały poza ekran
+     i górna połowa nazwy oraz właściwości była całkowicie ucięta i niewidoczna.
+2. Zbyt mała szerokość dymku (190px), która łamała długie nazwy bonusów w 2-3 linie.
+3. Błędna detekcja w JS, która nie odwracała dymku przy przewijaniu strony.
+
+CO ZOSTAŁO ZROBIONE?
+--------------------------------------------------------------------------------
+- Górne sloty ekwipunku domyślnie otwierają się w dół na przestrzeń sylwetki.
+- Zwiększono szerokość dymków (min 210px, max 290px / 340px z explain),
+  dodano max-height: 85vh, płynny scroll oraz z-index: 1000.
+- Skrypt w JS dynamicznie bada viewport: jeśli brakuje miejsca z góry lub z dołu,
+  automatycznie odwraca kierunek (tip-below / tip-above) i zapobiega ucinaniu po bokach.
+
+JAK ZAINSTALOWAĆ?
+--------------------------------------------------------------------------------
+Metoda 1 (Automatyczna - 1 klik, Windows):
+  - Uruchom INSTALUJ_AUTOMATYCZNIE.bat
+  - Skrypt sam wykryje kontener Docker (seban-panel) lub folder panelu,
+    podmieni pliki i zrestartuje panel.
+
+Metoda 2 (Automatyczna - Linux / VPS):
+  - Wgraj paczkę na serwer i uruchom:
+    bash install_vps.sh
+
+Metoda 3 (Ręczna):
+  - Skopiuj pliki_panelu/static/player-profile.css  -> <twój_panel>/static/
+  - Skopiuj pliki_panelu/templates/player.html      -> <twój_panel>/templates/
+  - Zrestartuj kontener panelu: docker restart mt2dev-seban-panel
+    (lub zrestartuj usługę gunicorn / python app.py)
+
+Metoda 4 (Dla programistów / Git):
+  - Nałóż łatkę: git apply fix_player_tooltip.patch
+
+PO INSTALACJI:
+--------------------------------------------------------------------------------
+W przeglądarce wciśnij [Ctrl + F5], aby pobrać nowy arkusz CSS!
+Wszystkie dymki będą się teraz wyświetlać w całości i czytelnie.
+================================================================================

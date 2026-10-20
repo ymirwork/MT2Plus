@@ -8999,6 +8999,27 @@ int CPlayerBotManager::PlanHumanPath(LPCHARACTER ch, long targetX, long targetY,
 	return 1;
 }
 
+bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, long targetY)
+{
+	if (!ch)
+		return false;
+	const long lMapIndex = ch->GetMapIndex();
+	if (GetHumanPathKind(lMapIndex) == 0)
+		return true;
+
+	const long base = lMapIndex >= PLAYERBOT_INSTANCE_MAP_INDEX_MIN ? lMapIndex / 10000 : lMapIndex;
+	CPlayerBotNavigation& navigation = CPlayerBotNavigation::instance(base);
+	if (!navigation.Init(base))
+		return true;
+
+	const DWORD chComp = navigation.GetComponentAtWorld(ch->GetX(), ch->GetY(), 2);
+	const DWORD targetComp = navigation.GetComponentAtWorld(targetX, targetY, 2);
+	if (chComp != 0 && targetComp != 0 && chComp != targetComp)
+		return false;
+
+	return true;
+}
+
 bool CPlayerBotManager::TransferBot(LPCHARACTER bot, LPCHARACTER to)
 {
 	if (!bot || !to)

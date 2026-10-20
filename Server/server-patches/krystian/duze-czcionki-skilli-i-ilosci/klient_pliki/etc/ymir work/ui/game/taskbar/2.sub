@@ -1,0 +1,7 @@
+title subImage
+version 1.0
+image "TaskBar.tga"
+left 30
+top 200
+right 38
+bottom 212

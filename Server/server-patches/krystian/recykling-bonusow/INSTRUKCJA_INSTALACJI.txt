@@ -1,0 +1,70 @@
+================================================================================
+  METIN2 SINGLEPLAYER PLUS - PACZKA RECYKLINGU BONUSOW U DOZORCY
+================================================================================
+
+Paczka dodaje do gry system recyklingu bonowanego ekwipunku u Dozorcy (VNUM 9005)
+w dedykowanym graficznym oknie (item_exchange):
+- Wytwarzanie: Pozwolenie Zaczarowania (VNUM 30370)
+- Wytwarzanie: Pozwolenie Wzmocnienia (VNUM 30368)
+- Koszt domyslny: 5.000 Yang za sztuke
+- Szansa domyslna: 5% (odpowiednia pod serwer typu Hard)
+- Dozwolony sprzet: Bronie, Zbroje, Tarcze, Helmy, Pasy, Bizuteria (z bonusami)
+- Zablokowane: przedmioty bez bonusow, strzaly, kostiumy/fryzury/nakladki.
+
+--------------------------------------------------------------------------------
+SPOSOB 1: INSTALACJA AUTOMATYCZNA (ZALECANA)
+--------------------------------------------------------------------------------
+1. Rozpakuj zawartosc tego archiwum ZIP bezposrednio do glownego folderu
+   swojej gry (tam, gdzie znajduja sie foldery "Klient" oraz "Server").
+2. Zezwol na zamiane plikow.
+3. Uruchom plik "Zainstaluj_Do_Gry.bat".
+   Skrypt samoczynnie wykryje unikalna nazwe Twojego kontenera gry
+   (np. m2pb-XXXXXXXX-game), zaktualizuje pliki i zrestartuje serwer!
+
+--------------------------------------------------------------------------------
+SPOSOB 2: INSTALACJA RECZNA
+--------------------------------------------------------------------------------
+1. Pliki Klienta:
+   Skopiuj z paczki foldery "Klient" i "Server" do glownego folderu gry
+   (wybierz opcje: "Zamien pliki w miejscu docelowym").
+
+2. Serwer:
+   - Jesli Twoj serwer byl wylaczony:
+     Po prostu uruchom go normalnie przez "start.bat" lub "Metin2-Launcher".
+     Serwer automatycznie uruchomi sie z nowymi plikami!
+
+   - Jesli Twoj serwer aktualnie dziala i nie chcesz go wylaczac:
+     Otworz PowerShell w folderze gry i wklej ponizsze uniwersalne polecenia
+     (skrypt sam pobierze ID Twojego kontenera gry):
+
+     $c = (docker ps -q -f "name=-game")
+     docker cp "Server/linux-port/docker/game/src/serverfiles/share/locale/poland/quest/libs/crafting/item_exchange.lua" ${c}:/opt/metin2/share/locale/poland/quest/libs/crafting/item_exchange.lua
+     docker cp "Server/linux-port/docker/game/src/serverfiles/share/locale/poland/quest/object/9005/chat/." ${c}:/opt/metin2/share/locale/poland/quest/object/9005/chat/
+     docker cp "Server/linux-port/docker/game/src/serverfiles/share/locale/poland/quest/object/state/recykling_bonusow" ${c}:/opt/metin2/share/locale/poland/quest/object/state/
+     docker restart $c
+
+--------------------------------------------------------------------------------
+JAK ZMIENIC KOSZT YANG ORAZ SZANSE % NA SUKCES?
+--------------------------------------------------------------------------------
+Klient gry automatycznie pobiera koszt i szanse bezposrednio z serwera,
+wiec NIE MUSISZ ponownie edytowac ani pakowac klienta!
+
+1. Otworz plik:
+   Server/linux-port/docker/game/src/serverfiles/share/locale/poland/quest/libs/crafting/item_exchange.lua
+
+2. W tabeli EXCHANGE_BY_VNUM (ok. linii 31) zmien parametry wedlug uznania:
+
+   [ENCHANT_ITEM_EXCHANGE] = {
+       result_vnum = 30370,
+       price = 5000,  -- TUTAJ WPISZ NOWY KOSZT YANG (np. 10000, 50000 itp.)
+       chance = 5,    -- TUTAJ WPISZ NOWA SZANSE W % (np. 10, 20, 50 itp.)
+   },
+   [REINFORCE_ITEM_EXCHANGE] = {
+       result_vnum = 30368,
+       price = 5000,  -- TUTAJ WPISZ NOWY KOSZT YANG
+       chance = 5,    -- TUTAJ WPISZ NOWA SZANSE W %
+   }
+
+3. Zapisz plik i przeladuj serwer (restart kontenera lub start.bat).
+   W grze okno od razu pokaze nowe wartosci Yang oraz %!
+================================================================================

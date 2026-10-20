@@ -126,6 +126,7 @@ class CPlayerBotManager : public singleton<CPlayerBotManager>
 		// for one, the route's points in world units.
 		int		GetHumanPathKind(long lMapIndex);
 		int		PlanHumanPath(LPCHARACTER ch, long targetX, long targetY, std::vector<std::pair<long, long> >& out);
+		bool	IsHumanTargetReachable(LPCHARACTER ch, long targetX, long targetY);
 		// A bot's WarpSet (char.cpp, playerbotify.py): the engine's map change
 		// for a player made server-side for a bot - a dungeon's jump, an exit,
 		// a quest's warp. False when this core does not host the map.

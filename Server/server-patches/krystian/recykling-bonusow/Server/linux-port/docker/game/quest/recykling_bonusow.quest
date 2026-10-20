@@ -1,0 +1,16 @@
+quest recykling_bonusow begin
+	state start begin
+		-- ==========================================================
+		-- DOZORCA (9005) - Wytwarzanie w oknie GUI (item_exchange)
+		-- ==========================================================
+		when 9005.chat."Wytwarzanie: Pozwolenie Zaczarowania" begin
+			setskin(NOWINDOW)
+			item_exchange.open(item_exchange.ENCHANT_ITEM_EXCHANGE)
+		end
+
+		when 9005.chat."Wytwarzanie: Pozwolenie Wzmocnienia" begin
+			setskin(NOWINDOW)
+			item_exchange.open(item_exchange.REINFORCE_ITEM_EXCHANGE)
+		end
+	end
+end

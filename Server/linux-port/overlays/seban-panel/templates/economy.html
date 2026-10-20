@@ -60,6 +60,31 @@
   </article>
 </section>
 
+{% if advisor %}
+<section class="panel" style="margin-bottom: 20px; padding: 14px 18px; border-left: 4px solid {% if advisor.state == 'optimal' %}#10b981{% elif advisor.state == 'moderate' %}#f59e0b{% elif advisor.state == 'active' %}#3b82f6{% else %}#ef4444{% endif %}; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+  <div style="display: flex; align-items: center; gap: 14px; flex: 1; min-width: 280px;">
+    <span style="font-size: 26px;">🧠</span>
+    <div>
+      <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        Doradca Rotacji Botów (Emerytury Półautomat):
+        <span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+          background: {% if advisor.state == 'optimal' %}rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981;
+                      {% elif advisor.state == 'moderate' %}rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b;
+                      {% elif advisor.state == 'active' %}rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid #3b82f6;
+                      {% else %}rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444;{% endif %}">
+          {{ advisor.badge_text }}
+        </span>
+        <span class="muted" style="font-size: 12px;">(Gotowość: <strong>{{ advisor.score }}%</strong>)</span>
+      </div>
+      <p class="muted" style="margin: 3px 0 0; font-size: 12px; line-height: 1.4;">{{ advisor.title }} · {{ advisor.recommendation }}</p>
+    </div>
+  </div>
+  <a href="{{ url_for('retired_bots') }}" class="button secondary" style="padding: 6px 14px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+    Przejdź do asystenta emerytur →
+  </a>
+</section>
+{% endif %}
+
 {# ========================================================== #}
 {# MODUŁ 2: BAROMETR KLUCZOWYCH SUROWCÓW (WATCHLIST)         #}
 {# ========================================================== #}
@@ -244,8 +269,8 @@
       <span class="badge" style="background:rgba(246,200,95,0.12); color:#f6c85f; border:1px solid rgba(246,200,95,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600" title="Koszt opłaty Yang za przetopienie skaluje się automatycznie z poziomem inflacji na serwerze">
         ⚖️ Koszt Przetopienia: x{{ '%.4f'|format(kpi.engine_inflation_factor) }}
       </span>
-      <span class="badge" style="background:rgba(96,165,250,0.12); color:#60a5fa; border:1px solid rgba(96,165,250,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600">
-        🛡️ Server Hard · 1800 botów (600/królestwo)
+      <span class="badge" style="background:rgba(96,165,250,0.12); color:#60a5fa; border:1px solid rgba(96,165,250,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600" title="Konfiguracja pobrana automatycznie z ustawień serwera (.env): {{ special_systems.bot_config.total_bots }} botów ({{ special_systems.bot_config.per_kingdom_str }})">
+        🛡️ {{ special_systems.bot_config.label }}
       </span>
     </div>
   </div>
@@ -308,17 +333,17 @@
     <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(246,200,95,0.25); position:relative; overflow:hidden">
       <div style="display:flex; justify-content:space-between; align-items:center">
         <span style="font-size:11px; text-transform:uppercase; color:#f6c85f; font-weight:600; letter-spacing:0.5px">Skup Ulepszaczy z Tobołków</span>
-        <span style="font-size:10px; background:rgba(246,200,95,0.15); color:#f6c85f; padding:1px 5px; border-radius:3px; font-weight:700">15% populacji</span>
+        <span style="font-size:10px; background:rgba(246,200,95,0.15); color:#f6c85f; padding:1px 5px; border-radius:3px; font-weight:700" title="Dynamiczny odsetek skupu YmirWork (3% - 35%): aktualnie {{ special_systems.buyer_percent }}% przy podaży {{ '{:,}'.format(special_systems.sample_supply).replace(',', ' ') }} szt. ulepszaczy na rynku">{{ special_systems.buyer_percent }}% populacji</span>
       </div>
       <div style="font-size:20px; font-weight:800; color:#f6c85f; margin:4px 0 2px 0">
         {{ special_systems.buyer_bots_count }} <small style="font-size:13px; font-weight:500; color:var(--muted)">botów skupujących</small>
       </div>
       <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08)">
         <span>Budżet skupu: <b style="color:#ffe28a">do 20% sakwy</b></span>
-        <span>Maks. cena: <b style="color:#ffe28a">120% bazy</b></span>
+        <span>Podaż próbki: <b style="color:#ffe28a">{{ '{:,}'.format(special_systems.sample_supply).replace(',', ' ') }} szt.</b></span>
       </div>
       <small style="display:block; font-size:10.5px; color:var(--muted); margin-top:3px">
-        Stabilizator popytu: Stały skup ulepszaczy M1/M2 od początkujących graczy
+        Stabilizator popytu: Dynamiczny skup ulepszaczy M1/M2 od graczy (3% – 35% w zależności od nasycenia)
       </small>
     </div>
 
@@ -350,7 +375,9 @@
         <tbody>
           {% for r in special_systems.recent %}
           <tr>
-            <td style="color:var(--muted); font-size:11.5px">{{ r.time_str }}</td>
+            <td style="color:var(--muted); font-size:11.5px">
+              <span title="{{ r.full_time_str }}" style="cursor:help; border-bottom:1px dotted rgba(255,255,255,0.25)">{{ r.time_str }}</span>
+            </td>
             <td>
               <a href="{{ url_for('player', pid=r.who) }}" style="text-decoration:none; color:inherit; font-weight:600">
                 🤖 {{ r.name }}
@@ -411,9 +438,9 @@
         </div>
 
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:8px 10px; border-radius:6px">
-          <div style="font-weight:700; color:#f6c85f; margin-bottom:2px">4. Stabilizator Rynku – Skup Ulepszaczy (15%)</div>
+          <div style="font-weight:700; color:#f6c85f; margin-bottom:2px">4. Stabilizator Rynku – Skup Ulepszaczy (Dynamiczne {{ special_systems.buyer_percent }}%)</div>
           <div class="muted">
-            15% populacji botów przeszukuje tobołki graczy i odkupuje drop po rynkowych cenach (do 120% cennika, maks. 20% sakiewki bota), zapewniając zarobek nowym graczom na serwerze Hard.
+            Odsetek populacji botów skupujących (od 3% przy niskiej podaży do 35% przy powodzi towarowej; obecnie {{ special_systems.buyer_percent }}%) przeszukuje tobołki graczy i odkupuje drop po rynkowych cenach (do 120% cennika, maks. 20% sakiewki bota), zapewniając płynność i zarobek graczom.
           </div>
         </div>
       </div>

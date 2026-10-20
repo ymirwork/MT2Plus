@@ -31,13 +31,13 @@ def download_with_progress(url, dest_path):
 
 def build_server_package(repo_root, dist_dir):
     server_root = os.path.join(repo_root, 'Server')
-    base_zip = os.path.join(dist_dir, 'base_server.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.35.0/metin2-server-update-2.35.0.zip'
+    base_zip = os.path.join(dist_dir, 'base_server_2.36.0.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.36.0/metin2-server-update-2.36.0.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.35.0.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.36.0.zip')
     temp_dir = os.path.join(dist_dir, 'server_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -48,27 +48,20 @@ def build_server_package(repo_root, dist_dir):
         zf.extractall(temp_dir)
 
     print("Injecting MT2Plus modifications into server package...")
-    # 1. Addons (opcjonalne/archiwalne)
-    addons_src = os.path.join(server_root, 'addons')
-    if os.path.exists(addons_src):
-        addons_dst = os.path.join(temp_dir, 'addons')
-        os.makedirs(addons_dst, exist_ok=True)
-        for addon_file in os.listdir(addons_src):
-            src = os.path.join(addons_src, addon_file)
-            if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(addons_dst, addon_file))
-
-    # 2. Server patches
+    # 1. Server patches
     patches_dst = os.path.join(temp_dir, 'server-patches')
     if os.path.exists(os.path.join(server_root, 'server-patches')):
         shutil.copytree(os.path.join(server_root, 'server-patches'), patches_dst, dirs_exist_ok=True)
 
-    # 3. Quest tp_bookmarks
+    # 2. Quest files
     quest_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'quest')
     os.makedirs(quest_dst, exist_ok=True)
-    shutil.copy2(os.path.join(server_root, 'linux-port', 'docker', 'game', 'quest', 'tp_bookmarks.quest'), quest_dst)
+    for q in ['tp_bookmarks.quest', 'recykling_bonusow.quest', 'shop_unlock_slots.quest', 'collect_quest_lv70.quest']:
+        qp = os.path.join(server_root, 'linux-port', 'docker', 'game', 'quest', q)
+        if os.path.exists(qp):
+            shutil.copy2(qp, quest_dst)
 
-    # 4. Engine C++ source files
+    # 3. Engine C++ source files
     engine_src = os.path.join(server_root, 'linux-port', 'docker', 'game', 'src', 'server', 'game', 'src')
     engine_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'src', 'server', 'game', 'src')
     if os.path.exists(engine_src):
@@ -78,10 +71,12 @@ def build_server_package(repo_root, dist_dir):
             if os.path.exists(src_f):
                 shutil.copy2(src_f, engine_dst)
 
-    # 5. Overlays (playerbot + seban-panel)
+    # 4. Overlays (playerbot + seban-panel)
+    pb_src = os.path.join(server_root, 'linux-port', 'overlays', 'playerbot', 'src', 'game', 'src')
     pb_dst = os.path.join(temp_dir, 'linux-port', 'overlays', 'playerbot', 'src', 'game', 'src')
-    os.makedirs(pb_dst, exist_ok=True)
-    shutil.copy2(os.path.join(server_root, 'linux-port', 'overlays', 'playerbot', 'src', 'game', 'src', 'playerbot_bonus.h'), pb_dst)
+    if os.path.exists(pb_src):
+        os.makedirs(pb_dst, exist_ok=True)
+        shutil.copytree(pb_src, pb_dst, dirs_exist_ok=True)
 
     seban_src = os.path.join(server_root, 'linux-port', 'overlays', 'seban-panel')
     seban_dst = os.path.join(temp_dir, 'linux-port', 'overlays', 'seban-panel')
@@ -93,11 +88,17 @@ def build_server_package(repo_root, dist_dir):
     if os.path.exists(seban_docker_src):
         shutil.copytree(seban_docker_src, seban_docker_dst, dirs_exist_ok=True)
 
-    # 6. Client patches directory
+    # 5. Client patches directory
     cp_src = os.path.join(server_root, 'client-patches')
     cp_dst = os.path.join(temp_dir, 'client-patches')
     if os.path.exists(cp_src):
         shutil.copytree(cp_src, cp_dst, dirs_exist_ok=True)
+
+    # 6. Dockerfile and apply.sh
+    shutil.copy2(os.path.join(server_root, 'linux-port/docker/game/Dockerfile'), os.path.join(temp_dir, 'linux-port/docker/game/Dockerfile'))
+    shutil.copy2(os.path.join(server_root, 'linux-port/docker/mariadb/playerbot/apply.sh'), os.path.join(temp_dir, 'linux-port/docker/mariadb/playerbot/apply.sh'))
+    shutil.copy2(os.path.join(server_root, 'linux-port/docker/mariadb/conf.d/99-metin2.cnf'), os.path.join(temp_dir, 'linux-port/docker/mariadb/conf.d/99-metin2.cnf'))
+    shutil.copy2(os.path.join(server_root, 'linux-port/docker/docker-compose.yml'), os.path.join(temp_dir, 'linux-port/docker/docker-compose.yml'))
 
     # 7. Root info files
     for rf in ['VERSION', 'MOD_VERSION', 'CLIENT_VERSION', 'CHANGELOG.md', 'update-manifest-mt2009.json']:
@@ -123,13 +124,13 @@ def build_server_package(repo_root, dist_dir):
 
 def build_client_package(repo_root, dist_dir):
     klient_root = os.path.join(repo_root, 'Klient')
-    base_zip = os.path.join(dist_dir, 'base_client.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/klient-v2.0.66/metin2-client-update-2.0.66.zip'
+    base_zip = os.path.join(dist_dir, 'base_client_2.0.67.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.36.0/metin2-client-update-2.0.67.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.66.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.67.zip')
     temp_dir = os.path.join(dist_dir, 'client_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)

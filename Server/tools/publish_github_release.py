@@ -29,36 +29,51 @@ def create_release(token, tag, name, body):
     req.add_header('Content-Type', 'application/json; charset=utf-8')
     req.add_header('User-Agent', 'MT2Plus-Release')
 
-    with urllib.request.urlopen(req) as resp:
-        res = json.loads(resp.read().decode('utf-8'))
-        return res
+    try:
+        with urllib.request.urlopen(req) as resp:
+            res = json.loads(resp.read().decode('utf-8'))
+            return res
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode('utf-8', errors='ignore')
+        print(f"HTTPError {e.code}: {err_msg}")
+        raise
 
-def upload_asset(token, upload_url, file_path, name):
+def upload_asset_curl(token, upload_url, file_path, name):
     base_upload_url = upload_url.split('{')[0]
     target_url = f"{base_upload_url}?name={name}"
-    print(f"Uploading asset {name} ({os.path.getsize(file_path)} bytes)...")
+    print(f"Uploading asset {name} ({os.path.getsize(file_path)} bytes) via streaming curl...")
+
+    cmd = [
+        'curl.exe', '-S', '-s',
+        '-X', 'POST',
+        '-H', f'Authorization: Bearer {token}',
+        '-H', 'Accept: application/vnd.github+json',
+        '-H', 'Content-Type: application/zip',
+        '--data-binary', f'@{file_path}',
+        target_url
+    ]
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"curl upload failed with code {res.returncode}: {res.stderr}")
     
-    file_size = os.path.getsize(file_path)
-    with open(file_path, 'rb') as f:
-        file_data = f.read()
-
-    req = urllib.request.Request(target_url, data=file_data, method='POST')
-    req.add_header('Authorization', f'Bearer {token}')
-    req.add_header('Accept', 'application/vnd.github+json')
-    req.add_header('Content-Type', 'application/zip')
-    req.add_header('User-Agent', 'MT2Plus-Release')
-
-    with urllib.request.urlopen(req) as resp:
-        res = json.loads(resp.read().decode('utf-8'))
-        print(f"Uploaded successfully: {res['name']} ({res['size']} bytes)")
-        return res
+    try:
+        resp_json = json.loads(res.stdout)
+        if 'id' in resp_json:
+            print(f"Uploaded successfully: {resp_json.get('name')} ({resp_json.get('size')} bytes)")
+            return resp_json
+        else:
+            print(f"Response: {res.stdout[:400]}")
+            return resp_json
+    except Exception as e:
+        print(f"Response parse error: {e}, raw: {res.stdout[:200]}")
+        return None
 
 def main():
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     dist_dir = os.path.join(repo_root, 'dist')
     
-    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.35.0.zip')
-    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.66.zip')
+    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.36.0.zip')
+    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.67.zip')
 
     if not os.path.exists(srv_zip) or not os.path.exists(cli_zip):
         print(f"ERROR: Missing release zip files in {dist_dir}")
@@ -67,48 +82,55 @@ def main():
     token = get_github_token()
     print("GitHub token acquired successfully.")
 
-    tag = "v2.35.0-mod56"
-    release_name = "MT2009 PLUS v2.35.0-mod56 - Serwer 2.35.0 & Klient 2.0.66"
+    tag = "v2.36.0-mod57"
+    release_name = "MT2009 PLUS v2.36.0-mod57 - Serwer 2.36.0 & Klient 2.0.67"
 
-    body = """# 📦 MT2Plus Wydanie v2.35.0-mod56
+    body = """# 📦 MT2Plus Wydanie v2.36.0-mod57
 
-Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.35.0, mod-56 oraz Klient 2.0.66).
+Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.36.0, mod-57 oraz Klient 2.0.67) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
 
 ---
 
-### 🎮 Autorskie Systemy Rozgrywki MT2Plus (Dev Gameplay V1)
-• **Czytanie KU bez wymogu EXPa:** Zniesiono blokadę czytania Ksiąg Umiejętności przy braku punktów doświadczenia w `char_skill.cpp`.
-• **Zdjęcie limiterów Movement Speed & Attack Speed:** Usunięto sztuczne ograniczenia prędkości poruszania się i ataku, odblokowano limit obrażeń (damage cap) oraz usunięto rozłączanie i cofki gracza przez antyhack.
-• **Błyskawiczne ulepszanie u Kowala:** Całkowicie wyeliminowano 1-sekundowy komunikat "Odczekaj przed następnym ulepszaniem", co pozwala na natychmiastowe i płynne potwierdzanie ulepszania enterem.
-• **Zapisywanie Lochów w Zwoju Powrotu:** Odblokowano możliwość zapisu i teleportacji do Lochów Pająków (V1/V2/V3), Lochów Małp oraz Groty Wygnańców przy posiadaniu statusu VIP lub odpowiedniej Przepustki; naprawiono również zapis ze zwojów czystych.
-• **Wprowadzanie kwot Yang ze skrótami (k, kk, kkk):** W oknach wprowadzania waluty (handel, tobołek, wyrzucanie) wpisanie np. `1kk` automatycznie uzupełnia wartość `1.000.000`.
-• **Bonus PvP za znajomość języków obcych:** Atakując gracza z wrogiego królestwa, zadajemy o 5% wyższe obrażenia, jeśli posiadamy język danej nacji rozwinięty na poziomie minimum M1.
+### 🛡️ Autorskie Modyfikacje i Systemy MT2Plus
+• **Optymalizacja Autołowów (Lochy Małp & Zabezpieczenie Ścian):** Wbudowany filtr osiągalności celów `CPlayerBotManager::IsHumanTargetReachable` (`playerbot_manager.cpp`, `playerbot_manager.h`), eliminujący wybieranie potworów za ścianami w odciętych komnatach.
+• **Sklepy Offline 160 Slotów z Drewnianymi Kluczami:** Pełna obsługa 2-stronicowych magazynów i sklepów offline gracza (kompatybilność z drewnianymi kluczami `shop_unlock_slots.quest`, `ikarus_shop_manager.cpp` oraz `offlineshopmanage.py`).
+• **Seban Panel – Rozszerzona Ekonomia V2 & Caching:** Zachowano zaawansowany moduł `/economy` (analiza rynku, transakcje, doradca rotacji emerytur botów, statystyki M1/M2 i cache wydajnościowy paneli).
+• **Zarządzanie Czasem Amuletów i Stackowaniem:** 30-dniowe amulety i pierścienie z ItemShopu oraz stackowanie wybranych ulepszaczy i ksiąg do 200 sztuk (`apply.sh`).
+• **Autorskie Zadania Gry:** Kompilacja `recykling_bonusow.quest`, `shop_unlock_slots.quest` oraz `tp_bookmarks.quest`.
 
-### 🤖 Ekonomia i Porządek u Botów (Upstream 2.35.0)
-• **Wartościowy sprzęt na straganach:** Boty wystawiają wyłącznie broń i zbroje z minimum 2 bonusami (lub 1 topowym); słabszy sprzęt sprzedają u Handlarki lub Alchemika.
-• **Magiczny Pył & Kamienie Duszy:** Boty niszczą nadmiarowe Kamienie Duszy +0..+2 u Alchemika (limit 3 szt. każdego rodzaju w tobołku) i wytwarzają z pyłu Zaczarowania/Wzmocnienia wyłącznie na własne uzbrojenie.
-• **Optymalizacja ziół:** Boty trzymają w plecakach tylko zioła potrzebne na 2-3 warki, a nadwyżki wystawiają w pełnych stosach po 200 sztuk lub odkładają do Dozorcy.
-• **Automatyczne pieczęcie w lochach:** W lochach Wzgórza Wukonga, Ruin Skorpiona, Starożytnej Dżungli i Biblioteki Wiedzy pieczęć bota aktywuje się samoczynnie po ok. 30 s.
+---
 
-### 💻 Klient Gry 2.0.66
-• **Błyskawiczna synchronizacja Filtru Podnoszenia:** Reguły filtra docierają do serwera natychmiast po wejściu do gry i zmianie kanału.
-• **Poprawka okna wydarzeń:** Wyeliminowano błąd rekurencji i zawieszania gry przy wielu równoczesnych eventach.
-• **Ready-to-Play:** Gotowy, odchudzony klient ze zintegrowanymi skryptami UI i zaktualizowanym `pack/root`.
+### 🤖 Nowości i Usprawnienia Upstream (2.36.0 / mod-57)
+• **Zabezpieczenie celów w lochach (Dungeon Target Respawn):** W 10 lochach (m.in. Wieża Demonów, Katakumby, Razador, Nemere, Wukong, Ruiny Skorpiona, Dżungla) utracony cel powraca samoczynnie – żaden etap lochu nie zamyka się przez zagubienie moba (`MT2009_PLUS_DUNGEON_TARGET_RESPAWN_V1`).
+• **Sklepy Botów do 4 Stron (320 pól):** Boty mogą teraz zarządzać sklepami o pojemności do 4 stron (`MT2009_PLUS_BOT_SHOP_PAGES4_V1`), oferując większą płynność handlu.
+• **Przenoszenie ksiąg między kanałami:** Boty z CH2 transportują cenne księgi na stragany na CH1 (`MT2009_PLUS_BOT_BOOK_STACKS_V1`).
+• **Zarządzanie Kamieniami Duszy +4:** Zaawansowana logika rynku i osadzania kamieni dusz +4 u botów (`playerbot_stone4.h`, `AI_STONE4_KEYS`).
+• **Biolog 70 lvl (Konar Zelkova):** Konar Zelkova (30165) stackuje się do 200 sztuk i dropi niezależnie od stanu ekwipunku (`collect_quest_lv70.quest`).
+• **Retencja Logów Bazy Danych:** Seban Panel otrzymał narzędzie retencji logów oraz ochronę zapytań `db_block` (`log_maintenance.py`, `db_logs.html`).
+• **Autołowy bez odwetu (No Revenge):** Natychmiastowe zatrzymanie flagi walki po wyłączeniu autołowów (`/autohunt_stop`).
+
+---
+
+### 💻 Klient Gry 2.0.67
+• **Pełna obsługa 4-stronicowych sklepów botów:** Skalowanie siatki okna gościa w `offlineshopguest.py`.
+• **Naprawa Smoczej Alchemii w Sklepach Offline:** Poprawka typu slotu myszy (`SLOT_TYPE_DRAGON_SOUL_INVENTORY`) w `offlineshopmanage.py`.
+• **Zatrzymywanie Autołowów:** Wysłanie pakietu `/autohunt_stop` przy zatrzymaniu polowania w `uiautohunt.py`.
+• **Zsynchronizowany Patcher Web CDN:** Aktualizacja sum MD5/SHA256 na GitHub Pages.
 
 ---
 
 ### 📦 Sumy kontrolne załączonych archiwów (SHA-256)
-- **`metin2-server-update-2.35.0.zip`** (137 649 387 bytes)
-  `SHA-256: B4B30A5BBD01699D47E189C05221455EFFF0C1E856808994A65B2C8A0943ADF8`
-- **`metin2-client-update-2.0.66.zip`** (620 499 956 bytes)
-  `SHA-256: 48DD3CDA1612ECECE86B377C54DAAA475964F207DDA683E5D17421D943203524`
+- **`metin2-server-update-2.36.0.zip`** (138 643 364 bytes)
+  `SHA-256: C40A196E97C418C4E3B42C8312C809947E3BF5767C074E5BC03AE8103A331A6C`
+- **`metin2-client-update-2.0.67.zip`** (620 662 105 bytes)
+  `SHA-256: D1F3B99190B25714E0AA1F32074F22EE277037F2AB76B453FFFAD7E5A4A4D7D8`
 
 ---
 
 📥 **Instrukcja Uruchomienia (Ready-to-Play):**
-1. Pobierz paczkę serwera `metin2-server-update-2.35.0.zip` oraz klienta `metin2-client-update-2.0.66.zip`.
+1. Pobierz paczkę serwera `metin2-server-update-2.36.0.zip` oraz klienta `metin2-client-update-2.0.67.zip`.
 2. Wypakuj serwer i uruchom `start.bat` (wymagany Docker Desktop).
-3. Wypakuj klienta i uruchom grę przez `metin2client.exe`.
+3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
 
     print("Creating release on GitHub...")
@@ -118,8 +140,8 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Created release {rel_id}: {html_url}")
 
-    upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.35.0.zip")
-    upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.66.zip")
+    upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.36.0.zip")
+    upload_asset_curl(token, upload_url, cli_zip, "metin2-client-update-2.0.67.zip")
 
     print(f"\nSUCCESS! Release published at: {html_url}")
 

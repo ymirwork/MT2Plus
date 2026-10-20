@@ -647,16 +647,16 @@
  },
  {
   "name": "pack\\root.data",
-  "size": 15012608,
-  "md5": "DD9F534645ABDF264AEBDEA1B1539ADA",
-  "uid": "dd9f534645abdf264aebdea1b1539ada",
+  "size": 15009792,
+  "md5": "FD3215EFF64702CD6928CBAE1B32DFB1",
+  "uid": "fd3215eff64702cd6928cbae1b32dfb1",
   "delete": 0
  },
  {
   "name": "pack\\root.index",
-  "size": 30284,
-  "md5": "DF53E3C581B027C708F64BB83B3C275E",
-  "uid": "df53e3c581b027c708f64bb83b3c275e",
+  "size": 30276,
+  "md5": "4530FC43CB7ADF73DBD4E8372BAAA9E4",
+  "uid": "4530fc43cb7adf73dbd4e8372baaa9e4",
   "delete": 0
  },
  {
@@ -718,8 +718,8 @@
  {
   "name": "CLIENT_VERSION",
   "size": 7,
-  "md5": "F6EA598438BB36DBB85CE7C265E333DE",
-  "uid": "f6ea598438bb36dbb85ce7c265e333de",
+  "md5": "54B4EBF460B0AA2B74B5304D4C30A06A",
+  "uid": "54b4ebf460b0aa2b74b5304d4c30a06a",
   "delete": 0
  }
 ]

@@ -63,6 +63,40 @@ if (-not $cliPath) {
 Write-Host "Uzywam silnika: $cliPath" -ForegroundColor DarkCyan
 Write-Host "Folder pack: $packDir" -ForegroundColor DarkCyan
 
+function Assert-CustomPatches([string]$Name, [string]$Folder) {
+    if ($Name -eq 'root') {
+        $huntPy = Join-Path $Folder "uiautohunt.py"
+        if (Test-Path $huntPy) {
+            $hasFish = Select-String -Path $huntPy -Pattern "AutoFishWindow" -Quiet
+            if (-not $hasFish) {
+                Write-Host ("[GUARD] Wykryto brak AutoFishWindow w " + $huntPy + "! Przywracam z server-patches...") -ForegroundColor Yellow
+                $repoRoot = "d:\Github\MT2Plus"
+                $patchFish = Join-Path $repoRoot "Server\server-patches\krystian\autofish\client\root\uiautohunt.py"
+                if (Test-Path $patchFish) {
+                    Copy-Item $patchFish $huntPy -Force
+                    Write-Host "[GUARD] Pomyslnie przywrocono Auto-Wedkowanie do uiautohunt.py!" -ForegroundColor Green
+                } else {
+                    Write-Warning ("Nie znaleziono pliku wzorca: " + $patchFish)
+                }
+            }
+        }
+
+        $gamePy = Join-Path $Folder "game.py"
+        if (Test-Path $gamePy) {
+            $hasFish = Select-String -Path $gamePy -Pattern "AutoFishStatus" -Quiet
+            if (-not $hasFish) {
+                Write-Host ("[GUARD] Wykryto brak AutoFishStatus w " + $gamePy + "! Przywracam z server-patches...") -ForegroundColor Yellow
+                $repoRoot = "d:\Github\MT2Plus"
+                $patchGame = Join-Path $repoRoot "Server\server-patches\krystian\autofish\client\root\game.py"
+                if (Test-Path $patchGame) {
+                    Copy-Item $patchGame $gamePy -Force
+                    Write-Host "[GUARD] Pomyslnie przywrocono game.py!" -ForegroundColor Green
+                }
+            }
+        }
+    }
+}
+
 function Backup-Pack([string]$Name) {
     $dataFile = Join-Path $packDir "$Name.data"
     $idxFile = Join-Path $packDir "$Name.index"
@@ -109,6 +143,7 @@ switch ($Action.ToLower()) {
         if (-not (Test-Path $targetFolder -PathType Container)) {
             throw "Folder do spakowania nie istnieje: $targetFolder"
         }
+        Assert-CustomPatches $PackName $targetFolder
         if (-not $NoBackup) {
             Backup-Pack $PackName
         }
@@ -172,6 +207,7 @@ switch ($Action.ToLower()) {
         Push-Location $packDir
         try {
             foreach ($d in $dirs) {
+                Assert-CustomPatches $d.Name $d.FullName
                 Write-Host "`nPakowanie '$($d.Name)'..." -ForegroundColor Yellow
                 if (-not $NoBackup) { Backup-Pack $d.Name }
                 & $cliPath --pack $d.Name

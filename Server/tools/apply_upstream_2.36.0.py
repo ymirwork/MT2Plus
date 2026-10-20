@@ -414,6 +414,18 @@ void MoveAndDestroyInstance(LPITEM item, BYTE window, WORD pos)"""
     write_file(os.path.join(server_root, 'client-patches/client-2.0.30/root/uiautohunt.py'), autohunt_content)
     write_file(os.path.join(klient_root, 'pack/root/uiautohunt.py'), autohunt_content)
 
+    # Re-apply custom autofish patch
+    autofish_patch = os.path.join(server_root, 'server-patches/krystian/autofish/client/root/uiautohunt.py')
+    if os.path.exists(autofish_patch):
+        shutil.copy2(autofish_patch, os.path.join(klient_root, 'pack/root/uiautohunt.py'))
+        shutil.copy2(autofish_patch, os.path.join(server_root, 'client-patches/client-2.0.30/root/uiautohunt.py'))
+        print("[OK] Przywrocono AutoFishWindow do Klient/pack/root/uiautohunt.py i client-patches")
+    game_patch = os.path.join(server_root, 'server-patches/krystian/autofish/client/root/game.py')
+    if os.path.exists(game_patch):
+        shutil.copy2(game_patch, os.path.join(klient_root, 'pack/root/game.py'))
+        shutil.copy2(game_patch, os.path.join(server_root, 'client-patches/client-2.0.30/root/game.py'))
+        print("[OK] Przywrocono AutoFishStatus do Klient/pack/root/game.py i client-patches")
+
     # offlineshopmanage.py
     manage_py_path = os.path.join(klient_root, 'pack/root/offlineshopmanage.py')
     manage_py_text = open(manage_py_path, 'r', encoding='utf-8').read()

@@ -7775,7 +7775,7 @@ def economy():
     # 4. Special Systems Telemetry (YmirWork / Krystian mod-50)
     special_systems = {"available": False}
     try:
-        liq_stats = one("""
+        liq_stats = db_block("economy.liq_stats", {}, one, """
             SELECT 
                 COUNT(*) AS total_liquidations,
                 COUNT(DISTINCT who) AS active_bots,
@@ -7786,7 +7786,7 @@ def economy():
         """) or {}
         tot_liq = int(liq_stats.get("total_liquidations") or 0)
 
-        liq_24h = one("""
+        liq_24h = db_block("economy.liq_24h", {}, one, """
             SELECT 
                 COUNT(*) AS count_24h,
                 SUM(CASE WHEN vnum=71285 THEN 1 ELSE 0 END) AS adds_24h,
@@ -7863,7 +7863,7 @@ def economy():
             "safebox": int(r.get("safebox_count") or 0)
         } for r in bonus_circ}
 
-        liq_recent = rows("""
+        liq_recent = db_block("economy.liq_recent", [], rows, """
             SELECT l.time, l.who, p.name, l.vnum, l.hint, pi.empire
             FROM log.log l
             LEFT JOIN player.player p ON p.id = l.who
@@ -8687,19 +8687,15 @@ def economy_shops():
             totals["offers"] += int(m["offer_count"])
             totals["items"] += int(m["item_count"])
             totals["value"] += int(m["total_value"])
-    tx_total, tx_period = 0, 0
-    try:
-        tx_total = int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD'").get("n") or 0)
-        tx_period = int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL %s HOUR", (hours,)).get("n") or 0)
-    except Exception:
-        pass
+    tx_total = db_block("economy_shops.total", 0, stall_sales_total)
+    tx_period = db_block("economy_shops.period", 0, lambda: int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL %s HOUR", (hours,)).get("n") or 0))
     kpi = {
         "shops": sum(t["shops"] for t in empire_totals.values()),
         "offers": sum(t["offers"] for t in empire_totals.values()),
         "items": sum(t["items"] for t in empire_totals.values()),
         "value": sum(t["value"] for t in empire_totals.values()),
-        "transactions_total": db_block("economy_shops.total", 0, stall_sales_total),
-        "transactions_24h": db_block("economy_shops.24h", 0, lambda: int(one("SELECT COUNT(*) AS n FROM log.log WHERE how='PLAYERBOT_STALL_SOLD' AND time >= NOW() - INTERVAL 24 HOUR").get("n") or 0)),
+        "transactions_total": tx_total,
+        "transactions_period": tx_period,
     }
 
     # Same label/series pivot as maps(): one line per empire, values aligned
@@ -8765,7 +8761,14 @@ def economy_shops():
         item["sales_period"] = int(velocity.get("sales", 0))
         item["sales_per_hour"] = float(velocity.get("per_hour", 0))
 
-    all_sales_velocity = db_block("economy_shops.velocity", [], shop_sales_velocity, hours=hours, limit=None)
+    rendered = render_template("economy_shops.html", latest=latest, by_map=by_map, query=query, hours=hours,
+                               empire_totals=empire_totals, kpi=kpi, value_trend=value_trend,
+                               market_items=market_items, fastest_items_limit=fastest_items_limit,
+                               sales_velocity=all_sales_velocity[:fastest_items_limit],
+                               skillbook_velocity=db_block("economy_shops.skillbook_velocity", [], shop_sales_velocity, hours=hours, limit=5, only_skillbooks=True),
+                               recent_sales=db_block("economy_shops.recent_sales", [], recent_shop_sales, 10))
+    _ECONOMY_SHOPS_CACHE[cache_key] = {"ts": now_ts, "html": rendered}
+    return rendered
 
 
 @app.route("/api/shop-feed")

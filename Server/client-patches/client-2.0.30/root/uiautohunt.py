@@ -427,6 +427,7 @@ DEFAULTS.append(('config_version', CONFIG_VERSION))
 GLOBAL_DEFAULTS = [
     ('win_main_x', -1), ('win_main_y', -1),
     ('win_loot_x', -1), ('win_loot_y', -1),
+    ('win_fish_x', -1), ('win_fish_y', -1),
 ]
 
 def DefaultConfig():
@@ -624,6 +625,24 @@ def StopPoint(fromX, fromY, toX, toY, short):
     if distance <= short or distance <= 0:
         return (fromX, fromY)
     return (toX + dx * short / distance, toY + dy * short / distance)
+
+def GetActorPosition(vid):
+    try:
+        pos = chr.GetPixelPosition(vid)
+        if pos:
+            return pos
+    except Exception:
+        pass
+    try:
+        import textTail
+        pos = textTail.GetPosition(vid)
+        if pos:
+            return pos
+    except Exception:
+        pass
+    (px, py, pz) = player.GetMainCharacterPosition()
+    return (px, py, pz)
+
 
 def FindInventoryCell(vnum):
     if not vnum:
@@ -1107,6 +1126,7 @@ class Hunter(object):
         self.running = False
         self.mainWindow = None
         self.lootWindow = None
+        self.fishWindow = None
         self.isLoaded = False
         # The first frame of a game phase waits here until the character has
         # a name (OnGameSession): True after an autologin, False otherwise.
@@ -1395,6 +1415,11 @@ class Hunter(object):
             self.lootWindow.Destroy()
             self.lootWindow = None
             
+        if self.fishWindow:
+            self.fishWindow.Hide()
+            self.fishWindow.Destroy()
+            self.fishWindow = None
+            
         self.isLoaded = False
 
     def Start(self, startText=None):
@@ -1574,7 +1599,7 @@ class Hunter(object):
         distance = player.GetCharacterDistance(vid)
         if 0 <= distance <= self.Reach():
             return False
-        (tx, ty, tz) = chr.GetPixelPosition(vid)
+        (tx, ty, tz) = GetActorPosition(vid)
         return self.AskPath(now, 'target', vid, tx, ty)
 
     # MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (Autor: blaki)
@@ -2352,7 +2377,7 @@ class Hunter(object):
         if not self.pathPoints or self.pathPurpose != 'target' or self.pathVid != vid:
             return False
         if self.pathEnd is not None:
-            (tx, ty, tz) = chr.GetPixelPosition(vid)
+            (tx, ty, tz) = GetActorPosition(vid)
             (ex, ey) = self.pathEnd
             if (tx - ex) ** 2 + (ty - ey) ** 2 > PATH_DRIFT ** 2 and self.PathAskable(vid, now):
                 
@@ -2390,7 +2415,7 @@ class Hunter(object):
             repeated = (px - bx) ** 2 + (py - by) ** 2 <= ESCAPE_REPEAT_DISTANCE ** 2
         self.blockPosition = (px, py)
         self.blockAt = now
-        (tx, ty, tz) = chr.GetPixelPosition(vid)
+        (tx, ty, tz) = GetActorPosition(vid)
         self.ReleaseAttack()
         # A stop where it stands: the walk ordered at the target would go on
         # into the pack the moment it gave way. No step back to the start.
@@ -2529,11 +2554,11 @@ class Hunter(object):
                 if self.pathKind == PATH_KIND_CORRIDORS and self.PathAskable(vid, now):
                     
                     
-                    (tx, ty, tz) = chr.GetPixelPosition(vid)
+                    (tx, ty, tz) = GetActorPosition(vid)
                     self.AskPath(now, 'target', vid, tx, ty)
             elif now - self.approachSince > PATH_STALL_SECONDS and self.PathAskable(vid, now):
                 
-                (tx, ty, tz) = chr.GetPixelPosition(vid)
+                (tx, ty, tz) = GetActorPosition(vid)
                 self.AskPath(now, 'target', vid, tx, ty)
             elif now - self.approachSince > STUCK_SECONDS:
                 self.BlockTarget(vid, now)
@@ -2549,7 +2574,7 @@ class Hunter(object):
             if now >= self.nextMove and now >= self.skillHoldUntil:
                 self.nextMove = now + MOVE_INTERVAL
                 (px, py, pz) = player.GetMainCharacterPosition()
-                (tx, ty, tz) = chr.GetPixelPosition(vid)
+                (tx, ty, tz) = GetActorPosition(vid)
                 (sx, sy) = StopPoint(px, py, tx, ty, reach * STOP_SHORT_SHARE)
                 self.WalkTo(sx, sy)
                 self.NoteChaseWalk(now, vid, px, py, distance)
@@ -2595,7 +2620,7 @@ class Hunter(object):
                     if now >= self.nextMove:
                         self.nextMove = now + MOVE_INTERVAL
                         (px, py, pz) = player.GetMainCharacterPosition()
-                        (tx, ty, tz) = chr.GetPixelPosition(vid)
+                        (tx, ty, tz) = GetActorPosition(vid)
                         dx = tx - px
                         dy = ty - py
                         d = math.sqrt(dx * dx + dy * dy)
@@ -2766,7 +2791,12 @@ class Hunter(object):
             self.lootSince = 0.0
             return False
         self.nextLootPick = now + LOOT_PICK_INTERVAL
-        net.SendItemPickUpPacket(vid)
+        # Fast area pickup (/pickup_nearby)
+        mask = LootMask(self.config)
+        if mask:
+            self.Command('/pickup_nearby %d' % mask, now)
+        else:
+            net.SendChatPacket("/pickup_nearby")
         self.lootVid = 0
         self.lootSince = 0.0
         self.nextLootRequest = min(self.nextLootRequest, now + 0.3)
@@ -2897,7 +2927,7 @@ class Hunter(object):
 
     def Face(self, vid):
         (px, py, pz) = player.GetMainCharacterPosition()
-        (tx, ty, tz) = chr.GetPixelPosition(vid)
+        (tx, ty, tz) = GetActorPosition(vid)
         chr.SelectInstance(player.GetMainCharacterIndex())
         chr.SetRotation(FacingDegree(px, py, tx, ty))
 
@@ -3786,6 +3816,10 @@ class Hunter(object):
                 self.config_global['win_main_y'] = int(my)
                 self.config_global['win_loot_x'] = int(lx)
                 self.config_global['win_loot_y'] = int(ly)
+                if hasattr(self, 'fishWindow') and self.fishWindow:
+                    fx, fy = self.fishWindow.GetLocalPosition()
+                    self.config_global['win_fish_x'] = int(fx)
+                    self.config_global['win_fish_y'] = int(fy)
             except RuntimeError:
                 pass
                 
@@ -3815,6 +3849,7 @@ class Hunter(object):
     def CreateWindows(self):
         self.mainWindow = AutoHuntWindow(self)
         self.lootWindow = AutoHuntLootWindow(self)
+        self.fishWindow = AutoFishWindow(self)
         
         sw = wndMgr.GetScreenWidth()
         sh = wndMgr.GetScreenHeight()
@@ -3827,6 +3862,8 @@ class Hunter(object):
         my = self.config_global.get('win_main_y', -1)
         lx = self.config_global.get('win_loot_x', -1)
         ly = self.config_global.get('win_loot_y', -1)
+        fx = self.config_global.get('win_fish_x', -1)
+        fy = self.config_global.get('win_fish_y', -1)
         
         if mx < 0 or my < 0 or mx + w1 > sw or my + h1 > sh:
             mx = max(0, (sw - (w1 + 10 + w2)) / 2)
@@ -3837,9 +3874,14 @@ class Hunter(object):
         if lx < 0 or ly < 0 or lx + w2 > sw or ly + self.lootWindow.HEIGHT > sh:
             lx = mx + w1 + 10
             ly = my
+
+        if fx < 0 or fy < 0 or fx + self.fishWindow.WIDTH > sw or fy + self.fishWindow.HEIGHT > sh:
+            fx = lx
+            fy = ly + self.lootWindow.HEIGHT + 10
             
         self.mainWindow.SetPosition(int(mx), int(my))
         self.lootWindow.SetPosition(int(lx), int(ly))
+        self.fishWindow.SetPosition(int(fx), int(fy))
 
     def ShowLootWindow(self):
         """The settings window alone, from the game options' "Ustaw": its
@@ -3945,8 +3987,8 @@ class Hunter(object):
 
 class AutoHuntWindow(ui.BoardWithTitleBar):
     WIDTH = 300
-    # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: 25 more for "Dodatkowe ustawienia".
-    HEIGHT = 580
+    # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: 25 more for "Dodatkowe ustawienia", +30 for "Auto-Wedkowanie".
+    HEIGHT = 610
     GRID_ROWS = 4
     SLOT_STEP = 40
     SLOTS_PER_ROW = 6
@@ -4107,6 +4149,10 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
         self.settingsButton = self._Btn(self, 'large', 202, y + 25, T('Otw\xf3rz', 'Open'),
             self.ToggleExtraWindow)
 
+        self._Label(self, 22, y + 54, T('Auto-W\xeadkowanie', 'Auto-Fishing'))
+        self.fishButton = self._Btn(self, 'large', 202, y + 50, T('Otw\xf3rz', 'Open'),
+            self.ToggleFishWindow)
+
     # MT2009_PLUS_AUTOHUNT_WINDOWS_V1 (Autor: blaki)
     def RefreshSettingsButton(self):
         loot = self.hunter.lootWindow if self.hunter else None
@@ -4115,6 +4161,15 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
         except RuntimeError:
             shown = False
         self.settingsButton.SetText(T('Zamknij', 'Close') if shown else T('Otw\xf3rz', 'Open'))
+
+    def RefreshFishButton(self):
+        fw = self.hunter.fishWindow if self.hunter else None
+        try:
+            shown = bool(fw and fw.IsShow())
+        except RuntimeError:
+            shown = False
+        if hasattr(self, 'fishButton') and self.fishButton:
+            self.fishButton.SetText(T('Zamknij', 'Close') if shown else T('Otw\xf3rz', 'Open'))
 
     def ToggleExtraWindow(self):
         loot = self.hunter.lootWindow if self.hunter else None
@@ -4128,6 +4183,18 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
             loot.Show()
             loot.SetTop()
         self.RefreshSettingsButton()
+        self.hunter.SaveGlobalConfig()
+
+    def ToggleFishWindow(self):
+        fw = self.hunter.fishWindow if self.hunter else None
+        if not fw:
+            return
+        if fw.IsShow():
+            fw.Close()
+        else:
+            fw.Show()
+            fw.SetTop()
+        self.RefreshFishButton()
         self.hunter.SaveGlobalConfig()
 
     def _Board(self, x, y, w, h):
@@ -4293,6 +4360,8 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
             edit.SetText(str(config[key]))
         self.RefreshSlots()
         self.RefreshStatus()
+        self.RefreshSettingsButton()
+        self.RefreshFishButton()
 
     def RefreshSlots(self):
         config = self.hunter.config
@@ -4472,6 +4541,8 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
             # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: closing K closes both.
             if self.hunter.lootWindow:
                 self.hunter.lootWindow.Close()
+            if hasattr(self.hunter, 'fishWindow') and self.hunter.fishWindow:
+                self.hunter.fishWindow.Close()
         self.Hide()
 
     def OnPressEscapeKey(self):
@@ -4788,6 +4859,338 @@ class AutoHuntLootWindow(ui.BoardWithTitleBar):
         self.priorityText = None
 
 
+class AutoFishWindow(ui.BoardWithTitleBar):
+    WIDTH = 300
+    HEIGHT = 405
+
+    def __init__(self, hunter):
+        ui.BoardWithTitleBar.__init__(self)
+        self.hunter = hunter
+        self.widgets = []
+        self.toggles = {}
+        self.active = False
+        self.gutFish = True
+        self.dropJunk = True
+        self.useMinnow = False
+        self.openClams = True
+        self.autoBuyBait = False
+
+        # Live session stats
+        self.sessionStartTime = 0.0
+        self.totalElapsedSeconds = 0
+        self.fishCaught = 0
+        self.clamsOpened = 0
+        self.baseWhitePearls = 0
+        self.baseBluePearls = 0
+        self.baseBloodPearls = 0
+
+        self.statusText = None
+        self.statTimeText = None
+        self.statCatchesText = None
+        self.statPearlsText = None
+        self.actionBtn = None
+        self.resetBtn = None
+
+        self.AddFlag('movable')
+        self.AddFlag('float')
+        self.SetSize(self.WIDTH, self.HEIGHT)
+        self.SetTitleName(T('Auto-W\xeadkowanie', 'Auto-Fishing'))
+        self.SetCloseEvent(ui.__mem_func__(self.Close))
+        self.Build()
+
+    def Build(self):
+        BL = 10
+        BW = self.WIDTH - 2 * BL
+        y = 32
+
+        # Options board (height: 172)
+        optBoard = ui.ThinBoard()
+        optBoard.SetParent(self)
+        optBoard.SetPosition(BL, y)
+        optBoard.SetSize(BW, 172)
+        optBoard.Show()
+        self.widgets.append(optBoard)
+
+        self.statusText = ui.TextLine()
+        self.statusText.SetParent(optBoard)
+        self.statusText.SetPosition(12, 8)
+        self.statusText.SetText(T('Status: Wy\xb3\xb9czone', 'Status: Off'))
+        self.statusText.Show()
+        self.widgets.append(self.statusText)
+
+        self._CreateOptionRow(optBoard, 12, 30, BW - 24, 20, T('Patrosz ryby (ma\xb3\xbfe / o\x9cci)', 'Gut fish (clams / bones)'), 'gut')
+        self._CreateOptionRow(optBoard, 12, 56, BW - 24, 20, T('Wyrzucaj farby i wybielacze', 'Drop hair dyes / bleaches'), 'junk')
+        self._CreateOptionRow(optBoard, 12, 82, BW - 24, 20, T('U\xbfywaj drobnych ryb (priorytet)', 'Use minnows as bait (priority)'), 'minnow')
+        self._CreateOptionRow(optBoard, 12, 108, BW - 24, 20, T('Otwieraj ma\xb3\xbfe (per\xb3y)', 'Open clams (pearls)'), 'clam')
+        self._CreateOptionRow(optBoard, 12, 134, BW - 24, 20, T('Dokupuj robaki u Rybaka', 'Auto-buy bait from Fisherman'), 'buy_bait')
+
+        y += 178
+
+        # Stats board (height: 98)
+        statsBoard = ui.ThinBoard()
+        statsBoard.SetParent(self)
+        statsBoard.SetPosition(BL, y)
+        statsBoard.SetSize(BW, 98)
+        statsBoard.Show()
+        self.widgets.append(statsBoard)
+
+        headerText = ui.TextLine()
+        headerText.SetParent(statsBoard)
+        headerText.SetPosition(12, 8)
+        headerText.SetText(T('Statystyki sesji:', 'Session statistics:'))
+        headerText.Show()
+        self.widgets.append(headerText)
+
+        self.statTimeText = ui.TextLine()
+        self.statTimeText.SetParent(statsBoard)
+        self.statTimeText.SetPosition(12, 28)
+        self.statTimeText.SetText(T('Czas sesji: 00:00:00', 'Session time: 00:00:00'))
+        self.statTimeText.Show()
+        self.widgets.append(self.statTimeText)
+
+        self.statCatchesText = ui.TextLine()
+        self.statCatchesText.SetParent(statsBoard)
+        self.statCatchesText.SetPosition(12, 48)
+        self.statCatchesText.SetText(T('Ryby: 0  |  Ma\xb3\xbfe: 0', 'Fish: 0  |  Clams: 0'))
+        self.statCatchesText.Show()
+        self.widgets.append(self.statCatchesText)
+
+        self.statPearlsText = ui.TextLine()
+        self.statPearlsText.SetParent(statsBoard)
+        self.statPearlsText.SetPosition(12, 68)
+        self.statPearlsText.SetText(T('Per\xb3y (B/N/K): 0 / 0 / 0', 'Pearls (W/B/B): 0 / 0 / 0'))
+        self.statPearlsText.Show()
+        self.widgets.append(self.statPearlsText)
+
+        y += 106
+
+        # Buttons row
+        btnW = 120
+        btnGap = 16
+        totalBtnW = btnW * 2 + btnGap
+        startX = (self.WIDTH - totalBtnW) // 2
+
+        self.actionBtn = ui.Button()
+        self.actionBtn.SetParent(self)
+        self.actionBtn.SetPosition(startX, y)
+        self.actionBtn.SetUpVisual('d:/ymir work/ui/public/large_button_01.sub')
+        self.actionBtn.SetOverVisual('d:/ymir work/ui/public/large_button_02.sub')
+        self.actionBtn.SetDownVisual('d:/ymir work/ui/public/large_button_03.sub')
+        self.actionBtn.SetText(T('Start', 'Start'))
+        self.actionBtn.SAFE_SetEvent(self.OnToggleActive)
+        self.actionBtn.Show()
+        self.widgets.append(self.actionBtn)
+
+        self.resetBtn = ui.Button()
+        self.resetBtn.SetParent(self)
+        self.resetBtn.SetPosition(startX + btnW + btnGap, y)
+        self.resetBtn.SetUpVisual('d:/ymir work/ui/public/large_button_01.sub')
+        self.resetBtn.SetOverVisual('d:/ymir work/ui/public/large_button_02.sub')
+        self.resetBtn.SetDownVisual('d:/ymir work/ui/public/large_button_03.sub')
+        self.resetBtn.SetText(T('Reset', 'Reset'))
+        self.resetBtn.SAFE_SetEvent(self.OnResetStats)
+        self.resetBtn.Show()
+        self.widgets.append(self.resetBtn)
+
+        tip = ui.TextLine()
+        tip.SetParent(self)
+        tip.SetPosition(14, y + 26)
+        tip.SetText(T('Stan przy wodzie z w\xeadk\xb9 i robakami.', 'Stand near water with rod and bait.'))
+        tip.Show()
+        self.widgets.append(tip)
+
+    def _CreateOptionRow(self, parent, x, y, w, h, label, key):
+        text = ui.TextLine()
+        text.SetParent(parent)
+        text.SetPosition(x, y + 2)
+        text.SetText(label)
+        text.Show()
+        self.widgets.append(text)
+
+        btn = ui.ToggleButton()
+        btn.SetParent(parent)
+        btn.SetPosition(x + w - 44, y)
+        btn.SetUpVisual('d:/ymir work/ui/public/small_button_01.sub')
+        btn.SetOverVisual('d:/ymir work/ui/public/small_button_02.sub')
+        btn.SetDownVisual('d:/ymir work/ui/public/small_button_03.sub')
+        btn.SetToggleDownEvent(self.OnToggleOption, key, True)
+        btn.SetToggleUpEvent(self.OnToggleOption, key, False)
+        btn.Show()
+        self.widgets.append(btn)
+        self.toggles[key] = btn
+
+        val = False
+        if key == 'gut': val = self.gutFish
+        elif key == 'junk': val = self.dropJunk
+        elif key == 'minnow': val = self.useMinnow
+        elif key == 'clam': val = self.openClams
+        elif key == 'buy_bait': val = self.autoBuyBait
+
+        self._UpdateToggle(key, val)
+
+    def OnToggleOption(self, key, state):
+        if key == 'gut':
+            self.gutFish = state
+        elif key == 'junk':
+            self.dropJunk = state
+        elif key == 'minnow':
+            self.useMinnow = state
+        elif key == 'clam':
+            self.openClams = state
+        elif key == 'buy_bait':
+            self.autoBuyBait = state
+
+        self._UpdateToggle(key, state)
+
+        if self.active:
+            self._SendAutofishCommand(1)
+
+    def _SendAutofishCommand(self, state):
+        if state:
+            net.SendChatPacket('/autofish 1 %d %d %d %d %d' % (
+                1 if self.gutFish else 0,
+                1 if self.dropJunk else 0,
+                1 if self.useMinnow else 0,
+                1 if self.openClams else 0,
+                1 if self.autoBuyBait else 0
+            ))
+        else:
+            net.SendChatPacket('/autofish 0')
+
+    def OnToggleActive(self):
+        if not self.active:
+            self.SnapshotBasePearls()
+            self.sessionStartTime = clientclock.Now()
+            self._SendAutofishCommand(1)
+        else:
+            if self.sessionStartTime > 0.0:
+                self.totalElapsedSeconds += int(clientclock.Now() - self.sessionStartTime)
+                self.sessionStartTime = 0.0
+            self._SendAutofishCommand(0)
+
+    def SnapshotBasePearls(self):
+        try:
+            self.baseWhitePearls = player.GetItemCountByVnum(27992)
+            self.baseBluePearls = player.GetItemCountByVnum(27993)
+            self.baseBloodPearls = player.GetItemCountByVnum(27994)
+        except:
+            self.baseWhitePearls = 0
+            self.baseBluePearls = 0
+            self.baseBloodPearls = 0
+
+    def OnResetStats(self):
+        self.fishCaught = 0
+        self.clamsOpened = 0
+        self.totalElapsedSeconds = 0
+        if self.active:
+            self.sessionStartTime = clientclock.Now()
+        else:
+            self.sessionStartTime = 0.0
+        self.SnapshotBasePearls()
+        self.UpdateStatsDisplay()
+
+    def OnAutoFishNotify(self, event_type):
+        if event_type == 'fish':
+            self.fishCaught += 1
+        elif event_type == 'clam':
+            self.clamsOpened += 1
+        self.UpdateStatsDisplay()
+
+    def UpdateStatsDisplay(self):
+        elapsed = self.totalElapsedSeconds
+        if self.active and self.sessionStartTime > 0.0:
+            elapsed += int(clientclock.Now() - self.sessionStartTime)
+
+        hours = elapsed // 3600
+        minutes = (elapsed % 3600) // 60
+        seconds = elapsed % 60
+        timeStr = '%02d:%02d:%02d' % (hours, minutes, seconds)
+
+        if self.statTimeText:
+            self.statTimeText.SetText(T('Czas sesji: %s' % timeStr, 'Session time: %s' % timeStr))
+
+        if self.statCatchesText:
+            self.statCatchesText.SetText(T('Ryby: %d  |  Ma\xb3\xbfe: %d' % (self.fishCaught, self.clamsOpened),
+                                           'Fish: %d  |  Clams: %d' % (self.fishCaught, self.clamsOpened)))
+
+        try:
+            curWhite = player.GetItemCountByVnum(27992)
+            curBlue = player.GetItemCountByVnum(27993)
+            curBlood = player.GetItemCountByVnum(27994)
+            whiteDelta = max(0, curWhite - self.baseWhitePearls)
+            blueDelta = max(0, curBlue - self.baseBluePearls)
+            bloodDelta = max(0, curBlood - self.baseBloodPearls)
+        except:
+            whiteDelta = 0
+            blueDelta = 0
+            bloodDelta = 0
+
+        if self.statPearlsText:
+            self.statPearlsText.SetText(T('Per\xb3y (B/N/K): %d / %d / %d' % (whiteDelta, blueDelta, bloodDelta),
+                                          'Pearls (W/B/B): %d / %d / %d' % (whiteDelta, blueDelta, bloodDelta)))
+
+    def OnUpdate(self):
+        if self.active:
+            self.UpdateStatsDisplay()
+
+    def SetStatus(self, state, gut, drop, minnow=0, clams=1, buy_bait=0):
+        wasActive = self.active
+        self.active = bool(state)
+        self.gutFish = bool(gut)
+        self.dropJunk = bool(drop)
+        self.useMinnow = bool(minnow)
+        self.openClams = bool(clams)
+        self.autoBuyBait = bool(buy_bait)
+
+        if self.active and not wasActive:
+            if self.sessionStartTime == 0.0:
+                self.sessionStartTime = clientclock.Now()
+                self.SnapshotBasePearls()
+        elif not self.active and wasActive:
+            if self.sessionStartTime > 0.0:
+                self.totalElapsedSeconds += int(clientclock.Now() - self.sessionStartTime)
+                self.sessionStartTime = 0.0
+
+        if self.statusText:
+            self.statusText.SetText(T('Status: \xa3owienie w toku...', 'Status: Fishing in progress...') if self.active else T('Status: Wy\xb3\xb9czone', 'Status: Off'))
+        if self.actionBtn:
+            self.actionBtn.SetText(T('Zatrzymaj', 'Stop') if self.active else T('Start', 'Start'))
+
+        self._UpdateToggle('gut', self.gutFish)
+        self._UpdateToggle('junk', self.dropJunk)
+        self._UpdateToggle('minnow', self.useMinnow)
+        self._UpdateToggle('clam', self.openClams)
+        self._UpdateToggle('buy_bait', self.autoBuyBait)
+
+        self.UpdateStatsDisplay()
+
+    def _UpdateToggle(self, key, val):
+        if key in self.toggles:
+            btn = self.toggles[key]
+            btn.SetText(T('W\xa3', 'ON') if val else T('WY\xa3', 'OFF'))
+            if val:
+                btn.Down()
+            else:
+                btn.SetUp()
+
+    def Close(self):
+        if self.hunter:
+            self.hunter.SaveGlobalConfig()
+            if self.hunter.mainWindow:
+                self.hunter.mainWindow.RefreshFishButton()
+        self.Hide()
+
+    def OnPressEscapeKey(self):
+        self.Close()
+        return True
+
+    def Destroy(self):
+        self.Hide()
+        self.hunter = None
+        self.widgets = []
+        self.toggles = {}
+
+
 _hunter = None
 
 def GetHunter():
@@ -4837,3 +5240,16 @@ def OnFocusLost():
     if _hunter is not None:
         _hunter.ReleaseAttack()
         _hunter.ResetChaseMovement()
+
+
+def OnAutoFishStatus(state, gut='0', drop='0', minnow='0', clams='0', buy_bait='0'):
+    hunter = GetHunter()
+    if hunter and hasattr(hunter, 'fishWindow') and hunter.fishWindow:
+        hunter.fishWindow.SetStatus(int(state), int(gut), int(drop), int(minnow), int(clams), int(buy_bait))
+
+def OnAutoFishNotify(event_type=''):
+    hunter = GetHunter()
+    if hunter and hasattr(hunter, 'fishWindow') and hunter.fishWindow:
+        hunter.fishWindow.OnAutoFishNotify(str(event_type))
+
+

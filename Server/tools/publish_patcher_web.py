@@ -59,6 +59,19 @@ def main():
 
     # 2. Przygotuj nasze zmodyfikowane pliki
     overrides = {}
+
+    # Guard: upewnij sie, ze Klient/pack/root zawiera AutoFishWindow
+    root_hunt_py = os.path.join(klient_dir, 'pack', 'root', 'uiautohunt.py')
+    patch_hunt_py = os.path.join(repo_root, 'Server', 'server-patches', 'krystian', 'autofish', 'client', 'root', 'uiautohunt.py')
+    if os.path.exists(root_hunt_py) and os.path.exists(patch_hunt_py):
+        with open(root_hunt_py, 'r', encoding='utf-8', errors='ignore') as f_h:
+            if 'AutoFishWindow' not in f_h.read():
+                print("[GUARD] Brak AutoFishWindow w Klient/pack/root/uiautohunt.py! Kopiuje z server-patches...")
+                shutil.copy2(patch_hunt_py, root_hunt_py)
+                print("[GUARD] Kompilacja paczki root.data...")
+                subprocess.run(['powershell', '-ExecutionPolicy', 'Bypass', '-File',
+                               os.path.join(repo_root, 'Server', 'tools', 'Compile-ClientPack.ps1'),
+                               '-PackName', 'root', '-ClientDir', klient_dir, '-NoBackup'], check=True)
     
     # root.data i root.index
     root_data = os.path.join(klient_dir, 'pack', 'root.data')

@@ -608,6 +608,16 @@ def FacingDegree(fromX, fromY, toX, toY):
         degree = 360.0 - degree
     return degree
 
+def SetPassThroughPlayers(on):
+    # MT2009_PLUS_AUTOHUNT_PASS_V1: while the hunt runs the character walks through
+    # other players and bots (exe 2.0.63+; an older exe has no such function)
+    try:
+        import chrmgr
+        if hasattr(chrmgr, 'SetPassThroughPlayers'):
+            chrmgr.SetPassThroughPlayers(1 if on else 0)
+    except:
+        pass
+
 def StopPoint(fromX, fromY, toX, toY, short):
     dx = fromX - toX
     dy = fromY - toY
@@ -1419,6 +1429,7 @@ class Hunter(object):
         (x, y, z) = player.GetMainCharacterPosition()
         self.anchor = (int(x), int(y))
         self.running = True
+        SetPassThroughPlayers(True)
         # MT2009_PLUS_AUTOHUNT_QUICK_V1: the quick start says its own line.
         chat.AppendChat(chat.CHAT_TYPE_INFO, startText or (T('Auto \xa3owy: start, zasi\xeag %d.',
             'Auto Hunt: started, range %d.') % self.config['range']))
@@ -1440,6 +1451,14 @@ class Hunter(object):
             self.RiderRemountOnStop()
         self.ResetRider()
         self.running = False
+        SetPassThroughPlayers(False)
+        # MT2009_PLUS_AUTOHUNT_NO_REVENGE_V1 (Autor: mur4s): the server stops
+        # taking a blow at a bot for a hunt's at once, not 5 s after the last
+        # /autohunt_target (cmd_general.cpp do_autohunt_stop).
+        try:
+            net.SendChatPacket('/autohunt_stop')
+        except Exception:
+            pass
         if self.escapeUntil:
             
             (px, py, pz) = player.GetMainCharacterPosition()

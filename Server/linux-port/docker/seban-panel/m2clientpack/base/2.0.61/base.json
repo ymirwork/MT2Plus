@@ -8,8 +8,8 @@
   },
   "gamedata/item_proto": {
    "ctype": 0,
-   "sha256": "9F341C4EDCCF82F691758A65A115ECD2FB8F8599DEDFE15A7D43FE2A139CD52E",
-   "size": 266396
+   "sha256": "28D80033D9BAFF75F58AB2AEA7ACE98DD7A1EB60D8A180F18CC7A63E37DAC9CB",
+   "size": 278132
   },
   "gamedata/skilltable.txt": {
    "ctype": 2,

@@ -1282,6 +1282,8 @@ function Set-SecondChannel {
     if ($on3 -and $channels -lt 3) { $channels = 3 }
     if ($on4 -and $channels -lt 4) { $channels = 4 }
     $span = 10 * ($channels - 1) + 2
+    # MT2009_PLUS_237_NEWCORE_V1: the map core (game3) of CH1 listens on base+3 (CH2..CH4: base+4..base+6).
+    if ($span -lt 3) { $span = 3 }
     if ($Ch3 -ge 0) { Set-DotEnvValue -Key 'M2_PLAYERBOT_CH3' -Value $(if ($Ch3 -eq 1) { '1' } else { '0' }) }
     if ($Ch4 -ge 0) { Set-DotEnvValue -Key 'M2_PLAYERBOT_CH4' -Value $(if ($Ch4 -eq 1) { '1' } else { '0' }) }
     Set-DotEnvValue -Key 'M2_PLAYERBOT_CH2' -Value $(if ($Enabled) { '1' } else { '0' })
@@ -1633,7 +1635,7 @@ function Set-DifficultyAction {
         if ("$answer".Trim()) { $starterOn = "$answer".Trim().ToLowerInvariant() -notin @('n', 'nie', 'no', '0') }
         $answer = Read-Host "Dom Towarowy (wszystkie oferty sklepów offline u Handlarki Różności w M1) włączony? (T/n, Enter = $(if ($currentFlea) { 'tak' } else { 'nie' }))"
         if ("$answer".Trim()) { $fleaOn = "$answer".Trim().ToLowerInvariant() -notin @('n', 'nie', 'no', '0') }
-        $answer = Read-Host "Moduł Arezzo (nowe mapy: Dolina Cyklopów, Pustkowie Faraona, Zaczarowany Las i 4 lochy) włączony? (t/N, Enter = $(if ($currentArezzo) { 'tak' } else { 'nie' }))"
+        $answer = Read-Host "Moduł Arezzo (nowe mapy: Dolina Cyklopów, Pustkowie Faraona i 4 lochy) włączony? (t/N, Enter = $(if ($currentArezzo) { 'tak' } else { 'nie' }))"
         if ("$answer".Trim()) { $arezzoOn = "$answer".Trim().ToLowerInvariant() -in @('t', 'tak', 'y', 'yes', '1') }
         $answer = Read-Host "Życie potworów, bossów i Metinów: 1 = jak w grze (100%), 2 = łatwiej (80%) (Enter = $currentMonsterPct%)"
         if ("$answer".Trim() -eq '1') { $monsterSetting = 'default' }

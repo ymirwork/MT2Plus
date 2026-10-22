@@ -892,6 +892,10 @@ namespace
 		// the offline cut takes the largest pack the spare fills.
 		if (IsPlayerBotPackedPotion(item))
 			return PLAYERBOT_SHOP_POTION_PACK_MIN;
+		// MT2009_PLUS_BOT_SOULSTONE_MARKET_V2: a soul stone of +3 and up by
+		// its stack (the buyers take one off it), not a stone a line.
+		if (IsPlayerBotSoulStoneStackLine(item))
+			return std::max<int>(1, (int)item->GetMaxStack());
 		if (item->GetType() == ITEM_USE || item->GetType() == ITEM_METIN ||
 				item->GetType() == ITEM_TREASURE_KEY ||
 				(item->GetVnum() >= 27992 && item->GetVnum() <= 27994))
@@ -1303,7 +1307,9 @@ namespace
 						CRefineManager::instance().GetRefineRecipe(protos[i].wRefineSet);
 				if (!recipe)
 					continue;
-				const bool forGear = protos[i].bType == ITEM_WEAPON || protos[i].bType == ITEM_ARMOR;
+				// MT2009_PLUS_REFINE_GLOBAL_V1: a belt's step materials are gear goods too (never scrap)
+				const bool forGear = protos[i].bType == ITEM_WEAPON || protos[i].bType == ITEM_ARMOR ||
+						protos[i].bType == ITEM_BELT;
 				for (int m = 0; m < recipe->material_count; ++m)
 					if (recipe->materials[m].vnum != 0)
 						(forGear ? gear : other).insert(recipe->materials[m].vnum);
@@ -1466,8 +1472,9 @@ namespace
 		// stones stack to 200 now, and a buyer wants one for one socket - a
 		// stone line is one stone (GetPlayerBotStallLineUnits); a stack is no
 		// line, it is cut (SplitPlayerBotStallSingles, BotOfflinePrepareLine).
+		// MT2009_PLUS_BOT_SOULSTONE_MARKET_V2: a +3 and up is a stack line now.
 		if (item->GetType() == ITEM_METIN)
-			return count == 1;
+			return count == 1 || IsPlayerBotSoulStoneStackLine(item);
 		return true;
 	}
 
@@ -3999,6 +4006,32 @@ namespace
 	// DoRefineWithScroll refuse on before they take anything. A bag piece is
 	// asked this and not CanPlayerBotPayRefineStep, whose reserve and
 	// Biologist's share the bag's pieces have never been held to.
+	// MT2009_PLUS_REFINE_GLOBAL_V1: refining as on the global server puts materials on the
+	// ordinary steps (a Futro Wilka+ at +6, the pearls at +7..+9). A piece the bot does not
+	// wear and could not put on - a spare raised for the counter, a level-30 weapon for sale,
+	// the lottery's or a whim's piece - takes only what the worn gear's own steps leave
+	// (GetPlayerBotRefineMaterialReserve): the counter's goods never eat the sword's pearls.
+	// MT2009_PLUS_237_GLOBAL_MODE_V1: the 2.x line refines so only under M2_BONUS_MODE=global - mt2009 keeps
+	// the bots' refining as it was.
+	bool PlayerBotRefineLeavesGearMaterials(LPCHARACTER ch, LPITEM item, const TRefineTable* recipe)
+	{
+		if (!::BonusModeGlobal())
+			return true;
+		if (!ch || !item || !recipe || recipe->material_count == 0 || item->IsEquipped() ||
+				IsPlayerBotEquipmentCandidate(ch, item))
+			return true;
+		for (int i = 0; i < recipe->material_count; ++i)
+		{
+			const DWORD vnum = recipe->materials[i].vnum;
+			if (vnum == 0 || recipe->materials[i].count == 0)
+				continue;
+			if ((long long)::ElementsRefineMaterialCount(ch, item, vnum) - GetPlayerBotBiologistReserve(ch, vnum) -
+					GetPlayerBotRefineMaterialReserve(ch, vnum) < (long long)recipe->materials[i].count)
+				return false;
+		}
+		return true;
+	}
+
 	bool CanPlayerBotAffordRefineAttempt(LPCHARACTER ch, LPITEM item)
 	{
 		const TRefineTable* recipe = item ? CRefineManager::instance().GetRefineRecipe(item->GetRefineSet()) : NULL;
@@ -4009,7 +4042,7 @@ namespace
 			if (ch->CountSpecifyItem(recipe->materials[i].vnum) < recipe->materials[i].count)
 				return false;
 		}
-		return true;
+		return PlayerBotRefineLeavesGearMaterials(ch, item, recipe);	// MT2009_PLUS_REFINE_GLOBAL_V1
 	}
 
 	// MT2009_PLUS_SIDEKICK_REFINE_GUARD_V1 (the owner, 13 October: the
@@ -5745,7 +5778,7 @@ namespace
 					GetPlayerBotBiologistReserve(ch, recipe->materials[i].vnum) < recipe->materials[i].count)
 				return false;
 		}
-		return true;
+		return PlayerBotRefineLeavesGearMaterials(ch, item, recipe);	// MT2009_PLUS_REFINE_GLOBAL_V1
 	}
 
 	bool CanPlayerBotAttemptRefineItem(LPCHARACTER ch, LPITEM item)

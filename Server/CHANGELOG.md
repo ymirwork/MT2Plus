@@ -17,6 +17,49 @@ every version here.
 
 ---
 
+## 2.37.0 — 2026-10-22 — Zaklęty Las, mapy 90 poziomu i tryb global
+
+### Boty – stragany i handel
+- **Kamienie Duszy +0, +1 i +2 idą w pył.** Boty nie wystawiają już Kamieni Duszy +0, +1 ani +2 na rynek – od razu zamieniają je u Alchemika w Magiczny Pył (tak jak gracz: ta sama opłata i ta sama ilość pyłu). Kamienie tych stopni, które już stoją w ich sklepach, boty stopniowo zdejmują i też oddają na pył.
+- **Kamienie Duszy +3 i +4 w stosach.** Boty wystawiają Kamienie Duszy +3 i wyższe jednym stosem zamiast po jednej sztuce, w cenie za sztukę razy liczba kamieni. Inne boty kupują z takiego stosu tylko tyle kamieni, ile potrzebują.
+- **Szybsze łączenie ksiąg w stosy.** Boty, które mają w sklepie wiele linii pojedynczych ksiąg tej samej umiejętności, zdejmują je teraz wszystkie za jednym razem i od razu wystawiają jednym stosem. Wcześniej zdejmowały jedną linię na 10 minut, więc sklep pełen starych ksiąg porządkował się dniami.
+
+### Silnik/Gra
+- **Zakupy w ItemShopie, Koło Losu na stronie i kody promocyjne znowu dochodzą.** Na światach założonych z bazy startowej w tabeli nagród brakowało jednej kolumny, więc zakupy nie trafiały do gry. Aktualizacja dodaje ją sama przy starcie.
+- **Licznik EXP nie ucina się już na 2 147 483 647.** Od 100 poziomu pasek doświadczenia przekracza tę liczbę, a baza zapisywała najwyżej tyle – po zapisie lub ponownym zalogowaniu nadwyżka znikała. Aktualizacja sama poprawia kolumnę w bazie przy starcie i od tej pory pełny pasek się zapisuje.
+
+### Zaklęty Las i mapy 90 poziomu
+- **Zaklęty Las.** Dodałem Zaklęty Las – las Jotuna Thryma za Świątynią Ochao, jak na wiki: Wojownicy, Bojownicy, Druidzi, Uzdrowiciele i Niszczyciele En-Tai, Silni En-Tai z Metinów Lasu, Władca En-Tai, siedem misji strażników lasu (nagroda: Kamień Driad) i Erebu – wyprawa drużyny 5–8 graczy od 95 poziomu na Bagjanamu i Jotuna Thryma (Skrzynie Bagjanamu i Jotuna Thryma). Las jest zawsze włączony – nie zależy od modułu Arezzo i nie da się go wyłączyć.
+- **Zaklęty Las zastępuje Zaczarowany Las z Arezzo.** Portal Strażnika En-Tai w Świątyni Ochao prowadzi teraz do Zaklętego Lasu (albo z powrotem na Zbocze Gautama). Postacie zapisane w dawnym Zaczarowanym Lesie stają przy wejściu do Świątyni Ochao. Strażnik Starożytnej Dżungli stoi w Świątyni Ochao. Reszta Arezzo się nie zmienia.
+- **Wejście do Świątyni Ochao jak na wiki.** Strażnik Świątyni stoi teraz tylko na Zboczu Gautama (mapa 90 poziomu), już nie w Dolinie Orków.
+- **Nowe mapy 90 poziomu.** Przylądek Smoczego Ognia, Zbocze Gautama, Nefrytowa Zatoka i Gromiste Góry mają teren z nowego klienta, działające portale między sobą i są w Teleporterze od 90 poziomu (wymaga nowego klienta).
+- Seon-Hae: Duży suplement i odłamki wypadają teraz w Zaklętym Lesie (zamiast w Zaczarowanym Lesie).
+- **Nowe mapy na osobnym rdzeniu.** Zaklęty Las i wszystkie cztery mapy 90 poziomu działają na nowym, czwartym rdzeniu gry w każdym kanale (game3). Port tego rdzenia: 13003 na pierwszym kanale (13004–13006 na kanałach 2–4) – aktualizacja sama poszerza zakres portów gry w `.env` z 13000-13002 na 13000-13003, a przy dwóch i więcej kanałach nic się nie zmienia. Kto udostępnia świat znajomym przez internet lub VPS, musi mieć otwarty także port 13003 (launcher dodaje go do reguły zapory i routera sam). Nowy rdzeń zajmuje ok. 0,2 GB RAM, a gdy boty chodzą na wszystkie nowe mapy – do ok. 0,8 GB na kanał. Na komputerze z małą ilością pamięci można go wyłączyć w panelu (Ustawienia serwera (.env) → Boty → „Osobny rdzeń dla nowych map”, `M2_MAP_CORE=0`) – wtedy te mapy działają jak dotąd na rdzeniu game2.
+
+### Boty
+- **Boty w Zaklętym Lesie.** Boty od 100 poziomu (i co najmniej 20 000 PŻ) chodzą expić do Zaklętego Lasu jak na wyprawę: drogą przez Świątynię Ochao, około 2 godzin pobytu, mikstury uzupełniają na miejscu. Najgroźniejsze miejsca z Niszczycielami En-Tai i Metiny lasu biorą tylko w drużynie co najmniej 3 botów; po 3 zgonach w 30 minut wracają i robią 3 godziny przerwy. Od 110 poziomu bot z lasu wyrasta.
+- **Boty na mapach 90 po drop.** Boty od 95 poziomu co jakiś czas idą na Przylądek Smoczego Ognia, Zbocze Gautama, Nefrytową Zatokę i Gromiste Góry bić tylko Metiny i bossów (około 40 minut), potem wracają do wioski.
+- **Boty przechodzą między rdzeniami.** Las i mapy 90 stoją na innym rdzeniu niż wioski botów, więc bot przechodzi tam i z powrotem przez przekazanie między rdzeniami. Ustawienia w panelu (Boty): PLAYERBOT_HANDOVER, PLAYERBOT_ZAKLETY_*, PLAYERBOT_LOOTRUN_*; zdarzenie m2_bot_handover_off 1 odsyła wszystkie boty do domu.
+- Boty, które są w Zaklętym Lesie albo na wypadzie na mapy 90, nie są w tym czasie przenoszone na inny kanał (wcześniej przeniesienie odsyłało je od razu do wioski).
+
+### Tryb global (`M2_BONUS_MODE`)
+- **Tryb global jest eksperymentalny.** Przeniosłem go z gałęzi testowej i sprawdziłem przełączanie w obie strony, ale nie był jeszcze grany na żywym świecie – domyślnie zostaje `mt2009`. Jeśli go włączysz, zrób najpierw kopię świata i zgłaszaj mi wszystko, co wygląda dziwnie.
+- **Ustawienia serwera globalnego jednym przełącznikiem.** Dodałem w `.env` i w panelu ustawienie „Tryb global”: `mt2009` (domyślnie) zostawia świat dokładnie takim, jaki był, a `global` włącza ustawienia serwera globalnego – bonusy, żywioły, alchemię, ulepszanie i potwory. Działa po restarcie serwera, można przełączać w obie strony, a powrót do `mt2009` przywraca świat co do wartości.
+- **Bonusy jak na serwerze globalnym:** Maks. PŻ do 2000, Maks. PE do 80 (200 na naszyjniku), regeneracja do 30%, odporność na ogień, błyskawice i wiatr na zbroi, bransolecie i hełmie, szansa na bonus doświadczenia (buty, naszyjnik, tarcza) i na podwójną ilość przedmiotów (bransoleta, kolczyki – podnosi szansę dropu). Na broni, zbroi i biżuterii nie losują się już wytrzymałość, czas trwania umiejętności, odbicie strzał i stałe doświadczenie. Przedmioty zachowują wszystkie bonusy, które już mają.
+- **Stałe bonusy przedmiotów** jak na serwerze globalnym (np. Bambusowe Buty+9: szybkość ruchu 15 i odporność na ogień 10) – także w opisie przedmiotu.
+- **Żywioły wszystkich potworów** według danych gry; odporność na żywioł działa w 30% swojej wartości (15% odporności = 4,5% mniej obrażeń). Ikona żywiołu przy pasku życia celu pokazuje żywioł trybu global.
+- **Alchemia:** Smocze Kamienie dostają domyślne bonusy (np. Diament: inteligencja, odporność na lód i siła lodu). Kamienie zachowują swoje bonusy, a przy ulepszaniu rosną z tymi, które mają.
+- **Ulepszanie jak na serwerze globalnym:** szansa, koszt w Yangach i ulepszacze każdego kroku dla każdego przedmiotu, także przemiany „+9 → następny przedmiot” tam, gdzie oba przedmioty są w grze. Kowal, zwoje i kamienie ulepszania liczą te same szanse, a okno ulepszania i zwoje w kliencie pokazują nowe kroki.
+- **Potwory jak na serwerze globalnym:** PŻ, obrażenia, doświadczenie, poziom, obrona, statystyki, szybkości, odporności, efekty i rangi prawie 500 potworów oraz ich drop.
+- Boty w trybie global zbierają ulepszacze nowych kroków (także do pasów) i nie zużywają ich na sprzęt na sprzedaż, jeśli brakuje ich do sprzętu, który noszą.
+- Opisy przedmiotów, maksymalne wartości bonusów i ikony żywiołów trybu global wymagają nowego klienta; serwer liczy tryb global także ze starym klientem.
+
+## Klient 2.0.68 — 2026-10-22 — Zaklęty Las, mapy 90 poziomu i tryb global
+- **Zaklęty Las** – teren, obiekty i potwory lasu (En-Tai, Jotun Thrym, Metiny Lasu i Drzewnych Stworzeń z własnym wyglądem), nazwa mapy i ikony 8 nowych przedmiotów.
+- **Mapy 90 poziomu** – teren Przylądka Smoczego Ognia, Zbocza Gautama, Nefrytowej Zatoki i Gromistych Gór z ich potworami.
+- **Tryb global** – maksymalne wartości bonusów, ikona żywiołu przy celu, stałe bonusy w opisie przedmiotu i kroki ulepszania trybu global (pokazywane, gdy serwer ma `M2_BONUS_MODE=global`).
+- Zmieniły się dane przedmiotów – po aktualizacji pobierz ponownie zip z edytora bazy danych (gra przypomni o tym po zalogowaniu; MT2009-Patcher pobierze go sam).
+
 ## 2.36.0 — 2026-10-20 — Sklepy botów bez przepełnienia, lochy bez zatrzymań, retencja logów w panelu
 
 ### Boty – stragany i handel

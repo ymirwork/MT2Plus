@@ -1049,7 +1049,17 @@ namespace {
             // MT2009_PLUS_DIGI_STACK_V1: nor a soul stone line of more than one
             // stone (they stack to 200 now; a buyer takes one for a socket) - it
             // comes home to go up a stone at a time.
+            // MT2009_PLUS_BOT_SOULSTONE_MARKET_V2: a +3 and up goes up as a stack
+            // now (IsPlayerBotSoulStoneStackLine) and stays; a +0..+2 comes home
+            // whatever its count - the Alchemist's dust, never a counter line.
+            if (preview->GetType() == ITEM_METIN && IsPlayerBotDustGradeSoulStone(preview->GetVnum()) &&
+                    GetPlayerBotItemPolicy(preview) != PLAYERBOT_ITEM_POLICY_STALL) {
+                if (!unwanted) { unwanted = id; reason = "soul_stone_dust"; }
+                M2_DELETE(preview);
+                continue;
+            }
             if (preview->GetType() == ITEM_METIN && (int)preview->GetCount() > 1 &&
+                    !IsPlayerBotSoulStoneStackLine(preview) &&
                     GetPlayerBotItemPolicy(preview) != PLAYERBOT_ITEM_POLICY_STALL) {
                 if (!unwanted) { unwanted = id; reason = "soul_stone_stack"; }
                 M2_DELETE(preview);
@@ -1697,11 +1707,23 @@ namespace {
     // line's count, so the line goes home and up again. One a visit, at most
     // once in ten minutes, and not while the counter is over its target - the
     // line would not go back up.
+    // MT2009_PLUS_BOT_BOOK_RESTACK_FAST_V1 (the owner, 22 October): old single
+    // books stood in their lines for days - one line in ten minutes, and a
+    // counter of 90 lines of eleven skills (Kombajnista) took 13 hours at best.
+    // A skill's partial book lines all come home in one run of chained steps
+    // (BotOfflineRestack, restackBook) and go up as one stack (the counted
+    // cut, MT2009_PLUS_BOT_BOOK_STACKS_V1); between two skills a minute, not
+    // ten, so the stack of the last one goes up before the next run.
     DWORD BotOfflineRestackLine(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD now) {
         if (!ch || !shop || !IsPlayerBotShopMgmtStacking()) return 0;
         auto& o = state.offlineShop;
-        if (o.restackAt && now - o.restackAt < 10 * 60 * 1000) return 0;
-        if (BotOfflineUsedCells(shop) > BotOfflineTargetCells()) return 0;
+        const bool gap = o.restackAt && now - o.restackAt < 10 * 60 * 1000;
+        const bool bookGap = o.restackAt && now - o.restackAt < 60 * 1000;
+        if (gap && bookGap && !o.restackBook) return 0;
+        if (BotOfflineUsedCells(shop) > BotOfflineTargetCells()) {
+            o.restackBook = false;
+            return 0;
+        }
         const int bagFree = CountPlayerBotFreeInventoryCells(ch);
         struct TGroup { int lines = 0; DWORD smallest = 0; int smallestCount = 0; int notFull = 0; };
         std::map<DWORD, TGroup> groups;
@@ -1721,6 +1743,15 @@ namespace {
                 g.smallestCount = count;
             }
         }
+        // MT2009_PLUS_BOT_BOOK_RESTACK_FAST_V1: the run goes on while a
+        // partial line of its skill is up; the last one home ends it.
+        if (o.restackBook) {
+            const auto run = groups.find(o.restackVnum);
+            if (run != groups.end() && run->second.smallest)
+                return run->second.smallest;
+            o.restackBook = false;
+            if (bookGap) return 0;
+        }
         for (const auto& [key, g] : groups) {
             if (!g.smallest || g.notFull == 0) continue;
             const auto& items = shop->GetItems();
@@ -1737,6 +1768,8 @@ namespace {
             const bool book = preview->GetType() == ITEM_SKILLBOOK;
             M2_DELETE(preview);
             if (!kind) continue;
+            // MT2009_PLUS_BOT_BOOK_RESTACK_FAST_V1: a book waits a minute, the rest ten.
+            if (book ? bookGap : gap) continue;
             // Two lines of it that are not full: the smallest comes home.
             if (g.notFull >= 2) return g.smallest;
             // One line, and enough of it in the bag to make it bigger. A herb
@@ -1761,12 +1794,15 @@ namespace {
         }
         return 0;
     }
-    bool BotOfflineRestack(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD now) {
+    bool BotOfflineRestack(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD now, bool& chained) {
+        chained = false;
         const DWORD id = BotOfflineRestackLine(ch, state, shop, now);
         if (!id) return false;
         const auto& items = shop->GetItems();
         const auto line = items.find(id);
         const DWORD vnum = line != items.end() && line->second ? BotOfflineStackKeyOf(*line->second) : 0;
+        const bool book = line != items.end() && line->second && line->second->GetTable() &&
+                line->second->GetTable()->bType == ITEM_SKILLBOOK;
         int lines = 0;
         for (const auto& [lid, l] : items)
             if (l && BotOfflineStackKeyOf(*l) == vnum && (int)l->GetInfo().count < 200) ++lines;
@@ -1775,6 +1811,14 @@ namespace {
         // A second line of the kind came home: the one left comes home next
         // whatever the bag holds of it, and the two go up as one.
         state.offlineShop.restackVnum = lines >= 2 ? vnum : 0;
+        // MT2009_PLUS_BOT_BOOK_RESTACK_FAST_V1: a book's partial lines come
+        // home in one run - the next step two seconds on, until none is left.
+        state.offlineShop.restackBook = book && lines >= 2;
+        chained = state.offlineShop.restackBook;
+        if (book)
+            PlayerBotLogThrottled("shop_book_restack", now,
+                "PLAYERBOT_SHOP_MGMT: book restack pid=%u name=%s item=%u kind=%u partial_lines=%d",
+                ch->GetPlayerID(), ch->GetName(), id, (unsigned int)(vnum & 0x7fffffffU), lines);
         return true;
     }
     // How many lines of this item's kind kept by count - the books of its
@@ -2205,6 +2249,43 @@ namespace {
             sys_log(0, "PLAYERBOT_OFFLINE: cut a line pid=%u name=%s vnum=%u units=%d left=%u keep=%d kind=%u total=%d",
                 ch->GetPlayerID(), ch->GetName(), item->GetVnum(), take, (unsigned int)item->GetCount(), keep,
                 (unsigned int)(GetPlayerBotStallKindKey(item) & 0x7fffffffU), total);
+            return to;
+        }
+        // MT2009_PLUS_BOT_SOULSTONE_MARKET_V2: a soul stone of +3 and up goes up
+        // as the stack it is (up to its 200), priced a stone times the count as
+        // every stack is (GetPlayerBotShopAskingPriceRaw); the buyers take one
+        // off it (PlayerBotPartBuyCount). A +4 no further than the world's
+        // counters' room for the kind (STONE4_MARKET_*, none at the default 0),
+        // and no line dearer than a counter takes (PLAYERBOT_GOLD_MAX) - cut
+        // so, the rest stays in the bag for the next line.
+        if (IsPlayerBotSoulStoneStackLine(item)) {
+            const int count = std::max<int>(1, (int)item->GetCount());
+            int take = std::min(count, std::max(1, units));
+            if (IsPlayerBotStone4Vnum(item->GetVnum()) && IsPlayerBotStone4On())
+                take = std::min(take, GetPlayerBotStone4MarketRoom(item->GetVnum()));
+            {
+                // The asking price of one stone, doubled for the kind's
+                // markup (GetPlayerBotListingPrice) and the slip. A look that
+                // moves no price memory (as the panel's market export's).
+                const bool wasReadOnly = s_bPlayerBotAskStepReadOnly;
+                s_bPlayerBotAskStepReadOnly = true;
+                const long long unit = std::max<long long>(1, (long long)GetPlayerBotShopAskingPrice(item) / count);
+                s_bPlayerBotAskStepReadOnly = wasReadOnly;
+                const long long room = (long long)PLAYERBOT_GOLD_MAX - 1 - (shop ? (long long)shop->GetTotalYangValue() : 0LL);
+                const long long fits = room > 0 ? room / (unit * 2) : 0;
+                if (fits < take)
+                    take = (int)std::max<long long>(0, fits);
+            }
+            cutNote.shape = per::SHAPE_NATURAL_LINE;
+            cutNote.keep = 0;
+            if (take <= 0) return -1;
+            if (take >= count) { cutNote.from = 0; return cell; }
+            if (CountPlayerBotFreeInventoryCells(ch) <= PLAYERBOT_SHOP_SPLIT_KEEP_FREE_CELLS) return -1;
+            const int to = ch->GetEmptyInventory(item->GetSize());
+            if (to < 0 || !ch->MoveItem(TItemPos(INVENTORY, cell), TItemPos(INVENTORY, (WORD)to), take))
+                return -1;
+            sys_log(0, "PLAYERBOT_OFFLINE: cut a line pid=%u name=%s vnum=%u units=%d left=%u soul_stone_stack=1",
+                ch->GetPlayerID(), ch->GetName(), item->GetVnum(), take, (unsigned int)item->GetCount());
             return to;
         }
         // MT2009_PLUS_DIGI_STACK_V1: a soul stone (a stack of up to 200 now)
@@ -3180,9 +3261,12 @@ namespace {
                 if (chained) state.offlineShop.nextService = now + PLAYERBOT_STALL_WEAK_TAKEOFF_STEP_MS;
                 return false;
             }
-            if (BotOfflineRestack(ch, state, shop, now)) {
+            if (BotOfflineRestack(ch, state, shop, now, chained)) {
                 BotOfflineFinishVisit(ch, state, now);
-                BotOfflineChainVisit(state, now);
+                // MT2009_PLUS_BOT_BOOK_RESTACK_FAST_V1: a book run's steps
+                // outside the restock chain's count.
+                if (chained) state.offlineShop.nextService = now + PLAYERBOT_STALL_WEAK_TAKEOFF_STEP_MS;
+                else BotOfflineChainVisit(state, now);
                 return false;
             }
         }

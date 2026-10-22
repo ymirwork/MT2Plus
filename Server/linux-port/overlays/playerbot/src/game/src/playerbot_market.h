@@ -175,7 +175,10 @@ namespace
 		LPITEM worn = ch->GetWear(WEAR_WEAPON);
 		if (worn && IsPlayerBotScrollFreeGear(worn))
 			worn = NULL;
-		if (worn && worn->GetRefinedVnum() != 0 &&
+		// MT2009_PLUS_REFINE_GLOBAL_V1: a +9 whose next item is another one (the global
+		// "+9 -> next item" steps) is at its end for the scroll too (MT2009_PLUS_237_GLOBAL_MODE_V1:
+		// M2_BONUS_MODE=global only - mt2009 as it was).
+		if (worn && worn->GetRefinedVnum() != 0 && (worn->GetRefineLevel() < 9 || !::BonusModeGlobal()) &&
 				(IsPlayerBotScrollOnlyWeapon(worn) || IsPlayerBotSpecialLevel30Weapon(worn)))
 			return true;
 		if (worn && worn->GetRefinedVnum() != 0 && IsPlayerBotAnvilTableWeapon(worn) &&
@@ -190,7 +193,8 @@ namespace
 			return true;
 		TPlayerBotLevel30View view;
 		ReadPlayerBotLevel30View(ch, view);
-		return view.project != NULL && view.project->GetRefinedVnum() != 0;
+		return view.project != NULL && view.project->GetRefinedVnum() != 0 &&
+				(view.project->GetRefineLevel() < 9 || !::BonusModeGlobal());	// MT2009_PLUS_REFINE_GLOBAL_V1
 	}
 
 	// Would this bot rather have the item than the money?
@@ -220,20 +224,6 @@ namespace
 				LPITEM held = ch->GetInventoryItem(cell);
 				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
 						!IsPlayerBotGreenBonusStone(held->GetVnum()))
-					return false;
-			}
-			return true;
-		}
-		// Zielony Czar (71151) i Zielona Sila (71152) - handel i skup przez boty <= 40 lvl:
-		if (IsPlayerBotGreenTradeableBonusVnum(offer->GetVnum()))
-		{
-			if ((int)ch->GetLevel() > 40 || !PlayerBotCanSpendBonusStoneKind(ch, offer) || offer->GetCount() > 1)
-				return false;
-			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
-			{
-				LPITEM held = ch->GetInventoryItem(cell);
-				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
-						IsPlayerBotGreenBonusStone(held->GetVnum()))
 					return false;
 			}
 			return true;
@@ -780,7 +770,7 @@ namespace
 		// MT2009_PLUS_TRADEABLE_BONUS_V2: the tradeable change or add at its
 		// fair price at most (the sheet's, scaled), out of a fifth of what the
 		// bot can spare.
-		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()) || IsPlayerBotGreenTradeableBonusVnum(item->GetVnum()))
+		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()))
 			return price <= (long long)GetPlayerBotShopAskingPrice(item) &&
 					price <= spare * PLAYERBOT_TRADEABLE_BONUS_BUY_PURSE_PERCENT / 100;
 		// MT2009_PLUS_RANK_FRUIT_MARKET_V1: a rank fruit near the price table,

@@ -147,6 +147,34 @@ SCHEMA = [
     _e("PLAYERBOT_CH2_SHARE", "Odsetek botów poza CH1 (%)",
        "Jaki procent botów gra poza CH1 (10–90): na CH2, a z włączonym CH3/CH4 – po równo na CH2–CH4. Boty ze straganami i tak zostają na CH1.",
        "boty", "int", "40", ["game"], min=10, max=90, step=5),
+    # MT2009_PLUS_BOT_YOHARA_HANDOVER_V1 / MT2009_PLUS_237_ZAKLETY_LAS_V1: the bots between the game cores
+    # (playerbot_yohara_bots.h).
+    _e("PLAYERBOT_HANDOVER", "Boty przechodzą między rdzeniami",
+       "Włączone: boty przechodzą na rdzeń, który hostuje mapę (Zaklęty Las, wypady po drop na mapy 90), "
+       "i wracają do swojej wioski. Zdarzenie m2_bot_handover_off 1 wyłącza to w locie i odsyła boty do domu.",
+       "boty", "bool", "1", ["game"]),
+    _e("PLAYERBOT_HANDOVER_CHANNELS", "Kanały z przejściami botów",
+       "Na których kanałach boty przechodzą między rdzeniami (lista, np. 1 albo 1,2). Każdy kanał to osobne siatki map w pamięci.",
+       "boty", "string", "1,2,3,4,5,6", ["game"]),
+    _e("PLAYERBOT_ZAKLETY_MAX", "Boty w Zaklętym Lesie (na kanał)",
+       "Ilu botów naraz expi w Zaklętym Lesie (mapa 353, rdzeń game3). Wchodzą przez Świątynię Ochao i portal Strażnika En-Tai. 0 = nikt.",
+       "boty", "int", "30", ["game"], min=0, max=300),
+    _e("PLAYERBOT_ZAKLETY_MIN_LEVEL", "Zaklęty Las od poziomu",
+       "Od jakiego poziomu boty idą expić do Zaklętego Lasu (95–109; od 110 bot z lasu wyrasta).",
+       "boty", "int", "100", ["game"], min=95, max=109),
+    _e("PLAYERBOT_ZAKLETY_MIN_HP", "Zaklęty Las: minimalne PŻ bota",
+       "Bot idzie do Zaklętego Lasu tylko z co najmniej tyloma maks. PŻ (słabsze giną od paczek En-Tai). 0 = bez sprawdzania.",
+       "boty", "int", "20000", ["game"], min=0, max=1000000),
+    _e("PLAYERBOT_ZAKLETY_STAY_MIN", "Wyprawa do Zaklętego Lasu (min)",
+       "Ile minut bot zostaje w Zaklętym Lesie, zanim wróci do wioski (zapas mikstur uzupełnia na miejscu).",
+       "boty", "int", "120", ["game"], min=20, max=600),
+    _e("PLAYERBOT_LOOTRUN_MAX", "Wypady botów po drop na mapy 90 (na kanał)",
+       "Ilu botów (od 95 poziomu) naraz bije tylko Metiny i bossów na mapach 90. 0 = wyłączone.",
+       "boty", "int", "6", ["game"], min=0, max=200),
+    _e("PLAYERBOT_LOOTRUN_MAPS", "Mapy wypadów po drop",
+       "Lista map: 301 Przylądek Smoczego Ognia, 302 Zbocze Gautama, 303 Nefrytowa Zatoka, 304 Gromiste Góry – wszystkie na rdzeniu game3 "
+       "(siatki botów: 301 ~160 MB, 302 ~125 MB, 303 ~80 MB, 304 ~107 MB pamięci na kanał).",
+       "boty", "string", "301,302,303,304", ["game"]),
     # MT2009_PLUS_CH34_V1: the third and fourth channel, same principle as CH2.
     _e("M2_PLAYERBOT_CH3", "Trzeci kanał (CH3)",
        "Włączone: serwer uruchamia trzeci kanał – trzy kolejne rdzenie gry na własnych procesach (ok. 2,5–3 GB RAM więcej i od pół do jednego rdzenia CPU pod obciążeniem), "
@@ -167,6 +195,11 @@ SCHEMA = [
        "split = trzy rdzenie, szybsze przy bardzo dużej liczbie botów, ale dwa królestwa nie mają gdzie rosnąć.",
        "boty", "enum", "unified", ["game"],
        options=[["unified", "unified – jeden rdzeń dla całego świata"], ["split", "split – każde królestwo na swoim rdzeniu"]]),
+    # MT2009_PLUS_237_NEWCORE_V1: the fourth game core of a channel (bin/m2-render-config).
+    _e("M2_MAP_CORE", "Osobny rdzeń dla nowych map",
+       "Włączone: Zaklęty Las (353) i mapy 90 (301–304) stoją na osobnym rdzeniu game3 w każdym kanale (port 13003 na CH1, 13004–13006 na CH2–CH4). "
+       "Wyłączone: te mapy wracają na rdzeń game2, bez game3 – ok. 0,15 GB RAM na kanał mniej, dla komputera z małą ilością pamięci.",
+       "boty", "bool", "1", ["game"], dangerous=True),
     _e("M2_PLAYERBOT_DISABLE_STUDENT_CHEST", "Boty bez Skrzyni Ucznia",
        "Włączone: nowe boty nie dostają Skrzyni Ucznia (integracja panelu Seban). Ogólny przełącznik skrzyni to „Skrzynia Ucznia” w Modułach.",
        "boty", "bool", "0", GAME),
@@ -209,6 +242,20 @@ SCHEMA = [
        "Panel klasyczny zmienia to od razu; ta wartość obowiązuje, gdy ją zmienisz.",
        "swiat", "string", "default", GAME, pattern=r"default|easy|[1-9]\d|[12]\d\d|300",
        hint="default, easy albo liczba od 10 do 300", suggestions=["default", "easy", "50", "150", "200"]),
+    _e("M2_BONUS_MODE", "Tryb global (bonusy, żywioły, ulepszanie, potwory)",
+       "mt2009 = MT2009 PLUS jak dotąd: Maks. PŻ do 1500, Maks. PE do 250, regeneracja do 12%, żywioły mają bossowie i wybrane "
+       "mapy oraz lochy, odporność na żywioł odejmuje cały swój procent, nasze ulepszanie i nasze potwory. global = ustawienia "
+       "serwera globalnego: bonusy (Maks. PŻ do 2000, Maks. PE do 80, 200 na naszyjniku, regeneracja do 30%, odporność na ogień, "
+       "błyskawice i wiatr na zbroi, bransolecie i hełmie, szansa na bonus doświadczenia i na podwójną ilość przedmiotów, bez "
+       "wytrzymałości, czasu trwania umiejętności, odbicia strzał i stałego doświadczenia), stałe bonusy przedmiotów, żywioł "
+       "każdego potwora (odporność działa w 30%: 15% = 4,5% mniej obrażeń), domyślne bonusy alchemii (Smocze Kamienie), "
+       "ulepszanie (szansa, Yang i ulepszacze każdego kroku) oraz wartości potworów (PŻ, obrażenia, PD, poziom, obrona, "
+       "odporności, rangi) i ich drop. Przedmioty zachowują wszystkie bonusy, które już mają; można przełączać w obie strony, "
+       "powrót do mt2009 przywraca świat dokładnie.",
+       "swiat", "enum", "mt2009", GAME,
+       options=[["mt2009", "mt2009 – MT2009 PLUS jak dotąd"], ["global", "global – jak na serwerze globalnym"]],
+       note="Działa po restarcie serwera gry (migrator przełącza bonusy, żywioły, ulepszanie i potwory; drop i alchemię "
+            "wczytuje serwer gry przy starcie)."),
     _e("M2_MOONLIGHT_CHEST_PERMILLE", "Szkatułka Blasku Księżyca z potworów (‰)",
        "Szansa w promilach (10 = 1%), że zabity potwór upuści Szkatułkę Blasku Księżyca. Działa w trakcie wydarzenia ustawionego w panelu. 0 wyłącza.",
        "swiat", "int", "10", ["game"], min=0, max=1000),
@@ -228,7 +275,7 @@ SCHEMA = [
 
     # ------------------------------------------------------------------ Moduły
     _e("M2_AREZZO", "Moduł Arezzo",
-       "Mapy i lochy z Arezzo: Dolina Cyklopów, Pustkowie Faraona, Zaczarowany Las, Biblioteka Wiedzy, Wzgórze Wukonga, Ruiny Skorpiona, Starożytna Dżungla "
+       "Mapy i lochy z Arezzo: Dolina Cyklopów, Pustkowie Faraona, Biblioteka Wiedzy, Wzgórze Wukonga, Ruiny Skorpiona, Starożytna Dżungla "
        "oraz zestawy kostiumów w ItemShopie. Panel klasyczny przełącza go od razu.",
        "moduly", "bool", "0", GAME),
     _e("M2_SEONHAE", "Seon-Hae (6/7 bonus)", "NPC Seon-Hae w pierwszych wioskach dodaje 6. i 7. bonus. Panel klasyczny przełącza go od razu i ustawia czas oczekiwania.",
@@ -286,11 +333,11 @@ SCHEMA = [
        "siec", "int", "1", ["game"], min=1, max=4, dangerous=True,
        note="Przy zapisie aktualizator dopasuje zakresy portów gry."),
     _e("M2_GAME_PORT_RANGE", "Zakres portów gry (host)",
-       "Porty kanałów otwierane na tym komputerze. 13000-13002 = jeden kanał, 13000-13012 = dwa, 13000-13022 = trzy, 13000-13032 = cztery. Zwykle ustawiane automatycznie.",
-       "siec", "portrange", "13000-13002", ["game", "panel"], dangerous=True),
+       "Porty kanałów otwierane na tym komputerze. 13000-13003 = jeden kanał (13003 - rdzeń map 90 i Zaklętego Lasu), 13000-13012 = dwa, 13000-13022 = trzy, 13000-13032 = cztery. Zwykle ustawiane automatycznie.",
+       "siec", "portrange", "13000-13003", ["game", "panel"], dangerous=True),
     _e("M2_GAME_CONTAINER_PORT_RANGE", "Zakres portów gry (kontener)",
        "To samo po stronie kontenera – musi mieć tę samą długość co zakres hosta. Zwykle ustawiane automatycznie.",
-       "siec", "portrange", "13000-13002", ["game"], dangerous=True),
+       "siec", "portrange", "13000-13003", ["game"], dangerous=True),
     _e("M2_GAME_PORT_BASE", "Pierwszy port kanałów w kontenerze",
        "Port, od którego rdzenie gry liczą porty kanałów wewnątrz kontenera. 13000, chyba że na tym samym komputerze stoi drugi serwer.",
        "siec", "port", "13000", ["game"], dangerous=True),
@@ -590,7 +637,7 @@ def validate(key, value):
     if kind == "portrange":
         match = re.fullmatch(r"(\d{1,5})-(\d{1,5})", value)
         if not match or not 1 <= int(match.group(1)) <= int(match.group(2)) <= 65535:
-            return "zakres portów, np. 13000-13002"
+            return "zakres portów, np. 13000-13003"
         return None
     if kind == "address":
         return None if re.fullmatch(_IPV4, value) else "adres IPv4, np. 0.0.0.0 albo 127.0.0.1"

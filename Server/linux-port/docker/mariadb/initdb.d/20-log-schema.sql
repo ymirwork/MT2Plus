@@ -288,8 +288,7 @@ CREATE TABLE IF NOT EXISTS `ikarusshop_log` (
   `time` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `who_idx` (`who`),
-  KEY `shop_owner_idx` (`shop_owner`),
-  KEY `idx_vnum_what_time` (`vnum`, `what`, `time`)
+  KEY `shop_owner_idx` (`shop_owner`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `playerbot_listing` (

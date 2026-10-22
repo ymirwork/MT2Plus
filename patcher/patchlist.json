@@ -413,6 +413,48 @@
   "delete": 0
  },
  {
+  "name": "pack\\cape_map.data",
+  "size": 6201088,
+  "md5": "E0E379DE01F6B4A754F61DA8A02133DC",
+  "uid": "e0e379de01f6b4a754f61da8a02133dc",
+  "delete": 0
+ },
+ {
+  "name": "pack\\cape_map.index",
+  "size": 11228,
+  "md5": "5A61DDC985E1BF08CB8223E879F9A7D5",
+  "uid": "5a61ddc985e1bf08cb8223e879f9a7d5",
+  "delete": 0
+ },
+ {
+  "name": "pack\\cape_mobs.data",
+  "size": 14069760,
+  "md5": "D127E8659F1AE0603BD7EEAE5211E609",
+  "uid": "d127e8659f1ae0603bd7eeae5211e609",
+  "delete": 0
+ },
+ {
+  "name": "pack\\cape_mobs.index",
+  "size": 19084,
+  "md5": "934ABA75263C41C00F784F53AC795C54",
+  "uid": "934aba75263c41c00f784f53ac795c54",
+  "delete": 0
+ },
+ {
+  "name": "pack\\cape_obj.data",
+  "size": 21209856,
+  "md5": "B5B52108182622EAF550BD133423F18A",
+  "uid": "b5b52108182622eaf550bd133423f18a",
+  "delete": 0
+ },
+ {
+  "name": "pack\\cape_obj.index",
+  "size": 10036,
+  "md5": "80EC211FB86A26500E929FEB406E85D0",
+  "uid": "80ec211fb86a26500e929feb406e85d0",
+  "delete": 0
+ },
+ {
   "name": "pack\\catacomb_map.data",
   "size": 43560704,
   "md5": "4AEDD1FBC66D73FB942ED18F03CC5E0D",
@@ -428,17 +470,17 @@
  },
  {
   "name": "pack\\dbdata.data",
-  "size": 407552,
-  "md5": "6D58D61E45F641B00CA005D4D04D6CFA",
-  "uid": "6d58d61e45f641b00ca005d4d04d6cfa",
+  "size": 408832,
+  "md5": "A5F95894FC7CE9549D45EF22EB99D2B1",
+  "uid": "a5f95894fc7ce9549d45ef22eb99d2b1",
   "delete": 0,
   "keep": 1
  },
  {
   "name": "pack\\dbdata.index",
   "size": 292,
-  "md5": "1CE7E6D396D0D5EE216C68F3C8026D6A",
-  "uid": "1ce7e6d396d0d5ee216c68f3c8026d6a",
+  "md5": "7EF845B164835C295034951BDF7F1A4D",
+  "uid": "7ef845b164835c295034951bdf7f1a4d",
   "delete": 0,
   "keep": 1
  },
@@ -454,6 +496,20 @@
   "size": 4084,
   "md5": "7AF41BFE1AE8A91B36031C656AB26765",
   "uid": "7af41bfe1ae8a91b36031c656ab26765",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gautama_map.data",
+  "size": 5095168,
+  "md5": "B903CD55DDBA3924919FDD01DEF02A6B",
+  "uid": "b903cd55ddba3924919fdd01def02a6b",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gautama_map.index",
+  "size": 9268,
+  "md5": "4EA7892CE9E9B4DA23B694DD59706572",
+  "uid": "4ea7892ce9e9b4da23b694dd59706572",
   "delete": 0
  },
  {
@@ -541,6 +597,20 @@
   "delete": 0
  },
  {
+  "name": "pack\\gromiste_map.data",
+  "size": 3846912,
+  "md5": "C0957FE4811495CC8217127D2FBF5133",
+  "uid": "c0957fe4811495cc8217127d2fbf5133",
+  "delete": 0
+ },
+ {
+  "name": "pack\\gromiste_map.index",
+  "size": 7324,
+  "md5": "2A0921F5ED3E184AFCE1E34B8030B787",
+  "uid": "2a0921f5ed3e184afce1e34b8030b787",
+  "delete": 0
+ },
+ {
   "name": "pack\\icon.data",
   "size": 7179776,
   "md5": "0C39CE73725DD4769B734BFD1D1A5867",
@@ -556,23 +626,23 @@
  },
  {
   "name": "pack\\Index",
-  "size": 1014,
-  "md5": "B66B5CDF56D9CC6EA9403B0FEE987B84",
-  "uid": "b66b5cdf56d9cc6ea9403b0fee987b84",
+  "size": 1160,
+  "md5": "1D7EC6A71EC327D63CE65C32AA584620",
+  "uid": "1d7ec6a71ec327d63ce65c32aa584620",
   "delete": 0
  },
  {
   "name": "pack\\locale.data",
-  "size": 18406656,
-  "md5": "577FAAAAFB0B334084F6D758F8A8BB09",
-  "uid": "577faaaafb0b334084f6d758f8a8bb09",
+  "size": 18425856,
+  "md5": "4A4F06B258D0318122FEFE5AD678EB30",
+  "uid": "4a4f06b258d0318122fefe5ad678eb30",
   "delete": 0
  },
  {
   "name": "pack\\locale.index",
   "size": 23500,
-  "md5": "FA26800D57CEC208E7D378F3BA22B800",
-  "uid": "fa26800d57cec208e7d378f3ba22b800",
+  "md5": "4EE789202EA29E4F99BBFA547F08D824",
+  "uid": "4ee789202ea29e4f99bbfa547f08d824",
   "delete": 0
  },
  {
@@ -633,30 +703,30 @@
  },
  {
   "name": "pack\\property.data",
-  "size": 413440,
-  "md5": "39C784D5053828A6388B8D4FD11C6D06",
-  "uid": "39c784d5053828a6388b8d4fd11c6d06",
+  "size": 433664,
+  "md5": "E95830C14C3361823CF15F54B9E0548B",
+  "uid": "e95830c14c3361823cf15f54b9e0548b",
   "delete": 0
  },
  {
   "name": "pack\\property.index",
-  "size": 56252,
-  "md5": "90A9B212D07CED6171C1E60B3C7084E1",
-  "uid": "90a9b212d07ced6171c1e60b3c7084e1",
+  "size": 58692,
+  "md5": "C81551593C85875A42E0D9037D8CB895",
+  "uid": "c81551593c85875a42e0d9037d8cb895",
   "delete": 0
  },
  {
   "name": "pack\\root.data",
-  "size": 15046400,
-  "md5": "3C4316145D305FBE302DED48F48FE334",
-  "uid": "3c4316145d305fbe302ded48f48fe334",
+  "size": 15072512,
+  "md5": "5613134F7FB11D6D24827091505B8684",
+  "uid": "5613134f7fb11d6d24827091505b8684",
   "delete": 0
  },
  {
   "name": "pack\\root.index",
-  "size": 30324,
-  "md5": "F33EC9A88B9E643AAAB96360C18CD9BD",
-  "uid": "f33ec9a88b9e643aaab96360c18cd9bd",
+  "size": 30644,
+  "md5": "01EBB78437F87D5CC6C757A1B8D5DD01",
+  "uid": "01ebb78437f87d5cc6c757a1b8d5dd01",
   "delete": 0
  },
  {
@@ -671,6 +741,90 @@
   "size": 1140,
   "md5": "ECC13AADEC5B99632B099004F53B7537",
   "uid": "ecc13aadec5b99632b099004f53b7537",
+  "delete": 0
+ },
+ {
+  "name": "pack\\yohara_mobs.data",
+  "size": 16666880,
+  "md5": "488FA94264856A3B0ABCE0E2FE695D81",
+  "uid": "488fa94264856a3b0abce0e2fe695d81",
+  "delete": 0
+ },
+ {
+  "name": "pack\\yohara_mobs.index",
+  "size": 24980,
+  "md5": "CFCB77BE1DA406C25484E6383370D9E4",
+  "uid": "cfcb77be1da406c25484e6383370d9e4",
+  "delete": 0
+ },
+ {
+  "name": "pack\\yohara_obj.data",
+  "size": 10461952,
+  "md5": "B27F8B705CC6C95A6BE3AE328A846E25",
+  "uid": "b27f8b705cc6c95a6be3ae328a846e25",
+  "delete": 0
+ },
+ {
+  "name": "pack\\yohara_obj.index",
+  "size": 11084,
+  "md5": "DA513C03E700A1B09BA115CF9343B506",
+  "uid": "da513c03e700a1b09ba115cf9343b506",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zaklety_map.data",
+  "size": 1295104,
+  "md5": "57B3E3CB1AA05C33FCBF0E36486AAA68",
+  "uid": "57b3e3cb1aa05c33fcbf0e36486aaa68",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zaklety_map.index",
+  "size": 4132,
+  "md5": "7192E0EEDBB28A2E3344C129A020D512",
+  "uid": "7192e0eedbb28a2e3344c129a020d512",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zaklety_mobs.data",
+  "size": 7118592,
+  "md5": "5D319B6948CF25FB6C8206142ACEB65E",
+  "uid": "5d319b6948cf25fb6c8206142aceb65e",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zaklety_mobs.index",
+  "size": 11556,
+  "md5": "013E8C58936543763A4B2801230AF57E",
+  "uid": "013e8c58936543763a4b2801230af57e",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zaklety_obj.data",
+  "size": 6491648,
+  "md5": "34E81C17AF90B9BC8C47C1B044551835",
+  "uid": "34e81c17af90b9bc8c47c1b044551835",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zaklety_obj.index",
+  "size": 5052,
+  "md5": "41744248DBE814B1554B6A2418ECF84A",
+  "uid": "41744248dbe814b1554b6a2418ecf84a",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zatoka_map.data",
+  "size": 4375808,
+  "md5": "F7D266BE5716C631A7796D21F728EAC8",
+  "uid": "f7d266be5716c631a7796d21f728eac8",
+  "delete": 0
+ },
+ {
+  "name": "pack\\zatoka_map.index",
+  "size": 6092,
+  "md5": "DC1BD2E553F238B7487D9482032FC9D5",
+  "uid": "dc1bd2e553f238b7487d9482032fc9d5",
   "delete": 0
  },
  {
@@ -718,8 +872,8 @@
  {
   "name": "CLIENT_VERSION",
   "size": 7,
-  "md5": "54B4EBF460B0AA2B74B5304D4C30A06A",
-  "uid": "54b4ebf460b0aa2b74b5304d4c30a06a",
+  "md5": "39DE72739EEB2AC10B00DA966876A389",
+  "uid": "39de72739eeb2ac10b00da966876a389",
   "delete": 0
  }
 ]

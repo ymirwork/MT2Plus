@@ -2687,6 +2687,21 @@ namespace
 		return ch && GetPlayerBotPersonalityByPID(ch->GetPlayerID()) == BOT_PERSONALITY_L30_WEAPON_DROPPER;
 	}
 
+	// MT2009_PLUS_HARDCORE_L30_RECYCLE_V1:
+	// High value level-30 weapons on a hard server: average damage >= 25%,
+	// skill damage >= 8%, or refined to +7..+9.
+	// These are valuable assets: never vendored to NPC, always preserved for market or scrolls.
+	bool IsPlayerBotHighValueLevel30(LPITEM item)
+	{
+		if (!item || !IsPlayerBotSpecialLevel30Weapon(item))
+			return false;
+		if (item->GetRefineLevel() >= 7)
+			return true;
+		const long avg = SumPlayerBotItemLines(item, APPLY_NORMAL_HIT_DAMAGE_BONUS);
+		const long skill = SumPlayerBotItemLines(item, APPLY_SKILL_DAMAGE_BONUS);
+		return (avg >= 25 || skill >= 8);
+	}
+
 	// What a bot picks up and keeps for a player's crafting whatever the
 	// merchant pays for it (PLAYERBOT_PICKUP_GOODS_VNUMS): the herbalist's
 	// Gango Root and Tue Mushroom, the Crystal Earrings and the Ghost Face

@@ -88,5 +88,8 @@ const int MAX_DISTANCE = 1500;
 const DWORD ITEM_VNUM = 70115;
 
 void Command(LPCHARACTER ch, const char* argument);
+void EnsureLoaded(LPCHARACTER ch, bool forOpen = false);
+void OnDisconnect(LPCHARACTER ch);
+bool TryAutoCollector(LPCHARACTER ch, LPITEM item);
 
 }  // namespace playerbot_collector

@@ -2516,6 +2516,36 @@ namespace
 				!IsPlayerBotHerbGatherer(ch);
 	}
 
+	// MT2009_PLUS_HARDCORE_L30_RECYCLE_V1:
+	// Decide whether a level-30 weapon is scrap for the General Store merchant.
+	// On a hard server, weapons with low/negative average damage (<= 10%) or excessive
+	// surplus copies when the bag is getting full are vendored for pocket money,
+	// exactly like human players do on savage minions / bestials.
+	bool PlayerBotScrapLevel30ForMerchant(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || !IsPlayerBotSpecialLevel30Weapon(item) || item->IsEquipped() || item->isLocked())
+			return false;
+		if (IsPlayerBotHighValueLevel30(item))
+			return false;
+		if (item == FindPlayerBotClassLevel30Weapon(ch) || IsPlayerBotLevel30Project(ch, item) ||
+				IsPlayerBotSashGrailProject(ch, item) || PlayerBotKeepsLevel30ForAnvil(ch, item) ||
+				IsPlayerBotLottery30Piece(ch, item))
+			return false;
+
+		const long avg = SumPlayerBotItemLines(item, APPLY_NORMAL_HIT_DAMAGE_BONUS);
+		const BYTE plus = item->GetRefineLevel();
+
+		// Negative or very weak average damage (<= 10%) at +0..+3 is pure scrap
+		if (avg <= 10 && plus <= 3)
+			return true;
+
+		// When bag has multiple copies ahead, or bag is under pressure, surplus is scrap
+		if (plus <= 3 && (CountPlayerBotVnumUnitsAhead(ch, item) >= 1 || IsPlayerBotBagUnderPressure(ch)))
+			return true;
+
+		return false;
+	}
+
 	bool IsPlayerBotJunkItem(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item || item->IsEquipped() || item->isLocked())
@@ -2883,12 +2913,19 @@ namespace
 				return false;
 		}
 
-		// Level-30 weapons with average/skill damage are strategic market assets.
-		// Never vendor them: this also applies when the current owner is below level
-		// 30 or belongs to another class. They remain available for future playerbot
-		// trading/private shops instead of disappearing for a trivial NPC price.
+		// MT2009_PLUS_HARDCORE_L30_RECYCLE_V1:
+		// Level-30 weapons with high average/skill damage (>= 25% avg or >= 8% skill)
+		// are strategic market assets. Never vendor them.
+		// Surplus scrap (negative/low avg, or surplus copies filling the bag)
+		// is sold at the merchant when the bot already has enough copies or bag is full.
 		if (IsPlayerBotSpecialLevel30Weapon(item))
+		{
+			if (IsPlayerBotHighValueLevel30(item))
+				return false;
+			if (PlayerBotScrapLevel30ForMerchant(ch, item))
+				return true;
 			return false;
+		}
 
 		// The Archer's one stone weapon (playerbot_gear.h) is kept.
 		if (IsPlayerBotArcherBuild(ch) && IsPlayerBotStoneMeleeWeapon(ch, item) &&

@@ -77,6 +77,7 @@ struct TSession {
 	DWORD nonce = 0;
 	bool loaded = false;
 	bool tierWritable = false;
+	bool openRequested = false;
 	int tier = 0;
 	long mapIndex = 0;
 	long x = 0;
@@ -275,7 +276,9 @@ TSession* Live(LPCHARACTER ch, DWORD op)
 		return NULL;
 	}
 	if (ch->GetMapIndex() != s.mapIndex || DISTANCE_APPROX(ch->GetX() - s.x, ch->GetY() - s.y) > MAX_DISTANCE) {
-		s_sessions.erase(it);
+		s.openRequested = false;
+		if (ch->GetAccountFlag("collector_autodrop") <= 0)
+			s_sessions.erase(it);
 		SendRes(ch, op, RESULT_TOO_FAR, 0);
 		ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL close %d", CLOSE_FAR);
 		return NULL;
@@ -566,8 +569,9 @@ bool KeptCell(const std::string& mask, int cell)
 
 void SendAll(LPCHARACTER ch, TSession& s)
 {
-	ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL begin %d %u %u %d", s.tier, Capacity(s.tier), (unsigned)s.entries.size(),
-			s.tierWritable ? 1 : 0);
+	const int autoDrop = (ch->GetAccountFlag("collector_autodrop") > 0) ? 1 : 0;
+	ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL begin %d %u %u %d %d", s.tier, Capacity(s.tier), (unsigned)s.entries.size(),
+			s.tierWritable ? 1 : 0, autoDrop);
 	std::string line;
 	for (auto& kv : s.entries) {
 		const std::string e = Encode(kv.second);
@@ -632,7 +636,8 @@ void LoadItems(DWORD pid, DWORD handle, DWORD nonce, DWORD account)
 			}
 		}
 		s->loaded = true;
-		SendAll(ch, *s);
+		if (s->openRequested)
+			SendAll(ch, *s);
 	}, "SELECT id, count, vnum, socket0, socket1, socket2, "
 	   "attrtype0, attrvalue0, attrtype1, attrvalue1, attrtype2, attrvalue2, attrtype3, attrvalue3, "
 	   "attrtype4, attrvalue4, attrtype5, attrvalue5, attrtype6, attrvalue6 "
@@ -665,8 +670,16 @@ void Open(LPCHARACTER ch, bool byItem)
 		}
 	}
 	auto old = s_sessions.find(ch->GetPlayerID());
-	if (old != s_sessions.end() && old->second.handle == ch->GetDesc()->GetHandle() && !old->second.loaded) {
-		ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL err %d", OPEN_BUSY);	// still loading
+	if (old != s_sessions.end() && old->second.handle == ch->GetDesc()->GetHandle()) {
+		old->second.openRequested = true;
+		if (!old->second.loaded) {
+			ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL err %d", OPEN_BUSY);	// still loading
+			return;
+		}
+		old->second.mapIndex = ch->GetMapIndex();
+		old->second.x = ch->GetX();
+		old->second.y = ch->GetY();
+		SendAll(ch, old->second);
 		return;
 	}
 	PurgeOffline();
@@ -677,6 +690,7 @@ void Open(LPCHARACTER ch, bool byItem)
 	s.mapIndex = ch->GetMapIndex();
 	s.x = ch->GetX();
 	s.y = ch->GetY();
+	s.openRequested = true;
 	const DWORD pid = ch->GetPlayerID();
 	const DWORD handle = s.handle;
 	const DWORD nonce = s.nonce;
@@ -752,7 +766,33 @@ void Command(LPCHARACTER ch, const char* argument)
 		return;
 	}
 	if (!strcmp(word, "close")) {
-		s_sessions.erase(ch->GetPlayerID());
+		auto it = s_sessions.find(ch->GetPlayerID());
+		if (it != s_sessions.end()) {
+			it->second.openRequested = false;
+			if (ch->GetAccountFlag("collector_autodrop") <= 0)
+				s_sessions.erase(it);
+		}
+		return;
+	}
+	if (!strcmp(word, "autodrop")) {
+		int enabled = 0;
+		if (*a1)
+			str_to_number(enabled, a1);
+		else
+			enabled = (ch->GetAccountFlag("collector_autodrop") > 0) ? 0 : 1;
+		ch->SetAccountFlag("collector_autodrop", enabled ? 1 : 0, false, true);
+		if (enabled) {
+			EnsureLoaded(ch, false);
+		} else {
+			auto it = s_sessions.find(ch->GetPlayerID());
+			if (it != s_sessions.end() && !it->second.openRequested)
+				s_sessions.erase(it);
+		}
+		ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL autodrop %d", enabled ? 1 : 0);
+		if (enabled)
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("[Kolekcjoner] Automatyczny zapis dropu przy pelnym ekwipunku: WLACZONY."));
+		else
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("[Kolekcjoner] Automatyczny zapis dropu przy pelnym ekwipunku: WYLACZONY."));
 		return;
 	}
 
@@ -850,6 +890,166 @@ void Command(LPCHARACTER ch, const char* argument)
 	}
 
 	SendRes(ch, op, RESULT_BAD_REQUEST, 0);
+}
+
+void EnsureLoaded(LPCHARACTER ch, bool forOpen)
+{
+	if (!RealPlayer(ch))
+		return;
+	auto old = s_sessions.find(ch->GetPlayerID());
+	if (old != s_sessions.end() && old->second.handle == ch->GetDesc()->GetHandle()) {
+		if (forOpen) {
+			old->second.openRequested = true;
+			if (old->second.loaded)
+				SendAll(ch, old->second);
+		}
+		return;
+	}
+	PurgeOffline();
+	TSession s;
+	s.account = ch->GetDesc()->GetAccountTable().id;
+	s.handle = ch->GetDesc()->GetHandle();
+	s.nonce = ++s_nonce;
+	s.mapIndex = ch->GetMapIndex();
+	s.x = ch->GetX();
+	s.y = ch->GetY();
+	s.openRequested = forOpen;
+	const DWORD pid = ch->GetPlayerID();
+	const DWORD handle = s.handle;
+	const DWORD nonce = s.nonce;
+	const DWORD account = s.account;
+	s_sessions[pid] = s;
+	DBManager::instance().FuncQuery([pid, handle, nonce, account](SQLMsg* msg) {
+		TSession* s = NULL;
+		LPCHARACTER ch = Back(pid, handle, nonce, s);
+		if (!ch)
+			return;
+		s->tier = 0;
+		s->tierWritable = msg && msg->uiSQLErrno == 0;
+		if (s->tierWritable && msg->Get() && msg->Get()->pSQLResult) {
+			MYSQL_ROW row = mysql_fetch_row(msg->Get()->pSQLResult);
+			if (row && row[0])
+				str_to_number(s->tier, row[0]);
+		}
+		s->tier = MINMAX(0, s->tier, TIER_COUNT - 1);
+		LoadItems(pid, handle, nonce, account);
+	}, "SELECT tier FROM player.collector_storage WHERE account_id=%u", account);
+}
+
+void OnDisconnect(LPCHARACTER ch)
+{
+	if (ch)
+		s_sessions.erase(ch->GetPlayerID());
+}
+
+bool TryAutoCollector(LPCHARACTER ch, LPITEM item)
+{
+	if (!ch || !ch->IsPC() || !item)
+		return false;
+	if (ch->GetAccountFlag("collector_autodrop") <= 0)
+		return false;
+	if (ch->GetDesc() && ch->GetDesc()->IsBot())
+		return false;
+	if (ch->IsDead())
+		return false;
+
+	const DWORD vnum = item->GetOriginalVnum();
+	if (vnum == 0 || !Proto(vnum))
+		return false;
+	if (vnum == ITEM_VNUM || vnum == UNIQUE_ITEM_SAFEBOX_EXPAND)
+		return false;
+	if (IS_SET(item->GetAntiFlag(), ITEM_ANTIFLAG_SAFEBOX) && !StorableDespiteSafeboxFlag(vnum))
+		return false;
+	if (item->isLocked() || item->IsExchanging() || item->IsDragonSoul())
+		return false;
+	if (item->GetType() == ITEM_BELT && CBeltInventoryHelper::IsExistItemInBeltInventory(ch))
+		return false;
+	if (item->GetType() == ITEM_ELK)
+		return false;
+
+	auto it = s_sessions.find(ch->GetPlayerID());
+	if (it == s_sessions.end()) {
+		EnsureLoaded(ch, false);
+		return false;
+	}
+	TSession& s = it->second;
+	if (!s.loaded)
+		return false;
+
+	const DWORD count = item->GetCount();
+	const bool stacks = ProtoStacks(vnum) && ItemNoAttrs(item);
+
+	TPlayerItem* target = stacks ? MergeTarget(s, vnum, item->GetSockets()) : NULL;
+	if (target) {
+		const DWORD room = MAX_ENTRY_COUNT - MIN(MAX_ENTRY_COUNT, (DWORD)target->count);
+		if (room == 0) {
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("Magazyn kolekcjonera jest pelny."));
+			return false;
+		}
+		const DWORD n = MIN(count, room);
+		target->count += n;
+		SaveRecord(*target);
+
+		char hint[96];
+		snprintf(hint, sizeof(hint), "%u -> %u (%u)", n, target->id, (unsigned)target->count);
+		LogManager::instance().ItemLog(ch, item, "COLLECTOR AUTODROP MERGE", hint);
+
+		if (s.openRequested)
+			SendSet(ch, *target);
+
+		ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("[Kolekcjoner] Ekwipunek pelny! %s (%u szt.) trafia do Magazynu."), item->GetName(), n);
+
+		if (item->GetType() == ITEM_QUEST)
+			quest::CQuestManager::instance().PickupItem(ch->GetPlayerID(), item);
+
+		if (item->GetWindow() == GROUND)
+			item->RemoveFromGround();
+		else if (item->GetOwner())
+			item->RemoveFromCharacter();
+
+		item->SetSkipSave(true);
+		ITEM_MANAGER::instance().RemoveFromDelayedSave(item);
+		M2_DESTROY_ITEM(item);
+		return true;
+	}
+
+	if (s.entries.size() >= Capacity(s.tier)) {
+		ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("Magazyn kolekcjonera jest pelny."));
+		return false;
+	}
+
+	TPlayerItem r = RecordOf(item, s.account);
+	if (!r.id)
+		r.id = ITEM_MANAGER::instance().GetNewID();
+	if (!r.id)
+		return false;
+
+	SaveRecord(r);
+	s.entries[r.id] = r;
+
+	char hint[96];
+	snprintf(hint, sizeof(hint), "%u (id %u)", (unsigned)r.count, r.id);
+	LogManager::instance().ItemLog(ch, item, "COLLECTOR AUTODROP", hint);
+
+	if (s.openRequested) {
+		SendSet(ch, r);
+		ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL end %u", (unsigned)s.entries.size());
+	}
+
+	ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("[Kolekcjoner] Ekwipunek pelny! %s trafia do Magazynu."), item->GetName());
+
+	if (item->GetType() == ITEM_QUEST)
+		quest::CQuestManager::instance().PickupItem(ch->GetPlayerID(), item);
+
+	if (item->GetWindow() == GROUND)
+		item->RemoveFromGround();
+	else if (item->GetOwner())
+		item->RemoveFromCharacter();
+
+	item->SetSkipSave(true);
+	ITEM_MANAGER::instance().RemoveFromDelayedSave(item);
+	M2_DESTROY_ITEM(item);
+	return true;
 }
 
 }  // namespace playerbot_collector

@@ -31,13 +31,13 @@ def download_with_progress(url, dest_path):
 
 def build_server_package(repo_root, dist_dir):
     server_root = os.path.join(repo_root, 'Server')
-    base_zip = os.path.join(dist_dir, 'base_server_2.36.0.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.36.0/metin2-server-update-2.36.0.zip'
+    base_zip = os.path.join(dist_dir, 'base_server_2.37.0.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.37.0/metin2-server-update-2.37.0.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.36.0.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.0.zip')
     temp_dir = os.path.join(dist_dir, 'server_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -94,15 +94,19 @@ def build_server_package(repo_root, dist_dir):
     if os.path.exists(cp_src):
         shutil.copytree(cp_src, cp_dst, dirs_exist_ok=True)
 
-    # 6. Dockerfile and apply.sh
+    # 6. Dockerfile and apply.sh and compose
     shutil.copy2(os.path.join(server_root, 'linux-port/docker/game/Dockerfile'), os.path.join(temp_dir, 'linux-port/docker/game/Dockerfile'))
     shutil.copy2(os.path.join(server_root, 'linux-port/docker/mariadb/playerbot/apply.sh'), os.path.join(temp_dir, 'linux-port/docker/mariadb/playerbot/apply.sh'))
     shutil.copy2(os.path.join(server_root, 'linux-port/docker/mariadb/conf.d/99-metin2.cnf'), os.path.join(temp_dir, 'linux-port/docker/mariadb/conf.d/99-metin2.cnf'))
     shutil.copy2(os.path.join(server_root, 'linux-port/docker/docker-compose.yml'), os.path.join(temp_dir, 'linux-port/docker/docker-compose.yml'))
+    if os.path.exists(os.path.join(server_root, 'linux-port/docker/.env.example')):
+        shutil.copy2(os.path.join(server_root, 'linux-port/docker/.env.example'), os.path.join(temp_dir, 'linux-port/docker/.env.example'))
 
     # 7. Root info files
-    for rf in ['VERSION', 'MOD_VERSION', 'CLIENT_VERSION', 'CHANGELOG.md', 'update-manifest-mt2009.json']:
-        shutil.copy2(os.path.join(server_root, rf), temp_dir)
+    for rf in ['VERSION', 'MOD_VERSION', 'CLIENT_VERSION', 'CHANGELOG.md', 'update-manifest-mt2009.json', 'client-files.json']:
+        src_rf = os.path.join(server_root, rf)
+        if os.path.exists(src_rf):
+            shutil.copy2(src_rf, temp_dir)
 
     # Pack into target zip
     print(f"Compressing {target_zip}...")
@@ -124,13 +128,13 @@ def build_server_package(repo_root, dist_dir):
 
 def build_client_package(repo_root, dist_dir):
     klient_root = os.path.join(repo_root, 'Klient')
-    base_zip = os.path.join(dist_dir, 'base_client_2.0.67.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.36.0/metin2-client-update-2.0.67.zip'
+    base_zip = os.path.join(dist_dir, 'base_client_2.0.68.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.37.0/metin2-client-update-2.0.68.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.67.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.68.zip')
     temp_dir = os.path.join(dist_dir, 'client_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)

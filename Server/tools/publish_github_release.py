@@ -68,12 +68,12 @@ def upload_asset_curl(token, upload_url, file_path, name):
         print(f"Response parse error: {e}, raw: {res.stdout[:200]}")
         return None
 
-def main():
+def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     dist_dir = os.path.join(repo_root, 'dist')
     
-    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.36.0.zip')
-    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.67.zip')
+    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.0.zip')
+    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.68.zip')
 
     if not os.path.exists(srv_zip) or not os.path.exists(cli_zip):
         print(f"ERROR: Missing release zip files in {dist_dir}")
@@ -82,12 +82,12 @@ def main():
     token = get_github_token()
     print("GitHub token acquired successfully.")
 
-    tag = "v2.36.0-mod57"
-    release_name = "MT2009 PLUS v2.36.0-mod57 - Serwer 2.36.0 & Klient 2.0.67"
+    tag = "v2.37.0-mod58"
+    release_name = "MT2009 PLUS v2.37.0-mod58 - Serwer 2.37.0 & Klient 2.0.68"
 
-    body = """# 📦 MT2Plus Wydanie v2.36.0-mod57
+    body = f"""# 📦 MT2Plus Wydanie v2.37.0-mod58
 
-Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.36.0, mod-57 oraz Klient 2.0.67) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
+Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.37.0, mod-58 oraz Klient 2.0.68) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
 
 ---
 
@@ -100,35 +100,32 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 
 ---
 
-### 🤖 Nowości i Usprawnienia Upstream (2.36.0 / mod-57)
-• **Zabezpieczenie celów w lochach (Dungeon Target Respawn):** W 10 lochach (m.in. Wieża Demonów, Katakumby, Razador, Nemere, Wukong, Ruiny Skorpiona, Dżungla) utracony cel powraca samoczynnie – żaden etap lochu nie zamyka się przez zagubienie moba (`MT2009_PLUS_DUNGEON_TARGET_RESPAWN_V1`).
-• **Sklepy Botów do 4 Stron (320 pól):** Boty mogą teraz zarządzać sklepami o pojemności do 4 stron (`MT2009_PLUS_BOT_SHOP_PAGES4_V1`), oferując większą płynność handlu.
-• **Przenoszenie ksiąg między kanałami:** Boty z CH2 transportują cenne księgi na stragany na CH1 (`MT2009_PLUS_BOT_BOOK_STACKS_V1`).
-• **Zarządzanie Kamieniami Duszy +4:** Zaawansowana logika rynku i osadzania kamieni dusz +4 u botów (`playerbot_stone4.h`, `AI_STONE4_KEYS`).
-• **Biolog 70 lvl (Konar Zelkova):** Konar Zelkova (30165) stackuje się do 200 sztuk i dropi niezależnie od stanu ekwipunku (`collect_quest_lv70.quest`).
-• **Retencja Logów Bazy Danych:** Seban Panel otrzymał narzędzie retencji logów oraz ochronę zapytań `db_block` (`log_maintenance.py`, `db_logs.html`).
-• **Autołowy bez odwetu (No Revenge):** Natychmiastowe zatrzymanie flagi walki po wyłączeniu autołowów (`/autohunt_stop`).
+### 🌳 Nowości i Usprawnienia Upstream (2.37.0 / mod-58)
+• **Zaklęty Las (map 353) & Mapy 90+ (301-304):** Pełna integracja nowych lokacji wysokopoziomowych, mobów i bossów (En-Tai, Bagjanamu, Cape Dragon Head, Yohara mobs).
+• **Czwarty Rdzeń Mapowy (game3):** Wydzielenie mapy 353 i map 301-304 na dedykowany proces `ch1-game3` na porcie 13003 dla maksymalnej płynności i stabilności.
+• **Aktualizacja Portów:** Zakres portów gier rozszerzony do 13000-13003 w Docker Compose i konfiguracji `.env`.
+• **Flagi M2_BONUS_MODE & PLAYERBOT_HANDOVER:** Nowe dyrektywy silnika gry dla optymalizacji systemów bonusów oraz przekazywania sterowania botami.
+• **Pełna kompatybilność z mod-58:** Wszystkie schematy bazy danych i procedury mariadb zaktualizowane do najnowszego standardu.
 
 ---
 
-### 💻 Klient Gry 2.0.67
-• **Pełna obsługa 4-stronicowych sklepów botów:** Skalowanie siatki okna gościa w `offlineshopguest.py`.
-• **Naprawa Smoczej Alchemii w Sklepach Offline:** Poprawka typu slotu myszy (`SLOT_TYPE_DRAGON_SOUL_INVENTORY`) w `offlineshopmanage.py`.
-• **Zatrzymywanie Autołowów:** Wysłanie pakietu `/autohunt_stop` przy zatrzymaniu polowania w `uiautohunt.py`.
-• **Zsynchronizowany Patcher Web CDN:** Aktualizacja sum MD5/SHA256 na GitHub Pages.
+### 💻 Klient Gry 2.0.68
+• **Pełna obsługa nowych lokacji i assetów:** Kompatybilność z Zaklętym Lasem, mapami 90+ i nowymi modelami potworów.
+• **Zabezpieczenie AutoFish Guard:** Spójność pakietów i zabezpieczenie modułów wędkarskich.
+• **Zsynchronizowany Patcher Web CDN:** Aktualizacja sum kontrolnych i plików patchera na GitHub Pages.
 
 ---
 
 ### 📦 Sumy kontrolne załączonych archiwów (SHA-256)
-- **`metin2-server-update-2.36.0.zip`** (138 643 364 bytes)
-  `SHA-256: C40A196E97C418C4E3B42C8312C809947E3BF5767C074E5BC03AE8103A331A6C`
-- **`metin2-client-update-2.0.67.zip`** (620 662 105 bytes)
-  `SHA-256: D1F3B99190B25714E0AA1F32074F22EE277037F2AB76B453FFFAD7E5A4A4D7D8`
+- **`metin2-server-update-2.37.0.zip`** ({srv_size:,} bytes)
+  `SHA-256: {srv_hash}`
+- **`metin2-client-update-2.0.68.zip`** ({cli_size:,} bytes)
+  `SHA-256: {cli_hash}`
 
 ---
 
 📥 **Instrukcja Uruchomienia (Ready-to-Play):**
-1. Pobierz paczkę serwera `metin2-server-update-2.36.0.zip` oraz klienta `metin2-client-update-2.0.67.zip`.
+1. Pobierz paczkę serwera `metin2-server-update-2.37.0.zip` oraz klienta `metin2-client-update-2.0.68.zip`.
 2. Wypakuj serwer i uruchom `start.bat` (wymagany Docker Desktop).
 3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
@@ -140,10 +137,29 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Created release {rel_id}: {html_url}")
 
-    upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.36.0.zip")
-    upload_asset_curl(token, upload_url, cli_zip, "metin2-client-update-2.0.67.zip")
+    upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.37.0.zip")
+    upload_asset_curl(token, upload_url, cli_zip, "metin2-client-update-2.0.68.zip")
 
     print(f"\nSUCCESS! Release published at: {html_url}")
+    return html_url
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) >= 5:
+        publish_release(int(sys.argv[1]), sys.argv[2], int(sys.argv[3]), sys.argv[4])
+    else:
+        # Default placeholder / auto-calculate if files exist
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        dist_dir = os.path.join(repo_root, 'dist')
+        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.0.zip')
+        cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.68.zip')
+        import hashlib
+        def h(p):
+            x = hashlib.sha256()
+            with open(p, 'rb') as f:
+                while c := f.read(1024*1024):
+                    x.update(c)
+            return x.hexdigest().upper()
+        if os.path.exists(srv_zip) and os.path.exists(cli_zip):
+            publish_release(os.path.getsize(srv_zip), h(srv_zip), os.path.getsize(cli_zip), h(cli_zip))
+        else:
+            print("Usage: python publish_github_release.py <srv_size> <srv_hash> <cli_size> <cli_hash>")

@@ -2323,10 +2323,10 @@ namespace
 	// Buyer participation scales dynamically between 1% and 35% based on total market supply.
 	// The cost is scaled by the world's economy/inflation curve.
 	// =========================================================================
-	const int PLAYERBOT_LIQUIDATE_COMMON_BASE_UNITS = 50;
-	const int PLAYERBOT_LIQUIDATE_RARE_BASE_UNITS = 25;
-	const int PLAYERBOT_LIQUIDATE_COMMON_MIN_UNITS = 25;
-	const int PLAYERBOT_LIQUIDATE_RARE_MIN_UNITS = 12;
+	// MT2009_PLUS_HARD_ECONOMY: Baza 40 sztuk (zarowno zwykle jak i z plusem),
+	// z rabatem rynkowym do 25 sztuk przy powodzi (>1500 sztuk w sklepach).
+	const int PLAYERBOT_LIQUIDATE_BASE_UNITS = 40;
+	const int PLAYERBOT_LIQUIDATE_MIN_UNITS = 25;
 	const DWORD PLAYERBOT_LIQUIDATE_GAP_MS = 20 * 60 * 1000;
 	std::map<DWORD, DWORD> s_mapPlayerBotLiquidateNext;
 
@@ -2428,44 +2428,75 @@ namespace
 		}
 	}
 
+	bool IsPlayerBotTier1M1M2Material(DWORD vnum)
+	{
+		switch (vnum)
+		{
+			// M1/M2 i Dzicy Ludzie (Tier 1: wczesna faza gry -> Zielony Czar / Zielona Sila)
+			case 30003: // Nos Swini
+			case 30004: // Zab Dzika
+			case 30005: // Kawalek Zepsutej Zbroi
+			case 30010: // Zolc Niedzwiedzia
+			case 30011: // Klab
+			case 30017: // Ozdobna Spinka Do Wlosow
+			case 30018: // Czerwona Wstega
+			case 30021: // Kawalek Klejnotu
+			case 30027: // Futro Wilka
+			case 30028: // Szpon Wilka
+			case 30030: // Zardzewiale Ostrze
+			case 30031: // Ornament
+			case 30032: // Czarny Uniform
+			case 30033: // Stluczona Porcelana
+			case 30034: // Biala Wstega
+			case 30035: // Krem Do Twarzy
+			case 30039: // Kawalek Plotna
+			case 30041: // Shuriken
+			case 30042: // Pazur Tygrysa
+			case 30052: // Flaga
+			case 30053: // Niedzwiedzia Skora
+			case 30069: // Szpon Wilka +
+			case 30070: // Futro Wilka +
+			case 30071: // Zolc Niedzwiedzia +
+			case 30072: // Niedzwiedzia Skora +
+			case 30073: // Biala Wstega +
+			case 30074: // Czarny Uniform +
+			case 30075: // Shuriken +
+			case 30092: // Zdobycz Dzikusa
+			case 30271: // Ozdobna Spinka Do Wlosow
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	int GetPlayerBotLiquidationRequiredUnits(DWORD vnum)
 	{
-		int baseUnits = 0;
-		int minUnits = 0;
-		if (IsPlayerBotM1M2RareMaterial(vnum))
-		{
-			baseUnits = PLAYERBOT_LIQUIDATE_RARE_BASE_UNITS;
-			minUnits = PLAYERBOT_LIQUIDATE_RARE_MIN_UNITS;
-		}
-		else if (IsPlayerBotM1M2CommonMaterial(vnum))
-		{
-			baseUnits = PLAYERBOT_LIQUIDATE_COMMON_BASE_UNITS;
-			minUnits = PLAYERBOT_LIQUIDATE_COMMON_MIN_UNITS;
-		}
-		else
-		{
+		if (!IsPlayerBotM1M2RareMaterial(vnum) && !IsPlayerBotM1M2CommonMaterial(vnum))
 			return 0;
-		}
+
+		const int baseUnits = PLAYERBOT_LIQUIDATE_BASE_UNITS;
+		const int minUnits = PLAYERBOT_LIQUIDATE_MIN_UNITS;
 
 		// Dynamiczne skalowanie progu ulepszaczy zależne od podaży na rynku:
-		// Im wiecej danego ulepszacza lezy w sklepach, tym Kolekcjoner wymaga MNIEJ sztuk (znizka hurtowa).
+		// Baza 40 sztuk -> rabat do 25 sztuk przy zasileniu rynku powyzzej 1500 sztuk.
 		const TPlayerBotMarketLedgerEntry* entry = GetPlayerBotMarketLedgerEntry(vnum);
 		const DWORD supply = entry ? entry->dwSupplyUnits : 0;
 
 		int discount = 0;
-		if (supply >= 2000)
-			discount = (baseUnits - minUnits); // maksymalna zniżka: 50 -> 25, 25 -> 12
+		if (supply >= 1500)
+			discount = (baseUnits - minUnits); // maksymalny rabat: 40 -> 25
 		else if (supply > 100)
-			discount = (int)((long long)(supply - 100) * (baseUnits - minUnits) / 1900);
+			discount = (int)((long long)(supply - 100) * (baseUnits - minUnits) / 1400);
 
 		return std::max(minUnits, baseUnits - discount);
 	}
 
-	const DWORD PLAYERBOT_LIQUIDATE_BASE_FEE = 150000;
+	const DWORD PLAYERBOT_LIQUIDATE_TIER1_BASE_FEE = 50000;
+	const DWORD PLAYERBOT_LIQUIDATE_TIER2_BASE_FEE = 150000;
 
-	long long GetPlayerBotLiquidationFee()
+	long long GetPlayerBotLiquidationFee(bool isTier1 = false)
 	{
-		return (long long)ScalePlayerBotIwakuraPrice(PLAYERBOT_LIQUIDATE_BASE_FEE);
+		return (long long)ScalePlayerBotIwakuraPrice(isTier1 ? PLAYERBOT_LIQUIDATE_TIER1_BASE_FEE : PLAYERBOT_LIQUIDATE_TIER2_BASE_FEE);
 	}
 
 	bool ManagePlayerBotLiquidationM1M2(LPCHARACTER ch)
@@ -2475,10 +2506,6 @@ namespace
 		const DWORD now = get_dword_time();
 		std::map<DWORD, DWORD>::const_iterator next = s_mapPlayerBotLiquidateNext.find(ch->GetPlayerID());
 		if (next != s_mapPlayerBotLiquidateNext.end() && now < next->second)
-			return false;
-
-		const long long fee = GetPlayerBotLiquidationFee();
-		if ((long long)ch->GetGold() < fee * 2)
 			return false;
 
 		const DWORD commonMats[] = {
@@ -2524,16 +2551,26 @@ namespace
 		if (!material || reqUnits <= 0)
 			return false;
 
+		const bool isTier1 = IsPlayerBotTier1M1M2Material(material);
+		const long long fee = GetPlayerBotLiquidationFee(isTier1);
+		if ((long long)ch->GetGold() < fee * 2)
+			return false;
+
 		s_mapPlayerBotLiquidateNext[ch->GetPlayerID()] = now + PLAYERBOT_LIQUIDATE_GAP_MS;
 		ch->RemoveSpecifyItem(material, reqUnits);
 		ch->PointChange(POINT_GOLD, -fee);
 
-		const DWORD reward = (number(0, 1) == 0) ? 71284 : 71285;
+		// Tier 1 (M1/M2) daje handlowalny Zielony Czar (71151) / Zielona Sile (71152)
+		// Tier 2 (Orki/DT/Pustynia/Sohan) daje handlowalne Zaczarowanie (71284) / Wzmocnienie (71285)
+		const DWORD reward = isTier1
+			? ((number(0, 1) == 0) ? 71151 : 71152)
+			: ((number(0, 1) == 0) ? 71284 : 71285);
+
 		LPITEM made = ch->AutoGiveItem(reward, 1, -1, false);
 		if (made)
 			LogManager::instance().ItemLog(ch, made, "PLAYERBOT_M1M2_LIQUIDATION", made->GetName());
-		sys_log(0, "PLAYERBOT_M1M2_LIQUIDATION: liquidated pid=%u name=%s material=%u units=%d fee=%lld reward=%u gold=%lld",
-				ch->GetPlayerID(), ch->GetName(), material, reqUnits, fee, reward,
+		sys_log(0, "PLAYERBOT_M1M2_LIQUIDATION: liquidated pid=%u name=%s tier=%d material=%u units=%d fee=%lld reward=%u gold=%lld",
+				ch->GetPlayerID(), ch->GetName(), isTier1 ? 1 : 2, material, reqUnits, fee, reward,
 				(long long)ch->GetGold());
 		return true;
 	}
@@ -2585,7 +2622,7 @@ namespace
 		if (have >= reqUnits)
 			return false;
 		return (have + (int)offer->GetCount() <= reqUnits + 10) &&
-				((long long)ch->GetGold() > GetPlayerBotLiquidationFee() * 2);
+				((long long)ch->GetGold() > GetPlayerBotLiquidationFee(IsPlayerBotTier1M1M2Material(vnum)) * 2);
 	}
 
 	bool ManagePlayerBotBonusReroll(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)

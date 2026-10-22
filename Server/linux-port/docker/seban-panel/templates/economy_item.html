@@ -258,6 +258,160 @@ function filterSkillTable() {
   </table>
 </section>
 
+{# Moduł: Aktualne Oferty na Straganach #}
+<section class="panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px">
+    <div>
+      <h2 style="margin:0; font-size:17px">🛍️ Aktualne Oferty na Straganach Offline</h2>
+      <p class="muted" style="margin:3px 0 0; font-size:12.5px">Najtańsze tobołki graczy i botów (IkarusShop), na których ten przedmiot jest aktualnie wystawiony.</p>
+    </div>
+    {% if active_offers_list %}
+    <span class="badge" style="background:rgba(96,165,250,0.12); color:#60a5fa; border:1px solid rgba(96,165,250,0.3); padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600">
+      Na rynku: {{ market.offers }} ofert · {{ '{:,}'.format(market.units).replace(',', ' ') }} szt.
+    </span>
+    {% endif %}
+  </div>
+
+  {% if active_offers_list %}
+  <table>
+    <thead>
+      <tr>
+        <th>Sprzedawca</th>
+        <th>Nazwa Sklepu</th>
+        <th>Lokalizacja</th>
+        <th style="text-align:right">Ilość w Ofercie</th>
+        <th style="text-align:right">Cena / szt.</th>
+        <th style="text-align:right">Cena Całości</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in active_offers_list %}
+      <tr>
+        <td>
+          <a href="{{ url_for('player', pid=o.owner_id) }}" style="text-decoration:none; color:inherit; font-weight:600">
+            {% if o.is_person %}<span title="Postać gracza" style="color:#39e890">👤</span>{% else %}<span title="Bot" style="color:var(--muted)">🤖</span>{% endif %}
+            {{ o.seller_name }}
+          </a>
+          <span class="muted" style="font-size:11px">({{ o.seller_level }} lvl)</span>
+        </td>
+        <td>
+          <span style="font-weight:600; color:#ffe28a">„{{ o.shop_name }}”</span>
+        </td>
+        <td>
+          {% if empire_flag(o.empire) %}
+            <img class="empire-flag-inline" src="{{ empire_flag(o.empire) }}" alt="{{ empire_info(o.empire).name }}">
+          {% endif %}
+          <span>{{ o.map_name }}</span>
+          <span class="muted" style="font-size:11px">(CH{{ o.channel }})</span>
+        </td>
+        <td style="text-align:right; font-weight:600">
+          {{ '{:,}'.format(o.count).replace(',', ' ') }} szt.
+        </td>
+        <td style="text-align:right; font-weight:700; color:#39e890" title="{{ '{:,}'.format(o.unit_price).replace(',', ' ') }} Yang/szt.">
+          {{ format_yang(o.unit_price) }}
+        </td>
+        <td style="text-align:right; font-weight:600; color:var(--text)" title="{{ '{:,}'.format(o.total_price).replace(',', ' ') }} Yang">
+          {{ format_yang(o.total_price) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="muted" style="text-align:center; padding:20px; font-size:13px">
+    Brak aktywnych ofert tego przedmiotu na rynku offline w tej chwili.
+  </div>
+  {% endif %}
+</section>
+
+{# Moduł: Ostatnie Transakcje (Kto i za ile kupił) #}
+<section class="panel" style="border-left:4px solid #60a5fa">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px">
+    <div>
+      <h2 style="margin:0; font-size:17px">📜 Ostatnie Transakcje Rynkowe (Kto i za ile kupił)</h2>
+      <p class="muted" style="margin:3px 0 0; font-size:12.5px">Historia rzeczywistych zakupów ze straganów offline: nabywca, sprzedawca i faktyczna cena transakcyjna.</p>
+    </div>
+    {% if tx_stats and tx_stats.total_count > 0 %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <span class="badge" style="background:rgba(246,200,95,0.12); color:#f6c85f; border:1px solid rgba(246,200,95,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600">
+        Śr. cena z ostatnich zakupów: {{ format_yang(tx_stats.avg_unit_price) }}
+      </span>
+      <span class="badge" style="background:rgba(57,232,144,0.12); color:#39e890; border:1px solid rgba(57,232,144,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600">
+        Kupcy: {{ tx_stats.player_buyers }} graczy / {{ tx_stats.bot_buyers }} botów
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if recent_transactions %}
+  <table>
+    <thead>
+      <tr>
+        <th>Czas Zakupu</th>
+        <th>Kupujący</th>
+        <th>Sprzedawca</th>
+        <th style="text-align:right">Ilość</th>
+        <th style="text-align:right">Cena / szt.</th>
+        <th style="text-align:right">Wartość Zakupu</th>
+        <th style="text-align:right">Podatek Rynku</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tx in recent_transactions %}
+      <tr>
+        <td style="font-size:12px; color:var(--muted)">
+          <span title="{{ tx.date_str }}" style="cursor:help; border-bottom:1px dotted rgba(255,255,255,0.25)">
+            {{ tx.time_str }}
+          </span>
+          <small style="color:var(--muted); margin-left:4px">({{ tx.ago_str }})</small>
+        </td>
+        <td>
+          <a href="{{ url_for('player', pid=tx.buyer_id) }}" style="text-decoration:none; color:inherit; font-weight:600">
+            {% if tx.buyer_is_person %}<span title="Postać gracza" style="color:#39e890">👤</span>{% else %}<span title="Bot" style="color:var(--muted)">🤖</span>{% endif %}
+            {{ tx.buyer_name }}
+          </a>
+          {% if tx.buyer_level %}<span class="muted" style="font-size:11px">({{ tx.buyer_level }} lvl)</span>{% endif %}
+          {% if empire_flag(tx.buyer_empire) %}
+            <img class="empire-flag-inline" src="{{ empire_flag(tx.buyer_empire) }}" alt="{{ empire_info(tx.buyer_empire).name }}" title="{{ empire_info(tx.buyer_empire).name }}">
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('player', pid=tx.seller_id) }}" style="text-decoration:none; color:inherit; font-weight:600">
+            {% if tx.seller_is_person %}<span title="Postać gracza" style="color:#39e890">👤</span>{% else %}<span title="Bot" style="color:var(--muted)">🤖</span>{% endif %}
+            {{ tx.seller_name }}
+          </a>
+          {% if tx.seller_level %}<span class="muted" style="font-size:11px">({{ tx.seller_level }} lvl)</span>{% endif %}
+          {% if empire_flag(tx.seller_empire) %}
+            <img class="empire-flag-inline" src="{{ empire_flag(tx.seller_empire) }}" alt="{{ empire_info(tx.seller_empire).name }}" title="{{ empire_info(tx.seller_empire).name }}">
+          {% endif %}
+        </td>
+        <td style="text-align:right; font-weight:700; color:#ffe28a">
+          {{ '{:,}'.format(tx.count).replace(',', ' ') }} szt.
+        </td>
+        <td style="text-align:right; font-weight:700; color:#39e890" title="{{ '{:,}'.format(tx.unit_price).replace(',', ' ') }} Yang/szt.">
+          {{ format_yang(tx.unit_price) }}
+        </td>
+        <td style="text-align:right; font-weight:800; color:#ffe28a" title="{{ '{:,}'.format(tx.yang).replace(',', ' ') }} Yang">
+          {{ format_yang(tx.yang) }}
+        </td>
+        <td style="text-align:right; font-size:11.5px; color:var(--muted)">
+          {% if tx.tax_yang %}
+            <span title="Odprowadzony podatek: {{ '{:,}'.format(tx.tax_yang).replace(',', ' ') }} Yang">-{{ format_yang(tx.tax_yang) }}</span>
+          {% else %}
+            <span>—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="muted" style="text-align:center; padding:20px; font-size:13px">
+    Brak zarejestrowanych transakcji zakupu tego przedmiotu na rynku w ostatnim czasie.
+  </div>
+  {% endif %}
+</section>
+
 <script>
 const histCanvas = document.getElementById('item-history');
 if (histCanvas) {

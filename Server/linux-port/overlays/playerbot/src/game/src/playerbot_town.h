@@ -4918,7 +4918,7 @@ namespace
 		// MT2009_PLUS_TRADEABLE_BONUS_V2: the tradeable change and add
 		// (71284/71285) over what the bot keeps to spend itself
 		// (GetPlayerBotBonusStoneKeep) are the owner's counter goods.
-		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()))
+		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()) || IsPlayerBotGreenTradeableBonusVnum(item->GetVnum()))
 			return playerbot_stall_rules::HoldsSpare(CountPlayerBotVnumUnitsAhead(ch, item),
 					(int)item->GetCount(), GetPlayerBotCountedGoodsKeep(ch, item))
 					? PlayerBotGoods(PLAYERBOT_SHOP_RARE_GOODS_SCORE, per::GOODS_RARE_GOODS) : -1;

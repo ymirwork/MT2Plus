@@ -3579,6 +3579,13 @@ UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50621 AND 50640;
 UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50301 AND 50322;
 " >/dev/null 2>&1 || true
 
+# MT2009_PLUS_RINGS_WEAR_TIMER: Amulety i pierscienie (71145, 71149, 71148, 71136, 71135, 71143)
+# Czas uplywa tylko wtedy, gdy przedmiot jest zalozony (LIMIT_TIMER_BASED_ON_WEAR = 9)
+db -e "
+UPDATE world.item_proto SET limittype0 = 9 WHERE vnum IN (71145, 71149, 71148, 71136, 71135, 71143) AND limittype0 <> 9;
+UPDATE player.item SET socket0 = 2592000 WHERE vnum IN (71145, 71149, 71148, 71136, 71135, 71143) AND socket0 > 2592000;
+" >/dev/null 2>&1 || true
+
 # MT2009_PLUS_FRESH_INSTALL_FIX_V1: every row this script makes as a copy of another
 # (CREATE TEMPORARY TABLE ... AS SELECT * FROM world.<item|mob>_proto WHERE vnum = <source>, then
 # SET vnum = <copy>) has to be there now. A copy whose source did not exist yet adds nothing and

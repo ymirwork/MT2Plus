@@ -43,7 +43,9 @@ namespace mt2009_arezzo_costumes
 
 	inline bool ModuleClosed()
 	{
-		return quest::CQuestManager::instance().GetEventFlag("mt2009_arezzo_closed") > 0;
+		// MT2009_PLUS: Kostiumy, fryzury i nakladki Arezzo sa zawsze dostepne w ItemShopie
+		// (niezaleznie od wylaczenia map i dungeonow Arezzo flaga M2_AREZZO / mt2009_arezzo_closed).
+		return false;
 	}
 }
 

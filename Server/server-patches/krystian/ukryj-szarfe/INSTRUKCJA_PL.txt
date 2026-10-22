@@ -1,0 +1,31 @@
+========================================================================
+ INSTRUKCJA INSTALACJI MODYFIKACJI: UKRYJ SZARFĘ (MT2Plus)
+========================================================================
+
+Opis:
+Modyfikacja dodaje przycisk „Ukryj szarfę” / „Pokaż szarfę” w oknie kostiumów
+(pod przyciskiem „Ukryj broń”, a nad „Ukryj cudze”).
+Ukrywa wizualny model noszonej szarfy bez utraty jej bonusów i absorpcji.
+
+Instalacja automatyczna:
+1. Uruchom plik `INSTALUJ_AUTOMATYCZNIE.bat` znajdujący się w tym folderze.
+2. Skrypt automatycznie:
+   - Zaktualizuje kod C++ serwera (`item.cpp`, `cmd_general.cpp`),
+   - Wgra skrypty klienta do `Klient/pack/root/`,
+   - Spakuje nową paczkę `root.data` i `root.index`.
+3. Następnie przebuduj kontener serwera i zrestartuj go:
+   cd Server/linux-port/docker
+   docker compose down
+   docker compose build game
+   docker compose up -d
+
+Instalacja ręczna:
+1. Klient:
+   - Skopiuj `klient_pliki/root/uicostumehide.py` oraz `uiinventory.py`
+     do folderu `Klient/pack/root/`.
+   - Spakuj paczkę `root` za pomocą `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`.
+   - Zsynchronizuj serwer aktualizacji patchera: `python Server/tools/publish_patcher_web.py`.
+2. Serwer C++:
+   - Uruchom `python serwer_cpp/apply_hide_sash_server.py`.
+   - Przebuduj kontener `game`.
+========================================================================

@@ -3058,6 +3058,7 @@ function Invoke-M2DatabaseImport {
         # 1. Reversible backup of the current target world.
         $tgtC = Start-M2ThrowawayDb -Volume $TargetVolume
         foreach ($db in $script:M2_DB_LIST) {
+            if ($db -eq 'log') { continue }
             # No double quote may reach docker from PowerShell 5.1: it wraps a
             # native command's argument in double quotes without escaping the ones
             # inside it, so the first `" ends the argument and sh gets a broken
@@ -3077,6 +3078,7 @@ function Invoke-M2DatabaseImport {
         $srcC = Start-M2ThrowawayDb -Volume $SourceVolume
         $found = @()
         foreach ($db in $script:M2_DB_LIST) {
+            if ($db -eq 'log') { continue }
             $exists = & docker exec $srcC mariadb -uroot -N -B -e "SHOW DATABASES LIKE '$db'" 2>$null
             if (-not $exists) { continue }
             Export-M2Database -Container $srcC -Database $db -OutFile (Join-Path $work "source\$db.sql")
@@ -3095,6 +3097,7 @@ function Invoke-M2DatabaseImport {
             [void]$sb.AppendLine("DROP DATABASE IF EXISTS $db;")
             [void]$sb.AppendLine("CREATE DATABASE $db DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         }
+        [void]$sb.AppendLine("CREATE DATABASE IF NOT EXISTS log DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         $createFile = Join-Path $work 'create.sql'
         [IO.File]::WriteAllText($createFile, $sb.ToString(), [Text.UTF8Encoding]::new($false))
         Invoke-M2SqlFile -Container $tgtC -Database '' -InFile $createFile
@@ -3158,7 +3161,8 @@ function New-M2DatabaseBackup {
     param(
         [Parameter(Mandatory = $true)][string]$Volume,
         [Parameter(Mandatory = $true)][string]$BackupRoot,
-        [string]$Label = ''
+        [string]$Label = '',
+        [switch]$IncludeLog
     )
     $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -3172,6 +3176,9 @@ function New-M2DatabaseBackup {
         $sizes = @()
         $skipped = @()
         foreach ($db in $script:M2_DB_LIST) {
+            # Baza 'log' to wylacznie historia/audyt, gra jej nie czyta i potrafi urosnac do wielu gigabajtow.
+            # Pomijamy ja domyslnie w kopiach zapasowych, chyba ze podano -IncludeLog.
+            if ($db -eq 'log' -and -not $IncludeLog) { continue }
             # See the note in Invoke-M2DatabaseImport: no double quote inside a
             # command handed to docker from PowerShell.
             $exists = & docker exec $container mariadb -uroot -N -B -e "SHOW DATABASES LIKE '$db'" 2>$null
@@ -3229,6 +3236,9 @@ function New-M2DatabaseBackup {
         }
         foreach ($k in $skipped) {
             [void]$readme.AppendLine("  UWAGA: $k")
+        }
+        if (-not $IncludeLog) {
+            [void]$readme.AppendLine('  log.sql      (pominieta celowo - historia/audyt, niepotrzebna do przywrocenia swiata)')
         }
         [void]$readme.AppendLine('')
         [void]$readme.AppendLine('Przywrocenie: launcher -> PRZYWROC KOPIE, i wskaz ten folder albo zip.')
@@ -3307,6 +3317,7 @@ function Restore-M2DatabaseBackup {
             [void]$sb.AppendLine("DROP DATABASE IF EXISTS $db;")
             [void]$sb.AppendLine("CREATE DATABASE $db DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         }
+        [void]$sb.AppendLine("CREATE DATABASE IF NOT EXISTS log DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         $createFile = Join-Path $work 'create.sql'
         [IO.File]::WriteAllText($createFile, $sb.ToString(), [Text.UTF8Encoding]::new($false))
         Invoke-M2SqlFile -Container $tgtC -Database '' -InFile $createFile

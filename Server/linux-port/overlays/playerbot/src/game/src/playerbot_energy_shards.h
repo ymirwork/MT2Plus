@@ -137,6 +137,8 @@ namespace
 	// the kind (playerbot_market.h). Under that level every one is goods.
 	const DWORD PLAYERBOT_TRADEABLE_CHANGE_VNUM = 71284;
 	const DWORD PLAYERBOT_TRADEABLE_ADD_VNUM = 71285;
+	const DWORD PLAYERBOT_GREEN_CHANGE_VNUM = 71151;
+	const DWORD PLAYERBOT_GREEN_ADD_VNUM = 71152;
 	const DWORD PLAYERBOT_TRADEABLE_ADD_PRICE = 5000000;
 	const DWORD PLAYERBOT_SM_COUPON_50_PRICE = 1000000;	// playerbot_price_tables.h, 80017
 	const DWORD PLAYERBOT_TRADEABLE_CHANGE_SM = 69;
@@ -148,6 +150,16 @@ namespace
 	bool IsPlayerBotTradeableBonusVnum(DWORD vnum)
 	{
 		return vnum == PLAYERBOT_TRADEABLE_CHANGE_VNUM || vnum == PLAYERBOT_TRADEABLE_ADD_VNUM;
+	}
+
+	bool IsPlayerBotGreenTradeableBonusVnum(DWORD vnum)
+	{
+		return vnum == PLAYERBOT_GREEN_CHANGE_VNUM || vnum == PLAYERBOT_GREEN_ADD_VNUM;
+	}
+
+	bool IsPlayerBotAnyTradeableBonusVnum(DWORD vnum)
+	{
+		return IsPlayerBotTradeableBonusVnum(vnum) || IsPlayerBotGreenTradeableBonusVnum(vnum);
 	}
 
 	// MT2009_PLUS_SHEET_PRICES_ONLY_V1 (the owner, 8 October: "na rynku nie ma

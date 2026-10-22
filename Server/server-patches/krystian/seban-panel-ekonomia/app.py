@@ -7631,8 +7631,10 @@ def classify_economy_item(vnum, item_type=None, subtype=None):
 
 
 ECONOMY_WATCHLIST_DEF = [
-    {"vnum": 71284, "label": "Zaczarowanie (H)", "tag": "Bonus"},
-    {"vnum": 71285, "label": "Wzmocnienie (H)", "tag": "Bonus"},
+    {"vnum": 71151, "label": "Zielony Czar (H)", "tag": "Bonus T1"},
+    {"vnum": 71152, "label": "Zielona Siła (H)", "tag": "Bonus T1"},
+    {"vnum": 71284, "label": "Zaczarowanie (H)", "tag": "Bonus T2"},
+    {"vnum": 71285, "label": "Wzmocnienie (H)", "tag": "Bonus T2"},
     {"vnum": 50513, "label": "Kamień Duchowy", "tag": "Skille"},
     {"vnum": 27987, "label": "Małż", "tag": "Ulepszacz"},
     {"vnum": 27992, "label": "Biała Perła", "tag": "Ulepszacz"},
@@ -7695,7 +7697,7 @@ def economy():
     baseline_yang = int(baseline.get("value")) if baseline else total_yang
     inflation_pct = round(((total_yang - baseline_yang) / baseline_yang * 100), 1) if baseline_yang else 0.0
 
-    bonus_pool_row = one("SELECT COALESCE(SUM(count),0) AS c FROM player.item WHERE vnum IN (71284, 71285, 71084, 71085)") or {}
+    bonus_pool_row = one("SELECT COALESCE(SUM(count),0) AS c FROM player.item WHERE vnum IN (71151, 71152, 71284, 71285, 71084, 71085)") or {}
     bonus_pool = int(bonus_pool_row.get("c") or 0)
 
     kpi = {
@@ -7772,13 +7774,15 @@ def economy():
         "top_richest": top_richest
     }
 
-    # 4. Special Systems Telemetry (YmirWork / Krystian mod-50)
+    # 4. Special Systems Telemetry (YmirWork / Krystian mod-50 / Tier 1 + Tier 2)
     special_systems = {"available": False}
     try:
         liq_stats = db_block("economy.liq_stats", {}, one, """
             SELECT 
                 COUNT(*) AS total_liquidations,
                 COUNT(DISTINCT who) AS active_bots,
+                SUM(CASE WHEN vnum=71152 THEN 1 ELSE 0 END) AS green_adds_created,
+                SUM(CASE WHEN vnum=71151 THEN 1 ELSE 0 END) AS green_switches_created,
                 SUM(CASE WHEN vnum=71285 THEN 1 ELSE 0 END) AS adds_created,
                 SUM(CASE WHEN vnum=71284 THEN 1 ELSE 0 END) AS switches_created
             FROM log.log
@@ -7789,6 +7793,8 @@ def economy():
         liq_24h = db_block("economy.liq_24h", {}, one, """
             SELECT 
                 COUNT(*) AS count_24h,
+                SUM(CASE WHEN vnum=71152 THEN 1 ELSE 0 END) AS green_adds_24h,
+                SUM(CASE WHEN vnum=71151 THEN 1 ELSE 0 END) AS green_switches_24h,
                 SUM(CASE WHEN vnum=71285 THEN 1 ELSE 0 END) AS adds_24h,
                 SUM(CASE WHEN vnum=71284 THEN 1 ELSE 0 END) AS switches_24h
             FROM log.log
@@ -7845,7 +7851,7 @@ def economy():
 
         buyer_bots_count = int(total_bots * buyer_pct / 100)
 
-        # Obieg Zaczarowan i Wzmocnien w swiecie i na straganach
+        # Obieg Zaczarowan i Wzmocnien (Tier 1 oraz Tier 2) w swiecie i na straganach
         bonus_circ = rows("""
             SELECT vnum,
                    SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
@@ -7853,7 +7859,7 @@ def economy():
                    SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
                    SUM(count) AS total_count
             FROM player.item
-            WHERE vnum IN (71284, 71285)
+            WHERE vnum IN (71151, 71152, 71284, 71285)
             GROUP BY vnum
         """)
         circ_map = {int(r["vnum"]): {
@@ -7874,16 +7880,21 @@ def economy():
         for r in liq_recent:
             r["time_str"] = r["time"].strftime("%H:%M:%S") if r.get("time") else "—"
             r["full_time_str"] = r["time"].strftime("%d.%m.%Y %H:%M:%S") if r.get("time") else "—"
-            r["item_name"] = resolve_item_display_name(r["vnum"], 0, game_text(r.get("hint") or ""))
+            proto = get_cached_item_proto(r["vnum"])
+            r["item_name"] = proto.get("locale_name") if (proto and proto.get("locale_name")) else resolve_item_display_name(r["vnum"], 0, game_text(r.get("hint") or ""))
             r["icon_url"] = item_icon_url(r["vnum"])
 
         special_systems = {
             "available": True,
             "total_liquidations": tot_liq,
             "active_bots": int(liq_stats.get("active_bots") or 0),
+            "green_adds_created": int(liq_stats.get("green_adds_created") or 0),
+            "green_switches_created": int(liq_stats.get("green_switches_created") or 0),
             "adds_created": int(liq_stats.get("adds_created") or 0),
             "switches_created": int(liq_stats.get("switches_created") or 0),
             "count_24h": int(liq_24h.get("count_24h") or 0),
+            "green_adds_24h": int(liq_24h.get("green_adds_24h") or 0),
+            "green_switches_24h": int(liq_24h.get("green_switches_24h") or 0),
             "adds_24h": int(liq_24h.get("adds_24h") or 0),
             "switches_24h": int(liq_24h.get("switches_24h") or 0),
             "total_bots": total_bots,
@@ -7891,6 +7902,8 @@ def economy():
             "buyer_percent": buyer_pct,
             "sample_supply": sample_supply,
             "bot_config": bot_config,
+            "bonus_71151": circ_map.get(71151, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
+            "bonus_71152": circ_map.get(71152, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
             "bonus_71284": circ_map.get(71284, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
             "bonus_71285": circ_map.get(71285, {"total": 0, "shop": 0, "inv": 0, "safebox": 0}),
             "recent": liq_recent
@@ -7900,9 +7913,13 @@ def economy():
             "available": True,
             "total_liquidations": 0,
             "active_bots": 0,
+            "green_adds_created": 0,
+            "green_switches_created": 0,
             "adds_created": 0,
             "switches_created": 0,
             "count_24h": 0,
+            "green_adds_24h": 0,
+            "green_switches_24h": 0,
             "adds_24h": 0,
             "switches_24h": 0,
             "total_bots": 1500,
@@ -7910,6 +7927,8 @@ def economy():
             "buyer_percent": 15,
             "sample_supply": 0,
             "bot_config": {"difficulty": "Custom", "total_bots": 1500, "per_kingdom_str": "500/królestwo", "label": "Server Custom · 1500 botów (500/królestwo)"},
+            "bonus_71151": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
+            "bonus_71152": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
             "bonus_71284": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
             "bonus_71285": {"total": 0, "shop": 0, "inv": 0, "safebox": 0},
             "recent": []
@@ -8353,6 +8372,31 @@ def economy_item(vnum):
           ORDER BY unit_price ASC
         """, (vnum, skill_id))
 
+        active_offers_list = db_block("economy_item.active_offers_list", [], rows, """
+          SELECT 
+            i.id,
+            i.owner_id,
+            p.name AS seller_name,
+            p.level AS seller_level,
+            pi.empire,
+            (a.login NOT LIKE 'playerbot_%%') AS is_person,
+            o.name AS shop_name,
+            o.map AS map_index,
+            o.channel,
+            i.count,
+            ROUND(CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS unit_price,
+            CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) AS total_price
+          FROM player.item i
+          JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
+          JOIN player.player p ON p.id = i.owner_id
+          JOIN player.player_index pi ON pi.id = p.account_id
+          JOIN account.account a ON a.id = p.account_id
+          WHERE i.vnum = %s AND i.socket0 = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
+            AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+          ORDER BY unit_price ASC
+          LIMIT 12
+        """, (vnum, skill_id))
+
         liquidity_24h = one("""
           SELECT 
             COUNT(*) AS tx_count_24h,
@@ -8362,6 +8406,37 @@ def economy_item(vnum):
           LEFT JOIN player.item i ON i.id = l.itemid
           WHERE l.vnum = %s AND (i.socket0 = %s OR i.socket0 IS NULL) AND l.what = 'BUY_ITEM' AND l.time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
         """, (vnum, skill_id)) or {}
+
+        recent_transactions = db_block("economy_item.recent_transactions", [], rows, """
+          SELECT 
+            l.id,
+            l.time,
+            l.count,
+            l.yang,
+            ROUND(l.yang / l.count) AS unit_price,
+            l.extra,
+            l.who AS buyer_id,
+            COALESCE(pb.name, CONCAT('PID ', l.who)) AS buyer_name,
+            pb.level AS buyer_level,
+            pib.empire AS buyer_empire,
+            (ab.login NOT LIKE 'playerbot_%%') AS buyer_is_person,
+            l.shop_owner AS seller_id,
+            COALESCE(ps.name, CONCAT('PID ', l.shop_owner)) AS seller_name,
+            ps.level AS seller_level,
+            pis.empire AS seller_empire,
+            (asell.login NOT LIKE 'playerbot_%%') AS seller_is_person
+          FROM log.ikarusshop_log l
+          LEFT JOIN player.item i ON i.id = l.itemid
+          LEFT JOIN player.player pb ON pb.id = l.who
+          LEFT JOIN player.player_index pib ON pib.id = pb.account_id
+          LEFT JOIN account.account ab ON ab.id = pb.account_id
+          LEFT JOIN player.player ps ON ps.id = l.shop_owner
+          LEFT JOIN player.player_index pis ON pis.id = ps.account_id
+          LEFT JOIN account.account asell ON asell.id = ps.account_id
+          WHERE l.vnum = %s AND (i.socket0 = %s OR i.socket0 IS NULL) AND l.what = 'BUY_ITEM'
+          ORDER BY l.time DESC
+          LIMIT 20
+        """, (vnum, skill_id))
 
         price_history = rows("""
           SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,
@@ -8410,6 +8485,31 @@ def economy_item(vnum):
           ORDER BY unit_price ASC
         """, (vnum,))
 
+        active_offers_list = db_block("economy_item.active_offers_list", [], rows, """
+          SELECT 
+            i.id,
+            i.owner_id,
+            p.name AS seller_name,
+            p.level AS seller_level,
+            pi.empire,
+            (a.login NOT LIKE 'playerbot_%%') AS is_person,
+            o.name AS shop_name,
+            o.map AS map_index,
+            o.channel,
+            i.count,
+            ROUND(CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) / i.count) AS unit_price,
+            CAST(JSON_UNQUOTE(JSON_EXTRACT(i.ikashop_data,'$.yang')) AS UNSIGNED) AS total_price
+          FROM player.item i
+          JOIN player.ikashop_offlineshop o ON o.owner = i.owner_id
+          JOIN player.player p ON p.id = i.owner_id
+          JOIN player.player_index pi ON pi.id = p.account_id
+          JOIN account.account a ON a.id = p.account_id
+          WHERE i.vnum = %s AND i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
+            AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+          ORDER BY unit_price ASC
+          LIMIT 12
+        """, (vnum,))
+
         liquidity_24h = one("""
           SELECT 
             COUNT(*) AS tx_count_24h,
@@ -8418,6 +8518,36 @@ def economy_item(vnum):
           FROM log.ikarusshop_log
           WHERE vnum = %s AND what = 'BUY_ITEM' AND time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
         """, (vnum,)) or {}
+
+        recent_transactions = db_block("economy_item.recent_transactions", [], rows, """
+          SELECT 
+            l.id,
+            l.time,
+            l.count,
+            l.yang,
+            ROUND(l.yang / l.count) AS unit_price,
+            l.extra,
+            l.who AS buyer_id,
+            COALESCE(pb.name, CONCAT('PID ', l.who)) AS buyer_name,
+            pb.level AS buyer_level,
+            pib.empire AS buyer_empire,
+            (ab.login NOT LIKE 'playerbot_%%') AS buyer_is_person,
+            l.shop_owner AS seller_id,
+            COALESCE(ps.name, CONCAT('PID ', l.shop_owner)) AS seller_name,
+            ps.level AS seller_level,
+            pis.empire AS seller_empire,
+            (asell.login NOT LIKE 'playerbot_%%') AS seller_is_person
+          FROM log.ikarusshop_log l
+          LEFT JOIN player.player pb ON pb.id = l.who
+          LEFT JOIN player.player_index pib ON pib.id = pb.account_id
+          LEFT JOIN account.account ab ON ab.id = pb.account_id
+          LEFT JOIN player.player ps ON ps.id = l.shop_owner
+          LEFT JOIN player.player_index pis ON pis.id = ps.account_id
+          LEFT JOIN account.account asell ON asell.id = ps.account_id
+          WHERE l.vnum = %s AND l.what = 'BUY_ITEM'
+          ORDER BY l.time DESC
+          LIMIT 20
+        """, (vnum,))
 
         price_history = rows("""
           SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at,
@@ -8488,12 +8618,60 @@ def economy_item(vnum):
         "liquidity_badge": liquidity_badge
     }
 
+    now_ts = time.time()
+    for o in active_offers_list:
+        o["map_name"] = map_name(o.get("map_index") or 0)
+        o["unit_price"] = int(o.get("unit_price") or 0)
+        o["total_price"] = int(o.get("total_price") or 0)
+        o["count"] = int(o.get("count") or 1)
+
+    for tx in recent_transactions:
+        t_val = tx.get("time")
+        if t_val:
+            tx["time_str"] = t_val.strftime("%H:%M:%S")
+            tx["date_str"] = t_val.strftime("%d.%m.%Y %H:%M:%S")
+            diff = max(0, int(now_ts - t_val.timestamp()))
+            if diff < 60:
+                tx["ago_str"] = "przed chwilą"
+            elif diff < 3600:
+                tx["ago_str"] = f"{diff // 60} min temu"
+            elif diff < 86400:
+                tx["ago_str"] = f"{diff // 3600}h temu"
+            else:
+                tx["ago_str"] = f"{diff // 86400}d temu"
+        else:
+            tx["time_str"] = "—"
+            tx["date_str"] = "—"
+            tx["ago_str"] = "—"
+
+        cnt = max(1, int(tx.get("count") or 1))
+        yang = int(tx.get("yang") or 0)
+        tx["count"] = cnt
+        tx["yang"] = yang
+        tx["unit_price"] = int(tx.get("unit_price") or (yang // cnt))
+        m_tax = re.search(r"TAX:\s*(\d+)", tx.get("extra") or "")
+        tx["tax_yang"] = int(m_tax.group(1)) if m_tax else 0
+
+    tx_stats = {
+        "total_count": len(recent_transactions),
+        "min_unit_price": min((tx["unit_price"] for tx in recent_transactions), default=0),
+        "max_unit_price": max((tx["unit_price"] for tx in recent_transactions), default=0),
+        "avg_unit_price": int(sum(tx["unit_price"] for tx in recent_transactions) / len(recent_transactions)) if recent_transactions else 0,
+        "total_units": sum(tx["count"] for tx in recent_transactions),
+        "total_yang": sum(tx["yang"] for tx in recent_transactions),
+        "player_buyers": sum(1 for tx in recent_transactions if tx.get("buyer_is_person")),
+        "bot_buyers": sum(1 for tx in recent_transactions if not tx.get("buyer_is_person")),
+    }
+
     return render_template("economy_item.html", item=item, history=history,
                            distribution=distribution, holders=holders,
                            market=market, price_history=price_history,
                            is_skillbook=is_skillbook, skill_id=skill_id,
                            skill_name=skill_name, skill_categories=skill_categories,
-                           skill_breakdown=skill_breakdown)
+                           skill_breakdown=skill_breakdown,
+                           active_offers_list=active_offers_list,
+                           recent_transactions=recent_transactions,
+                           tx_stats=tx_stats)
 
 
 def _shop_trend(current, previous):
@@ -8929,7 +9107,7 @@ def retired_bots_start():
     except pymysql.MySQLError:
         flash("Nie udało się zapisać nowej partii w bazie danych.", "error")
     else:
-        flash(f"Partia #{batch_id} uruchomiona. Rdzeń CH1 odbierze ją w ciągu pięciu sekund.", "success")
+        flash(f"Tura rotacji #{batch_id} uruchomiona. Rdzeń serwera podejmie zadanie w ciągu kilku sekund.", "success")
     return redirect(url_for("retired_bots"))
 
 
@@ -8954,7 +9132,7 @@ def retired_bots_stop():
     except pymysql.MySQLError:
         flash("Nie udało się zatrzymać partii.", "error")
     else:
-        flash("Partia zatrzymana: nowe boty nie będą wybierane. Boty, które już sprzedają, dokończą sklep.", "success")
+        flash("Rotacja zatrzymana: nowe boty nie będą dobierane. Te, które otworzyły sklep, dokończą sprzedaż.", "success")
     return redirect(url_for("retired_bots"))
 
 
@@ -9125,8 +9303,8 @@ def get_bot_retirement_advisor():
             score = 100
             badge_class = "active"
             badge_text = "Partia w toku"
-            title = "Partia emerytur aktualnie trwa"
-            description = "Trwa proces wyprzedaży i resetowania wytypowanych botów. Nowa partia będzie mogła zostać uruchomiona po zakończeniu obecnej."
+            title = "Rotacja botów aktualnie trwa"
+            description = "Trwa proces wyprzedaży i resetowania wytypowanych botów. Nowa tura będzie mogła zostać uruchomiona po zakończeniu obecnej."
             recommendation = "Poczekaj na zakończenie trwającej partii."
             action_text = "Partia w toku"
             can_start = False
@@ -9144,7 +9322,7 @@ def get_bot_retirement_advisor():
                 recommendation = f"Odczekaj co najmniej 12h od poprzedniego resetu (pozostało ~{max(0.1, 12.0 - hours_ago):.1f}h)."
             else:
                 description = f"Większość botów rozwija się we wczesnej fazie gry (średni poziom: {avg_level} lvl, tylko {lvl_40_plus} botów posiada 40+ lvl). Wystawione przedmioty byłyby niskiej wartości (+0..+4), a cofnięcie postaci do 1 lvl opóźni dropienie cennych itemów."
-                action_text = "Uruchom małą partię ostrożnościową (30 botów)"
+                action_text = "Uruchom małą rotację (30 botów)"
                 recommendation = "Zaczekaj, aż co najmniej 80–100 botów osiągnie 40+ poziom."
             score = min(45, max(10, int((lvl_40_plus / 80.0) * 35 + min(hours_ago / 12.0, 1.0) * 10)))
             can_start = True
@@ -9158,8 +9336,8 @@ def get_bot_retirement_advisor():
             title = "Dobra okazja na małe odświeżenie M1"
             description = f"W świecie gry jest {lvl_35_plus} botów na 35+ lvl ({lvl_40_plus} na 40+ lvl), a od ostatniej partii minęło {hours_ago:.0f}h. Możesz bezpiecznie uruchomić małą partię, by wpuścić trochę uzbrojenia na rynek bez szkody dla expa."
             score = min(85, max(50, 50 + int(((lvl_40_plus - 80) / 80.0) * 35)))
-            action_text = "Zastosuj bezpieczną małą partię (30 botów)"
-            recommendation = "Zalecana bezpieczna partia: 30 botów (okno 20 min, sklep 45 min)."
+            action_text = "Zastosuj małą rotację (30 botów)"
+            recommendation = "Zalecana mała rotacja: 30 botów (okno 20 min, sklep 45 min)."
             can_start = True
             rec_bots = 30
             rec_window = 20
@@ -9168,11 +9346,11 @@ def get_bot_retirement_advisor():
             state = "optimal"
             badge_class = "optimal"
             badge_text = "🟢 Optymalny moment na rotację"
-            title = "Gospodarka gotowa na falę emerytów!"
+            title = "Gospodarka gotowa na rotację botów!"
             description = f"Ponad {lvl_40_plus} botów osiągnęło poziom 40–50+, a od ostatniej partii upłynęło {hours_ago:.0f}h. Rynek zyska cenne uzbrojenie i wybonowane przedmioty ze zminimalizowanym ryzykiem utraty tempa farmy."
             score = 100
-            action_text = "Zastosuj rekomendowaną partię (60 botów)"
-            recommendation = "Zalecana partia standardowa: 60 botów (okno 30 min, sklep 45 min)."
+            action_text = "Zastosuj rekomendowaną rotację (60 botów)"
+            recommendation = "Zalecana standardowa rotacja: 60 botów (okno 30 min, sklep 45 min)."
             can_start = True
             rec_bots = 60
             rec_window = 30

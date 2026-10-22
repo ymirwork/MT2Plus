@@ -53,10 +53,10 @@
     <strong title="{{ '{:,}'.format(kpi.shop_val).replace(',', ' ') }} Yang">{{ format_yang(kpi.shop_val) }}</strong>
     <small>{{ '{:,}'.format(kpi.shop_offers).replace(',', ' ') }} aktywnych ofert</small>
   </article>
-  <article style="cursor:help;" title="Pula Bonusów (Zaczarowania i Wzmocnienia):&#10;Łączny zasób Zaczarowań Przedmiotu (mixy, vnum 71084 / 71284) oraz Wzmocnień Przedmiotu (dodania 1-4, vnum 71085 / 71285) znajdujących się obecnie w ekwipunkach i magazynach wszystkich graczy oraz botów.&#10;Kluczowy miernik nasycenia rynku ulepszaczami premium.">
-    <span>Pula Bonusów (71284/71285)</span>
+  <article style="cursor:help;" title="Dodania i Zmianki w Obiegu:&#10;Łączny zasób bonusów w grze (w ekwipunkach, dozorcach i sklepach):&#10;• Zielona Siła i Zielony Czar (71151 / 71152)&#10;• Wzmocnienie i Zaczarowanie Przedmiotu (71284 / 71285)">
+    <span>Dodania i Zmianki w Grze</span>
     <strong>{{ kpi.bonus_pool }}</strong>
-    <small>Zaczarowania i Wzmocnienia w grze</small>
+    <small>Zielone i standardowe łącznie</small>
   </article>
 </section>
 
@@ -80,7 +80,7 @@
     </div>
   </div>
   <a href="{{ url_for('retired_bots') }}" class="button secondary" style="padding: 6px 14px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
-    Przejdź do asystenta emerytur →
+    Przejdź do rotacji botów →
   </a>
 </section>
 {% endif %}
@@ -244,106 +244,112 @@
 {% endif %}
 
 {# ========================================================== #}
-{# MODUŁ 6: SYSTEMY SPECJALNE (M1/M2 LIQUIDATION & SP+)       #}
-{# ========================================================== #}
-{# ========================================================== #}
 {# MODUŁ 6: SYSTEMY SPECJALNE (M1/M2 LIQUIDATION & YMIRWORK) #}
 {# ========================================================== #}
 {% if special_systems.available %}
-<section class="panel" style="border-left: 4px solid #f6c85f; background: linear-gradient(180deg, rgba(246,200,95,0.03) 0%, rgba(0,0,0,0.15) 100%);">
+<section class="panel" style="border-left: 4px solid #34d399; background: linear-gradient(180deg, rgba(52,211,153,0.03) 0%, rgba(0,0,0,0.15) 100%);">
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:10px">
     <div>
       <div style="display:flex; align-items:center; gap:8px">
-        <h2 style="margin:0; font-size:18px">⚙️ Upłynnianie Ulepszaczy M1/M2 i Balans Rynku</h2>
-        <span style="display:inline-flex; align-items:center; gap:5px; background:rgba(57,232,144,0.15); color:#39e890; border:1px solid rgba(57,232,144,0.3); padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700">
-          <span style="display:inline-block; width:6px; height:6px; background:#39e890; border-radius:50%; box-shadow:0 0 6px #39e890"></span>
-          MODUŁ YMIRWORK (KRYSTIAN) AKTYWNY
+        <h2 style="margin:0; font-size:18px">⚙️ Przetapianie Ulepszaczy i Skup Botów (Balans Rynku)</h2>
+        <span style="display:inline-flex; align-items:center; gap:5px; background:rgba(52,211,153,0.15); color:#34d399; border:1px solid rgba(52,211,153,0.3); padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700">
+          <span style="display:inline-block; width:6px; height:6px; background:#34d399; border-radius:50%; box-shadow:0 0 6px #34d399"></span>
+          MODUŁ YMIRWORK · 2-POZIOMOWY SYSTEM (TIER 1 + 2)
         </span>
       </div>
       <p class="muted" style="margin:4px 0 0 0; font-size:13px">
-        Wewnętrzny silnik rzemieślniczo-gospodarczy botów: automatyczny skup ulepszaczy z M1/M2 od graczy, przetapianie nadmiaru na handlowalne bonusy i bonowanie ekwipunku.
+        Wewnętrzny silnik gospodarczy botów: skupują ulepszacze ze sklepów graczy, przetapiają ich nadmiar na zielone i standardowe dodania/zmianki, bonują swój ekwipunek, a resztę wystawiają na rynek.
       </p>
     </div>
     
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
-      <span class="badge" style="background:rgba(246,200,95,0.12); color:#f6c85f; border:1px solid rgba(246,200,95,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600" title="Koszt opłaty Yang za przetopienie skaluje się automatycznie z poziomem inflacji na serwerze">
+      <span class="badge" style="background:rgba(246,200,95,0.12); color:#f6c85f; border:1px solid rgba(246,200,95,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600" title="Koszt opłaty Yang za przetopienie rośnie wraz z inflacją na serwerze (T1: 50k x Mnożnik, T2: 150k x Mnożnik)">
         ⚖️ Koszt Przetopienia: x{{ '%.4f'|format(kpi.engine_inflation_factor) }}
       </span>
-      <span class="badge" style="background:rgba(96,165,250,0.12); color:#60a5fa; border:1px solid rgba(96,165,250,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600" title="Konfiguracja pobrana automatycznie z ustawień serwera (.env): {{ special_systems.bot_config.total_bots }} botów ({{ special_systems.bot_config.per_kingdom_str }})">
+      <span class="badge" style="background:rgba(96,165,250,0.12); color:#60a5fa; border:1px solid rgba(96,165,250,0.3); padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:600" title="Ustawienie z konfiguracji serwera: {{ special_systems.bot_config.total_bots }} botów ({{ special_systems.bot_config.per_kingdom_str }})">
         🛡️ {{ special_systems.bot_config.label }}
       </span>
     </div>
   </div>
 
-  {# 4 Zaawansowane Karty KPI #}
-  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:18px">
+  {# 4 Karty Informacyjne #}
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:18px">
     
-    {# Karta 1: Przetopienia #}
+    {# Karta 1: Przetapianie Ulepszaczy #}
     <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid var(--edge); position:relative; overflow:hidden">
-      <div style="font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600; letter-spacing:0.5px">Przetopienia Nadmiaru Dropu</div>
+      <div style="font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600; letter-spacing:0.5px">Przetapianie Ulepszaczy</div>
       <div style="font-size:20px; font-weight:800; color:#ffe28a; margin:4px 0 2px 0">
-        {{ '{:,}'.format(special_systems.total_liquidations).replace(',', ' ') }} <small style="font-size:13px; font-weight:500; color:var(--muted)">operacji</small>
+        {{ '{:,}'.format(special_systems.total_liquidations).replace(',', ' ') }} <small style="font-size:13px; font-weight:500; color:var(--muted)">przetopień</small>
       </div>
       <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08)">
         <span>Ostatnie 24h: <b style="color:#ffe28a">+{{ special_systems.count_24h }}</b></span>
-        <span>Rzemieślnicy: <b style="color:#f6c85f">{{ special_systems.active_bots }}</b></span>
+        <span>Aktywne boty: <b style="color:#f6c85f">{{ special_systems.active_bots }}</b></span>
       </div>
-      <small style="display:block; font-size:10.5px; color:var(--muted); margin-top:3px">
-        Wypompowano z rynku: ~{{ '{:,}'.format(special_systems.total_liquidations * 35).replace(',', ' ') }} szt. ulepszaczy
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:3px">
+        <span>Wymóg: <b>40 szt.</b> (rabat do <b>25</b>)</span>
+        <span>Zużyte ulepki: ~<b>{{ '{:,}'.format(special_systems.total_liquidations * 35).replace(',', ' ') }}</b> szt.</span>
+      </div>
+    </div>
+
+    {# Karta 2: Tier 1 - Zielone Dodania i Zmianki #}
+    <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(52,211,153,0.35); position:relative; overflow:hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <span style="font-size:11px; text-transform:uppercase; color:#34d399; font-weight:600; letter-spacing:0.5px">Tier 1 · Zielone Bonusy</span>
+        <code style="font-size:10px; color:#34d399; background:rgba(52,211,153,0.1); padding:1px 4px; border-radius:3px">71151 / 71152</code>
+      </div>
+      <div style="font-size:20px; font-weight:800; color:#34d399; margin:4px 0 2px 0">
+        +{{ '{:,}'.format(special_systems.green_adds_created + special_systems.green_switches_created).replace(',', ' ') }} <small style="font-size:12px; font-weight:500; color:var(--muted)">zrobionych</small>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08)">
+        <span>Siła (dodanie): <b style="color:#34d399">+{{ special_systems.green_adds_created }}</b> <small style="color:var(--muted)">(24h: +{{ special_systems.green_adds_24h }})</small></span>
+        <span>Czar (zmianka): <b style="color:#6ee7b7">+{{ special_systems.green_switches_created }}</b> <small style="color:var(--muted)">(24h: +{{ special_systems.green_switches_24h }})</small></span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:3px">
+        <span>W sklepach Siła: <a href="{{ url_for('economy_item', vnum=71152) }}" style="color:#34d399; font-weight:600">{{ special_systems.bonus_71152.shop }} szt.</a></span>
+        <span>W sklepach Czar: <a href="{{ url_for('economy_item', vnum=71151) }}" style="color:#6ee7b7; font-weight:600">{{ special_systems.bonus_71151.shop }} szt.</a></span>
+      </div>
+      <small style="display:block; font-size:10px; color:var(--muted); margin-top:3px">
+        Drop z M1/M2 · Bonuje eq do 40 lvl · Koszt: 50k Yang
       </small>
     </div>
 
-    {# Karta 2: Wzmocnienia Przedmiotu #}
-    <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(57,232,144,0.25); position:relative; overflow:hidden">
+    {# Karta 3: Tier 2 - Standardowe Dodania i Zmianki #}
+    <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(246,200,95,0.35); position:relative; overflow:hidden">
       <div style="display:flex; justify-content:space-between; align-items:center">
-        <span style="font-size:11px; text-transform:uppercase; color:#39e890; font-weight:600; letter-spacing:0.5px">Wzmocnienia Przedmiotu</span>
-        <code style="font-size:10px; color:#39e890; background:rgba(57,232,144,0.1); padding:1px 4px; border-radius:3px">VNUM 71285</code>
+        <span style="font-size:11px; text-transform:uppercase; color:#f6c85f; font-weight:600; letter-spacing:0.5px">Tier 2 · Standardowe Bonusy</span>
+        <code style="font-size:10px; color:#f6c85f; background:rgba(246,200,95,0.1); padding:1px 4px; border-radius:3px">71284 / 71285</code>
       </div>
-      <div style="font-size:20px; font-weight:800; color:#39e890; margin:4px 0 2px 0">
-        +{{ '{:,}'.format(special_systems.adds_created).replace(',', ' ') }} <small style="font-size:13px; font-weight:500; color:var(--muted)">sztuk</small>
+      <div style="font-size:20px; font-weight:800; color:#f6c85f; margin:4px 0 2px 0">
+        +{{ '{:,}'.format(special_systems.adds_created + special_systems.switches_created).replace(',', ' ') }} <small style="font-size:12px; font-weight:500; color:var(--muted)">zrobionych</small>
       </div>
       <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08)">
-        <span>Doba 24h: <b style="color:#39e890">+{{ special_systems.adds_24h }}</b></span>
-        <span>W świecie: <b style="color:var(--text)">{{ special_systems.bonus_71285.total }}</b></span>
+        <span>Wzmocnienie: <b style="color:#ffe28a">+{{ special_systems.adds_created }}</b> <small style="color:var(--muted)">(24h: +{{ special_systems.adds_24h }})</small></span>
+        <span>Zaczarowanie: <b style="color:#60a5fa">+{{ special_systems.switches_created }}</b> <small style="color:var(--muted)">(24h: +{{ special_systems.switches_24h }})</small></span>
       </div>
-      <small style="display:block; font-size:10.5px; color:var(--muted); margin-top:3px">
-        Na straganach rynku: <a href="{{ url_for('economy_item', vnum=71285) }}" style="color:#39e890; font-weight:600">{{ special_systems.bonus_71285.shop }} szt.</a>
-      </small>
-    </div>
-
-    {# Karta 3: Zaczarowania Przedmiotu #}
-    <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(96,165,250,0.25); position:relative; overflow:hidden">
-      <div style="display:flex; justify-content:space-between; align-items:center">
-        <span style="font-size:11px; text-transform:uppercase; color:#60a5fa; font-weight:600; letter-spacing:0.5px">Zaczarowania Przedmiotu</span>
-        <code style="font-size:10px; color:#60a5fa; background:rgba(96,165,250,0.1); padding:1px 4px; border-radius:3px">VNUM 71284</code>
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:3px">
+        <span>W sklepach Wzm.: <a href="{{ url_for('economy_item', vnum=71285) }}" style="color:#ffe28a; font-weight:600">{{ special_systems.bonus_71285.shop }} szt.</a></span>
+        <span>W sklepach Zacz.: <a href="{{ url_for('economy_item', vnum=71284) }}" style="color:#60a5fa; font-weight:600">{{ special_systems.bonus_71284.shop }} szt.</a></span>
       </div>
-      <div style="font-size:20px; font-weight:800; color:#60a5fa; margin:4px 0 2px 0">
-        +{{ '{:,}'.format(special_systems.switches_created).replace(',', ' ') }} <small style="font-size:13px; font-weight:500; color:var(--muted)">sztuk</small>
-      </div>
-      <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08)">
-        <span>Doba 24h: <b style="color:#60a5fa">+{{ special_systems.switches_24h }}</b></span>
-        <span>W świecie: <b style="color:var(--text)">{{ special_systems.bonus_71284.total }}</b></span>
-      </div>
-      <small style="display:block; font-size:10.5px; color:var(--muted); margin-top:3px">
-        Na straganach rynku: <a href="{{ url_for('economy_item', vnum=71284) }}" style="color:#60a5fa; font-weight:600">{{ special_systems.bonus_71284.shop }} szt.</a>
+      <small style="display:block; font-size:10px; color:var(--muted); margin-top:3px">
+        Drop z Doliny, Pustyni, DT · Każdy poziom eq · Koszt: 150k Yang
       </small>
     </div>
 
     {# Karta 4: Boty Skupujące z Rynku #}
-    <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(246,200,95,0.25); position:relative; overflow:hidden">
+    <div style="background:rgba(0,0,0,0.25); padding:12px 14px; border-radius:8px; border:1px solid rgba(96,165,250,0.35); position:relative; overflow:hidden">
       <div style="display:flex; justify-content:space-between; align-items:center">
-        <span style="font-size:11px; text-transform:uppercase; color:#f6c85f; font-weight:600; letter-spacing:0.5px">Skup Ulepszaczy z Tobołków</span>
-        <span style="font-size:10px; background:rgba(246,200,95,0.15); color:#f6c85f; padding:1px 5px; border-radius:3px; font-weight:700" title="Dynamiczny odsetek skupu YmirWork (3% - 35%): aktualnie {{ special_systems.buyer_percent }}% przy podaży {{ '{:,}'.format(special_systems.sample_supply).replace(',', ' ') }} szt. ulepszaczy na rynku">{{ special_systems.buyer_percent }}% populacji</span>
+        <span style="font-size:11px; text-transform:uppercase; color:#60a5fa; font-weight:600; letter-spacing:0.5px">Boty Skupujące z Rynku</span>
+        <span style="font-size:10px; background:rgba(96,165,250,0.15); color:#60a5fa; padding:1px 5px; border-radius:3px; font-weight:700" title="Dynamiczny odsetek botów ruszających na zakupy: od 3% przy pustkach do 35% przy zatrzęsieniu ulepek na rynku">{{ special_systems.buyer_percent }}% botów kupuje</span>
       </div>
-      <div style="font-size:20px; font-weight:800; color:#f6c85f; margin:4px 0 2px 0">
-        {{ special_systems.buyer_bots_count }} <small style="font-size:13px; font-weight:500; color:var(--muted)">botów skupujących</small>
+      <div style="font-size:20px; font-weight:800; color:#60a5fa; margin:4px 0 2px 0">
+        {{ special_systems.buyer_bots_count }} <small style="font-size:13px; font-weight:500; color:var(--muted)">aktywnych kupców</small>
       </div>
       <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08)">
-        <span>Budżet skupu: <b style="color:#ffe28a">do 20% sakwy</b></span>
-        <span>Podaż próbki: <b style="color:#ffe28a">{{ '{:,}'.format(special_systems.sample_supply).replace(',', ' ') }} szt.</b></span>
+        <span>Budżet bota: <b style="color:#ffe28a">do 20% sakwy</b></span>
+        <span title="Liczba ulepszaczy wystawionych w sklepikach offline. Im więcej ulepek zalega na rynku, tym więcej botów rusza na zakupy.">Ulepki w sklepach: <b style="color:#ffe28a">{{ '{:,}'.format(special_systems.sample_supply).replace(',', ' ') }} szt.</b></span>
       </div>
-      <small style="display:block; font-size:10.5px; color:var(--muted); margin-top:3px">
-        Stabilizator popytu: Dynamiczny skup ulepszaczy M1/M2 od graczy (3% – 35% w zależności od nasycenia)
+      <small style="display:block; font-size:10px; color:var(--muted); margin-top:3px">
+        Boty regularnie wykupują ulepki i zielone bonusy od graczy, dając im zarobek
       </small>
     </div>
 
@@ -355,8 +361,8 @@
     {# Kolumna 1: Live Telemetria Ostatnich Operacji #}
     <div style="background:rgba(0,0,0,0.2); border:1px solid var(--edge); border-radius:8px; padding:12px 14px">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-        <h3 style="font-size:12.5px; margin:0; color:#f6c85f; text-transform:uppercase; font-weight:700; letter-spacing:0.5px">
-          📜 Ostatnie Operacje Przetopień w Grze
+        <h3 style="font-size:12.5px; margin:0; color:#34d399; text-transform:uppercase; font-weight:700; letter-spacing:0.5px">
+          📜 Ostatnie Przetopienia Botów
         </h3>
         <span class="muted" style="font-size:11px">Rejestr silnika (log.log)</span>
       </div>
@@ -366,10 +372,10 @@
         <thead>
           <tr>
             <th>Czas</th>
-            <th>Bot rzemieślnik</th>
+            <th>Bot</th>
             <th>Królestwo</th>
-            <th>Wytworzony Bonus</th>
-            <th style="text-align:right">VNUM</th>
+            <th>Wytworzony Przedmiot</th>
+            <th style="text-align:right">Rodzaj / VNUM</th>
           </tr>
         </thead>
         <tbody>
@@ -390,57 +396,62 @@
               <span style="font-size:11.5px">{{ empire_info(r.empire).name }}</span>
             </td>
             <td class="item-cell">
-              {% if r.icon_url %}<img src="{{ r.icon_url }}" loading="lazy" style="width:20px; height:20px; vertical-align:middle" alt="">{% endif %}
-              <a href="{{ url_for('economy_item', vnum=r.vnum) }}" style="font-weight:600; color:{% if r.vnum == 71285 %}#39e890{% else %}#60a5fa{% endif %}">
+              {% if r.icon_url %}<img src="{{ r.icon_url }}" loading="lazy" style="width:20px; height:20px; vertical-align:middle; border-radius:3px" alt="">{% endif %}
+              <a href="{{ url_for('economy_item', vnum=r.vnum) }}" style="font-weight:600; color:{% if r.vnum == 71152 %}#34d399{% elif r.vnum == 71151 %}#6ee7b7{% elif r.vnum == 71285 %}#ffe28a{% else %}#60a5fa{% endif %}">
                 {{ r.item_name }}
               </a>
             </td>
-            <td style="text-align:right"><code style="font-size:11px">{{ r.vnum }}</code></td>
+            <td style="text-align:right">
+              <code style="font-size:11px; font-weight:600; color:{% if r.vnum in [71151, 71152] %}#34d399{% else %}#ffe28a{% endif %}">
+                {% if r.vnum in [71151, 71152] %}[T1]{% else %}[T2]{% endif %} {{ r.vnum }}
+              </code>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
       {% else %}
       <div class="muted" style="text-align:center; padding:20px 10px; font-size:12.5px">
-        System gotowy. Boty oczekują na uzbieranie wymaganego progu ulepszaczy do kolejnego przetopienia.
+        Wszystko pod kontrolą. Boty zbierają ulepszacze na kolejne przetopienie.
       </div>
       {% endif %}
     </div>
 
-    {# Kolumna 2: Reguły Działania i Architektura Modułu #}
+    {# Kolumna 2: Reguły Działania #}
     <div style="background:rgba(0,0,0,0.2); border:1px solid var(--edge); border-radius:8px; padding:12px 14px">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
         <h3 style="font-size:12.5px; margin:0; color:var(--muted); text-transform:uppercase; font-weight:700; letter-spacing:0.5px">
-          📋 Reguły i Architektura Modułu (YmirWork)
+          📋 Jak Działa Ten System?
         </h3>
       </div>
 
       <div style="display:flex; flex-direction:column; gap:8px; font-size:12px">
-        <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:8px 10px; border-radius:6px">
-          <div style="font-weight:700; color:#ffe28a; margin-bottom:2px">1. Recykling Nadmiaru Ulepszaczy M1/M2</div>
+        <div style="background:rgba(52,211,153,0.04); border:1px solid rgba(52,211,153,0.15); padding:8px 10px; border-radius:6px">
+          <div style="font-weight:700; color:#34d399; margin-bottom:2px">1. Dwa poziomy ulepszaczy (Tier 1 i Tier 2)</div>
           <div class="muted">
-            50 szt. pospolitych ulepszaczy (Żółć, Rdza, Skóra niedźwiedzia) lub 25 szt. rzadkich (Ząb Orka, Klejnot, Shiriken+) + opłata Yang skalowana inflacją → 1x Zaczarowanie lub Wzmocnienie.
+            • <b>Początkowe z M1/M2</b>: Pospolity drop (Żółcie, Rdze, Skóry itp.) bot przetapia na <b>Zieloną Siłę</b> (dodanie) lub <b>Zielony Czar</b> (zmianka). Koszt: 50k Yang &times; mnożnik.<br>
+            • <b>Zaawansowane z Doliny/DT</b>: Trudniejszy drop (Zęby Orka, Klejnoty, Shirikeny+ itp.) przetapiany jest na normalne <b>Wzmocnienie</b> lub <b>Zaczarowanie</b>. Koszt: 150k Yang &times; mnożnik.
           </div>
         </div>
 
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:8px 10px; border-radius:6px">
-          <div style="font-weight:700; color:#39e890; margin-bottom:2px">2. Priorytet Uzbrojenia Bota (Auto-Equip)</div>
+          <div style="font-weight:700; color:#ffe28a; margin-bottom:2px">2. Zabezpieczenie przed zalaniem rynku</div>
           <div class="muted">
-            Wytworzone bonusy trafiają najpierw do wbicia 4–5 bonusów w ekwipunku bota i rollowania perfekcyjnych statystyk. Bot nie zaśmieca rynku nieskończoną ilością zmianek.
+            Do przetopienia potrzeba standardowo <b>40 sztuk</b> danego ulepszacza. Jeśli jednak dany przedmiot masowo zalega na straganach (&gt;1500 sztuk), wymóg spada nawet do <b>25 sztuk</b>, żeby szybciej oczyścić rynek.
           </div>
         </div>
 
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:8px 10px; border-radius:6px">
-          <div style="font-weight:700; color:#60a5fa; margin-bottom:2px">3. Ochrona Rynku Przed Nadpodażą (Anti-Flood)</div>
+          <div style="font-weight:700; color:#60a5fa; margin-bottom:2px">3. Boty same bonują swój ekwipunek</div>
           <div class="muted">
-            Nadwyżki bonusów trafiają na stragany z twardym limitem: maks. 20% wszystkich sklepów na serwerze i maks. 3 sloty na sklep.
+            Boty do 40 poziomu używają zielonych bonusów do wbijania 4&ndash;5 bonusów i miksowania własnych broni i zbroi (np. FMS, RIB, Śmiertelka). Boty wyższych poziomów używają standardowych bonusów. Na rynek wystawiają tylko to, co im zostanie (maks. 3 sztuki na sklep).
           </div>
         </div>
 
         <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:8px 10px; border-radius:6px">
-          <div style="font-weight:700; color:#f6c85f; margin-bottom:2px">4. Stabilizator Rynku – Skup Ulepszaczy (Dynamiczne {{ special_systems.buyer_percent }}%)</div>
+          <div style="font-weight:700; color:#f6c85f; margin-bottom:2px">4. Boty napędzają zarobek graczom (Skup 3% &ndash; 35%)</div>
           <div class="muted">
-            Odsetek populacji botów skupujących (od 3% przy niskiej podaży do 35% przy powodzi towarowej; obecnie {{ special_systems.buyer_percent }}%) przeszukuje tobołki graczy i odkupuje drop po rynkowych cenach (do 120% cennika, maks. 20% sakiewki bota), zapewniając płynność i zarobek graczom.
+            Część botów (obecnie <b>{{ special_systems.buyer_percent }}%</b> populacji) regularnie przegląda sklepy graczy i wykupuje ulepszacze oraz zielone bonusy po cenach rynkowych (do 20% swojej sakwy). Dzięki temu gracze od 1 poziomu mają komu sprzedawać drop i szybko zarabiają Yang.
           </div>
         </div>
       </div>

@@ -4241,103 +4241,69 @@ Group	box_50254
 Group	mt2009_flower_chryzantema
 {
 	Vnum	83023 -- Pudelko z Chryzantema
-	1	55401	1	100 -- Jajo Malpki
-	2	71094	1	100 -- Rada Pustelnika
-	3	50255	1	100 -- Cor Draconis (surowe)
-	4	27102	5	100 -- Zielona Mikstura (D)
-	5	27105	5	100 -- Fioletowa Mikstura (D)
-	6	76007	3	100 -- Peleryna Mestwa
-	7	71080	1	100 -- Kamien Metin (Slaby)
-	8	71018	1	100 -- Blogoslawienstwo Zycia
-	9	25121	1	100 -- Chryzantema
-	10	25122	1	100 -- Konwalia
-	11	25123	1	100 -- Narcyz
-	12	25124	1	100 -- Lilia
-	13	25125	1	100 -- Slonecznik
-	14	50011	1	100 -- Szkatulka Blasku Ksiezyca
-	15	exp	300000	100 -- 300000 doswiadczenia
-	16	gold	250000	100 -- 250000 yang
+	1	25121	1	40	-- Chryzantema
+	2	71044	2	50	-- Dlon Krytyka
+	3	71084	1	15	-- Zaczarowanie Przedmiotu
+	4	25040	1	35	-- Zwoj Blogoslawienstwa
+	5	71001	1	35	-- Zwoj Egzorcyzmu
+	6	70102	2	60	-- Fasolka Zen
+	7	76007	15	80	-- Peleryna Mestwa
+	8	27102	5	80	-- Zielona Mikstura (D)
+	9	27105	5	80	-- Fioletowa Mikstura (D)
+	10	50011	1	25	-- Szkatulka Blasku Ksiezyca
 }
 Group	mt2009_flower_konwalia
 {
 	Vnum	83024 -- Pudelko z Konwalia
-	1	55401	1	100 -- Jajo Malpki
-	2	71094	1	100 -- Rada Pustelnika
-	3	50255	1	100 -- Cor Draconis (surowe)
-	4	27102	3	100 -- Zielona Mikstura (D)
-	5	27105	3	100 -- Fioletowa Mikstura (D)
-	6	76007	3	100 -- Peleryna Mestwa
-	7	71080	1	100 -- Kamien Metin (Slaby)
-	8	76008	1	100 -- Medal Smoka
-	9	25121	1	100 -- Chryzantema
-	10	25122	1	100 -- Konwalia
-	11	25123	1	100 -- Narcyz
-	12	25124	1	100 -- Lilia
-	13	25125	1	100 -- Slonecznik
-	14	50011	1	100 -- Szkatulka Blasku Ksiezyca
-	15	exp	200000	100 -- 200000 doswiadczenia
-	16	gold	200000	100 -- 200000 yang
+	1	25122	1	40	-- Konwalia
+	2	71028	2	50	-- Atak Boga Smokow
+	3	71045	2	50	-- Dlon Przebicia
+	4	25040	1	40	-- Zwoj Blogoslawienstwa
+	5	50513	1	10	-- Kamien Duchowy
+	6	70102	2	60	-- Fasolka Zen
+	7	76007	15	80	-- Peleryna Mestwa
+	8	27102	5	85	-- Zielona Mikstura (D)
+	9	27105	5	85	-- Fioletowa Mikstura (D)
 }
 Group	mt2009_flower_narcyz
 {
 	Vnum	83025 -- Pudelko z Narcyzem
-	1	55402	1	100 -- Jajo Pajaczka
-	2	71094	1	100 -- Rada Pustelnika
-	3	27006	30	100 -- Niebieska Mikstura (D)
-	4	27102	3	100 -- Zielona Mikstura (D)
-	5	27105	30	100 -- Fioletowa Mikstura (D)
-	6	76007	3	100 -- Peleryna Mestwa
-	7	71080	1	100 -- Kamien Metin (Slaby)
-	8	76000	1	100 -- Wino z Kwiatu Brzoskwini
-	9	76008	1	100 -- Medal Smoka
-	10	25121	1	100 -- Chryzantema
-	11	25122	1	100 -- Konwalia
-	12	25123	1	100 -- Narcyz
-	13	25124	1	100 -- Lilia
-	14	25125	1	100 -- Slonecznik
-	15	50011	1	100 -- Szkatulka Blasku Ksiezyca
-	16	exp	150000	100 -- 150000 doswiadczenia
-	17	gold	150000	100 -- 150000 yang
+	1	25123	1	40	-- Narcyz
+	2	71153	1	20	-- Mikstura Madrosci
+	3	71094	1	15	-- Rada Pustelnika
+	4	71001	2	45	-- Zwoj Egzorcyzmu
+	5	25040	1	35	-- Zwoj Blogoslawienstwa
+	6	70102	2	65	-- Fasolka Zen
+	7	76007	15	80	-- Peleryna Mestwa
+	8	27102	5	100	-- Zielona Mikstura (D)
+	9	27105	5	100	-- Fioletowa Mikstura (D)
 }
 Group	mt2009_flower_lilia
 {
 	Vnum	83026 -- Pudelko z Lilia
-	1	55401	1	100 -- Jajo Malpki
-	2	71094	1	100 -- Rada Pustelnika
-	3	27006	30	100 -- Niebieska Mikstura (D)
-	4	27102	3	100 -- Zielona Mikstura (D)
-	5	27105	30	100 -- Fioletowa Mikstura (D)
-	6	76007	20	100 -- Peleryna Mestwa
-	7	71080	1	100 -- Kamien Metin (Slaby)
-	8	76000	2	100 -- Wino z Kwiatu Brzoskwini
-	9	76008	1	100 -- Medal Smoka
-	10	25121	1	100 -- Chryzantema
-	11	25122	1	100 -- Konwalia
-	12	25123	1	100 -- Narcyz
-	13	25124	1	100 -- Lilia
-	14	25125	1	100 -- Slonecznik
-	15	50011	1	100 -- Szkatulka Blasku Ksiezyca
-	16	exp	100000	100 -- 100000 doswiadczenia
-	17	gold	100000	100 -- 100000 yang
+	1	25124	1	40	-- Lilia
+	2	71035	1	30	-- Eliksir Poszukiwacza
+	3	27987	1	45	-- Malz
+	4	27992	1	10	-- Biala Perla
+	5	71085	1	15	-- Wzmocnienie Przedmiotu
+	6	25040	1	35	-- Zwoj Blogoslawienstwa
+	7	70102	2	65	-- Fasolka Zen
+	8	76007	20	80	-- Peleryna Mestwa
+	9	27102	5	90	-- Zielona Mikstura (D)
+	10	27105	5	90	-- Fioletowa Mikstura (D)
 }
 Group	mt2009_flower_slonecznik
 {
 	Vnum	83027 -- Pudelko ze Slonecznikiem
-	1	55401	1	100 -- Jajo Malpki
-	2	71094	1	100 -- Rada Pustelnika
-	3	27006	30	100 -- Niebieska Mikstura (D)
-	4	27102	3	100 -- Zielona Mikstura (D)
-	5	27105	30	100 -- Fioletowa Mikstura (D)
-	6	76007	20	100 -- Peleryna Mestwa
-	7	71080	1	100 -- Kamien Metin (Slaby)
-	8	76000	1	100 -- Wino z Kwiatu Brzoskwini
-	9	76008	1	100 -- Medal Smoka
-	10	25121	1	100 -- Chryzantema
-	11	25122	1	100 -- Konwalia
-	12	25123	1	100 -- Narcyz
-	13	25124	1	100 -- Lilia
-	14	25125	1	100 -- Slonecznik
-	15	50011	1	100 -- Szkatulka Blasku Ksiezyca
-	16	exp	50000	100 -- 50000 doswiadczenia
-	17	gold	50000	100 -- 50000 yang
+	1	25125	1	40	-- Slonecznik
+	2	71030	2	50	-- Obrona Boga Smokow
+	3	71027	2	50	-- Zycie Boga Smokow
+	4	71018	1	25	-- Blogoslawienstwo Zycia
+	5	72723	1	30	-- Eliksir Slonca (M)
+	6	72727	1	30	-- Eliksir Ksiezyca (M)
+	7	25040	1	35	-- Zwoj Blogoslawienstwa
+	8	70102	2	60	-- Fasolka Zen
+	9	76007	15	80	-- Peleryna Mestwa
+	10	27102	5	50	-- Zielona Mikstura (D)
+	11	27105	5	50	-- Fioletowa Mikstura (D)
 }

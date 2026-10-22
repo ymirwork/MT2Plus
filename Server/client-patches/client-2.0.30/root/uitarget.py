@@ -636,7 +636,7 @@ class TargetBoard(ui.ThinBoard):
 			self.name.SetWindowHorizontalAlignLeft()
 			self.name.SetHorizontalAlignLeft()
 			self.hpGauge.Show()
-			self.hpText.Show()
+			# self.hpText.Show() - usuniete biale napisy z iloscia HP (ukrycie-hp-celu)
 			# Sized with the gauge up, which __GetBoardWidth counts.
 			self.SetSize(self.__GetBoardWidth(), self.GetHeight())
 			self.UpdatePosition()
@@ -679,7 +679,7 @@ class TargetBoard(ui.ThinBoard):
 
 	def SetHP(self, hpPercentage):
 		self.__ShowHPBoard()
-		self.hpText.SetText("...")
+		# self.hpText.SetText("...")
 
 		self.__SetHPGauge(hpPercentage, 100)
 		# HP_REAL_VALUES: tekst na pasku nie jest juz liczony z procentu -
@@ -700,7 +700,7 @@ class TargetBoard(ui.ThinBoard):
 
 		if maxHp > 0:
 			self.__SetHPGauge(hp, maxHp)
-		self.hpText.SetText("%d/%d" % (hp, maxHp))
+		# self.hpText.SetText("%d/%d" % (hp, maxHp))
 
 	# MT2009_PLUS_TARGET_POISON_GAUGE_V1: the gauge green while the target is
 	# poisoned (Kiciamol, 9 October). The value is kept, because a new picture

@@ -1868,7 +1868,7 @@ DROP TEMPORARY TABLE world.dg_item;" || fail_step "could not set up the Razador 
 
 # MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
 # zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s).
-db -e "UPDATE world.item_proto SET limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
+db -e "UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
   || fail_step "could not update amulets and rings duration to 30 days" >&2
 
 
@@ -3836,7 +3836,7 @@ fi
 
 # MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
 # zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s).
-db -e "UPDATE world.item_proto SET limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
+db -e "UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
   || fail_step "could not update amulets and rings duration to 30 days" >&2
 
 
@@ -3890,7 +3890,7 @@ done
 
 # MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
 # zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s).
-db -e "UPDATE world.item_proto SET limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
+db -e "UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
   || fail_step "could not update amulets and rings duration to 30 days" >&2
 
 

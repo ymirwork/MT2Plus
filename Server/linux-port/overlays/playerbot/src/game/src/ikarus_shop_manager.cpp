@@ -3872,13 +3872,21 @@ namespace ikashop
 		if(!item)
 			return false;
 
-		if (destPos < 0 || destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * playerbot_offline::BOT_SHOP_PAGES)
-			return false;
-
-		// MT2009_PLUS_BOT_SHOP_PAGES4_V1 (slot): the premium and locked cells are the first page's; a cell past it
-		// is asked as the first cell past it - CanAddItemToShop takes a BYTE, and a bot's fourth page (240-319) wrapped
-		if (!ch->CanAddItemToShop(item, destPos < SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT ? destPos : SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT))
-			return false;
+		const bool isBot = ch->GetDesc() && ch->GetDesc()->IsBot();
+		if (!isBot)
+		{
+			if (destPos < 0 || destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * 2)
+				return false;
+			if (!ch->CanAddItemToShop(item, (BYTE)destPos))
+				return false;
+		}
+		else
+		{
+			if (destPos < 0 || destPos >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * playerbot_offline::BOT_SHOP_PAGES)
+				return false;
+			if (!ch->CanAddItemToShop(item, destPos < SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT ? (BYTE)destPos : 0))
+				return false;
+		}
 
 		if (!IsGoodSalePrice(price))
 		{

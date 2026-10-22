@@ -12,7 +12,7 @@ def get_github_token():
             return line.split('=', 1)[1]
     raise RuntimeError("Could not find GitHub token via git credential fill")
 
-def create_release(token, tag, name, body):
+def create_or_get_release(token, tag, name, body):
     url = "https://api.github.com/repos/ymirwork/MT2Plus/releases"
     payload = {
         "tag_name": tag,
@@ -31,12 +31,32 @@ def create_release(token, tag, name, body):
 
     try:
         with urllib.request.urlopen(req) as resp:
-            res = json.loads(resp.read().decode('utf-8'))
-            return res
+            return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
-        err_msg = e.read().decode('utf-8', errors='ignore')
-        print(f"HTTPError {e.code}: {err_msg}")
-        raise
+        if e.code == 422:
+            print(f"Release for {tag} already exists. Fetching existing release...")
+            tag_url = f"https://api.github.com/repos/ymirwork/MT2Plus/releases/tags/{tag}"
+            get_req = urllib.request.Request(tag_url, headers={
+                'Authorization': f'Bearer {token}',
+                'Accept': 'application/vnd.github+json',
+                'User-Agent': 'MT2Plus-Release'
+            })
+            with urllib.request.urlopen(get_req) as resp:
+                existing = json.loads(resp.read().decode('utf-8'))
+            patch_url = f"https://api.github.com/repos/ymirwork/MT2Plus/releases/{existing['id']}"
+            patch_data = json.dumps({"name": name, "body": body}).encode('utf-8')
+            patch_req = urllib.request.Request(patch_url, data=patch_data, method='PATCH', headers={
+                'Authorization': f'Bearer {token}',
+                'Accept': 'application/vnd.github+json',
+                'Content-Type': 'application/json; charset=utf-8',
+                'User-Agent': 'MT2Plus-Release'
+            })
+            with urllib.request.urlopen(patch_req) as resp:
+                return json.loads(resp.read().decode('utf-8'))
+        else:
+            err_msg = e.read().decode('utf-8', errors='ignore')
+            print(f"HTTPError {e.code}: {err_msg}")
+            raise
 
 def upload_asset_curl(token, upload_url, file_path, name):
     base_upload_url = upload_url.split('{')[0]
@@ -95,7 +115,8 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 • **Optymalizacja Autołowów (Lochy Małp & Zabezpieczenie Ścian):** Wbudowany filtr osiągalności celów `CPlayerBotManager::IsHumanTargetReachable` (`playerbot_manager.cpp`, `playerbot_manager.h`), eliminujący wybieranie potworów za ścianami w odciętych komnatach.
 • **Sklepy Offline 160 Slotów z Drewnianymi Kluczami:** Pełna obsługa 2-stronicowych magazynów i sklepów offline gracza (kompatybilność z drewnianymi kluczami `shop_unlock_slots.quest`, `ikarus_shop_manager.cpp` oraz `offlineshopmanage.py`).
 • **Seban Panel – Rozszerzona Ekonomia V2 & Caching:** Zachowano zaawansowany moduł `/economy` (analiza rynku, transakcje, doradca rotacji emerytur botów, statystyki M1/M2 i cache wydajnościowy paneli).
-• **Zarządzanie Czasem Amuletów i Stackowaniem:** 30-dniowe amulety i pierścienie z ItemShopu oraz stackowanie wybranych ulepszaczy i ksiąg do 200 sztuk (`apply.sh`).
+• **Zarządzanie Czasem Amuletów i Stackowaniem:** 30-dniowe amulety i pierścienie z ItemShopu (`limittype0 = 9` czas noszenia) oraz stackowanie wybranych ulepszaczy i ksiąg do 200 sztuk (`apply.sh`).
+• **Ukrycie Liczbowego HP Celu:** Przywrócono czysty wygląd paska życia przeciwnika/moba bez liczb (`uitarget.py`).
 • **Autorskie Zadania Gry:** Kompilacja `recykling_bonusow.quest`, `shop_unlock_slots.quest` oraz `tp_bookmarks.quest`.
 
 ---
@@ -130,24 +151,23 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
 
-    print("Creating release on GitHub...")
-    rel = create_release(token, tag, release_name, body)
+    print("Creating or updating release on GitHub...")
+    rel = create_or_get_release(token, tag, release_name, body)
     rel_id = rel['id']
     upload_url = rel['upload_url']
     html_url = rel['html_url']
-    print(f"Created release {rel_id}: {html_url}")
+    print(f"Release {rel_id}: {html_url}")
 
     upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.37.0.zip")
     upload_asset_curl(token, upload_url, cli_zip, "metin2-client-update-2.0.68.zip")
 
-    print(f"\nSUCCESS! Release published at: {html_url}")
+    print(f"\nSUCCESS! Release updated at: {html_url}")
     return html_url
 
 if __name__ == '__main__':
     if len(sys.argv) >= 5:
         publish_release(int(sys.argv[1]), sys.argv[2], int(sys.argv[3]), sys.argv[4])
     else:
-        # Default placeholder / auto-calculate if files exist
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         dist_dir = os.path.join(repo_root, 'dist')
         srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.0.zip')

@@ -626,9 +626,9 @@ class OfflineShopManage(ui.ScriptWindow):
 			itemData = constInfo.myshop_data["items"][shopSlotIndex]
 			itemSlotList = []
 			if massEdit:
-				itemTuple = (itemData["vnum"], itemData["count"], itemData["price"], itemData["sockets"])
+				itemTuple = (itemData.get("vnum", 0), itemData.get("count", 1), itemData.get("price", 0), itemData.get("sockets"))
 				for slotIdx, data in constInfo.myshop_data["items"].items():
-					compareTuple = (data["vnum"], data["count"], data["price"], data["sockets"])
+					compareTuple = (data.get("vnum", 0), data.get("count", 1), data.get("price", 0), data.get("sockets"))
 					if itemTuple == compareTuple:
 						itemSlotList.append(slotIdx)
 			else:
@@ -699,18 +699,23 @@ class OfflineShopManage(ui.ScriptWindow):
 		self.__RefreshAutoPriceButton(dialog)
 
 		if app.ENABLE_CHEQUE_SYSTEM:
-			pricesY = 115
-			buttonY = 140 + 25
-			height = 174 + 25
+			pctY = 115
+			pricesY = 140
+			autoY = 165
+			buttonY = 202
+			height = 240
 		else:
-			pricesY = 75
-			buttonY = 100 + 25
-			height = 134 + 25
+			pctY = 75
+			pricesY = 100
+			autoY = 125
+			buttonY = 163
+			height = 200
 			# The price line two pixels up, halfway between the input over it
 			# and the button under it (Piciu713, 29 September).
 			dialog.moneyText.SetPosition(0, 57)
+		shopautoprice.AttachPricePercentButtons(dialog, pctY)
 		dialog.fleaPricesButton.SetPosition(0, pricesY)
-		dialog.autoPriceButton.SetPosition(0, pricesY + 25)
+		dialog.autoPriceButton.SetPosition(0, autoY)
 		dialog.SetSize(200, height)
 		dialog.board.SetSize(200, height)
 		dialog.acceptButton.SetPosition(-36, buttonY)
@@ -966,6 +971,8 @@ class OfflineShopManage(ui.ScriptWindow):
 			"mode": mode,
 			"startedAt": now,
 			"lastUpdateAt": now,
+			"nextSendAt": 0.0,
+			"pending": [],
 			"requests": {},
 		}
 		self.fleaPriceBatch = batch
@@ -980,8 +987,7 @@ class OfflineShopManage(ui.ScriptWindow):
 				"range": None,
 				"sales": None,
 			}
-			self.__SendFleaMarketPriceRequest(
-				requestID, FLEA_PRICE_OWN_SHOP_WINDOW, itemData["id"])
+			batch["pending"].append((requestID, itemData["id"]))
 		chat.AppendChat(chat.CHAT_TYPE_INFO, playerbot_lang.T(
 			"Pobieranie cen dla %d przedmiotow...", "Collecting prices for %d items...") % len(items))
 
@@ -1038,6 +1044,15 @@ class OfflineShopManage(ui.ScriptWindow):
 		if not batch:
 			return
 		now = clientclock.Now()
+		pending = batch.get("pending", [])
+		if pending and now >= batch.get("nextSendAt", 0.0):
+			batch["nextSendAt"] = now + 0.1
+			chunk = pending[:5]
+			del pending[:5]
+			for requestID, itemID in chunk:
+				self.__SendFleaMarketPriceRequest(requestID, FLEA_PRICE_OWN_SHOP_WINDOW, itemID)
+		if pending:
+			return
 		requests = batch["requests"].values()
 		mode = batch["mode"]
 		if mode == AUTO_PRICE_MINIMUM or mode == AUTO_PRICE_MAXIMUM:
@@ -1295,9 +1310,9 @@ class OfflineShopManage(ui.ScriptWindow):
 			itemData = data[shopSlotIndex]
 			if massEdit:
 				item_list = []
-				itemTuple = (itemData["vnum"], itemData["count"], itemData["price"], itemData["sockets"])
+				itemTuple = (itemData.get("vnum", 0), itemData.get("count", 1), itemData.get("price", 0), itemData.get("sockets"))
 				for i,v in data.items():
-					if (v["vnum"], v["count"], v["price"], v["sockets"]) == itemTuple:
+					if (v.get("vnum", 0), v.get("count", 1), v.get("price", 0), v.get("sockets")) == itemTuple:
 						item_list.append(v)
 						shop_total_value = shop_total_value - v["price"] + inputPrice
 						if shop_total_value > player.GOLD_MAX:
@@ -1315,7 +1330,7 @@ class OfflineShopManage(ui.ScriptWindow):
 
 	def __SendEditItemPricePacket(self, itemData, itemPrice):
 		ikashop.SendEditItem(itemData["id"], itemPrice)
-		offlineShopBuilder.SetPrivateShopItemPrice(itemData["vnum"], itemData["count"], itemPrice, itemData["sockets"])
+		offlineShopBuilder.SetPrivateShopItemPrice(itemData.get("vnum", 0), itemData.get("count", 1), itemPrice, itemData.get("sockets"))
 
 	def AcceptEditSignDialog(self):
 		if self.editSignDialog:

@@ -17,6 +17,28 @@ every version here.
 
 ---
 
+## 2.37.1 — 2026-10-23 — Boty: mniej pamięci, mniej krążenia, samodzielny Zodiak
+
+### Boty
+- **Mapy botów zajmują dużo mniej pamięci.** Wszystkie mapy korzystają teraz z jednego wspólnego bufora do wyszukiwania tras (wcześniej każda mapa miała własny, choć naraz używany był tylko jeden), a dane samej mapy spakowałem z 11 do 5 bajtów na pole. Na kanale z dużymi mapami (Sohan, Ognista Ziemia, Pustynia, Dolina, Groty) to ok. 0,8 GB mniej, gdy wszystkie siatki są zbudowane, a na pozostałych kanałach odpowiednio mniej. Trasy botów są dokładnie takie same jak wcześniej.
+- **Brak pamięci na mapę nie wyłącza już kanału.** Jeśli siatka którejś mapy nie zmieści się w pamięci, kanał działa dalej – boty na tej mapie przez 10 minut chodzą bez planowania tras, a potem siatka buduje się ponownie.
+
+### Boty – magazyn i trasy
+- **Dużo mniej bezcelowych wizyt w magazynie.** Na świecie z ~1600 botami było ok. 76 tys. wizyt w magazynie na dobę, z czego prawie połowa nic nie odkładała i nic nie wyjmowała (magazyn się otwierał – problem był w tym, że bot nie miał tam czego robić). Teraz bot, którego wizyta niczego nie przeniosła, przez pół godziny nie wraca do magazynu w tej samej sprawie, przed samym Magazynierem jeszcze raz sprawdza, czy sprawa jest nadal aktualna (kupcy po drodze często już opróżnili torbę), a o ulepszacze idzie tylko wtedy, gdy rzeczywiście ma nadwyżkę ponad to, co trzyma dla kowala.
+- **Koniec przekładania tego samego tam i z powrotem.** Bot nie odkłada do magazynu przedmiotu, który przed chwilą z niego wyjął (np. ulepszacza dla kowala), ani nie wyjmuje tego, co przed chwilą odłożył – przez pół godziny, chyba że torba jest naprawdę pełna.
+- **Bot bez grupy umiejętności w drugiej wiosce nie krąży już co 25 sekund.** Pomijanie przerwy między wizytami w mieście (żeby szybko wybrać grupę umiejętności u trenera) działa teraz tylko tam, gdzie trener stoi. Wcześniej taki bot z pełną torbą chodził cały dzień między kupcem a magazynem.
+- **Zioła w miejscach bez dojścia.** Zielarz nie wybiera krzaka, do którego nie da się dojść z miejsca, w którym stoi, a gdy wyznaczanie trasy odmówi, od razu idzie do następnego zamiast stać 2 minuty w miejscu.
+- **Ucieczka i odejście od miejsca śmierci.** Gdy wyznaczanie trasy odrzuci kierunek ucieczki, bot przez minutę wybiera inne kierunki zamiast próbować w kółko tego samego (najczęściej w Czerwonym Lesie).
+- **Magazyn bota nie otwiera się już podwójnie.** Gdy odpowiedź bazy się spóźniała, bot prosił o magazyn drugi raz i dostawał drugą, nieaktualną kopię – część przedmiotów się w niej nie wczytywała (błąd „cannot create item” w logach), a odłożone chwilę wcześniej rzeczy w niej nie widniały. Poprawiłem to: bot czeka teraz na pierwszą odpowiedź, a spóźniony magazyn zamyka bez zmian. Przedmioty, które się nie wczytały, nie znikały z bazy.
+
+### Boty – Świątynia Zodiaku
+- **Boty same robią Świątynię Zodiaku.** Do tej pory wchodziły tam tylko z graczem w drużynie. Teraz drużyny botów (4–8 z jednego królestwa, najlepiej z szamanem) same wchodzą przez portale znaków dostępne danego dnia i płacą jak gracz: 12 Sfer Animy na osobę i własne Pryzmaty za wskrzeszenia. Na każdy poziom wchodzą tylko boty z odpowiednim poziomem i sprzętem. Odbierają nagrody z pięter i Złotą Skrzynię, na 40. piętrze kupują u handlarza Pergamin Sfer i Pryzmaty, a u mnicha Milbona odbierają Pryzmaty i wymieniają Insygnia na Kwiat Żywiołu. Naraz najwyżej 2 takie wejścia, w ramach limitu lochów z panelu.
+
+### Tryb global
+- **Odporność na żywioły działa w pełni także w trybie global.** Każdy procent odporności zmniejsza obrażenia od potwora tego żywiołu o 1% (najwyżej 80%), tak jak w trybie mt2009 – wcześniej tryb global liczył tylko 30% odporności. Siła żywiołów się nie zmienia.
+
+---
+
 ## 2.37.0 — 2026-10-22 — Zaklęty Las, mapy 90 poziomu i tryb global
 
 ### Boty – stragany i handel

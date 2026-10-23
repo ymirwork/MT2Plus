@@ -58,6 +58,29 @@ def create_or_get_release(token, tag, name, body):
             print(f"HTTPError {e.code}: {err_msg}")
             raise
 
+def delete_existing_asset_if_exists(token, release_id, asset_name):
+    url = f"https://api.github.com/repos/ymirwork/MT2Plus/releases/{release_id}/assets"
+    req = urllib.request.Request(url, headers={
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'MT2Plus-Release'
+    })
+    try:
+        with urllib.request.urlopen(req) as resp:
+            assets = json.loads(resp.read().decode('utf-8'))
+            for a in assets:
+                if a.get('name') == asset_name:
+                    del_url = f"https://api.github.com/repos/ymirwork/MT2Plus/releases/assets/{a['id']}"
+                    del_req = urllib.request.Request(del_url, method='DELETE', headers={
+                        'Authorization': f'Bearer {token}',
+                        'Accept': 'application/vnd.github+json',
+                        'User-Agent': 'MT2Plus-Release'
+                    })
+                    with urllib.request.urlopen(del_req) as del_resp:
+                        print(f"Deleted old asset {asset_name} (id {a['id']})")
+    except Exception as e:
+        print(f"Notice on asset check: {e}")
+
 def upload_asset_curl(token, upload_url, file_path, name):
     base_upload_url = upload_url.split('{')[0]
     target_url = f"{base_upload_url}?name={name}"
@@ -92,7 +115,7 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     dist_dir = os.path.join(repo_root, 'dist')
     
-    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.0.zip')
+    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.1.zip')
     cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.68.zip')
 
     if not os.path.exists(srv_zip) or not os.path.exists(cli_zip):
@@ -102,43 +125,42 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     token = get_github_token()
     print("GitHub token acquired successfully.")
 
-    tag = "v2.37.0-mod58"
-    release_name = "MT2009 PLUS v2.37.0-mod58 - Serwer 2.37.0 & Klient 2.0.68"
+    tag = "v2.37.1-mod58"
+    release_name = "MT2009 PLUS v2.37.1-mod58 - Serwer 2.37.1 & Klient 2.0.68"
 
-    body = f"""# 📦 MT2Plus Wydanie v2.37.0-mod58
+    body = f"""# 📦 MT2Plus Wydanie v2.37.1-mod58
 
-Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.37.0, mod-58 oraz Klient 2.0.68) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
+Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.37.1, mod-58 oraz Klient 2.0.68) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
 
 ---
 
 ### 🛡️ Autorskie Modyfikacje i Systemy MT2Plus
 • **Optymalizacja Autołowów (Lochy Małp & Zabezpieczenie Ścian):** Wbudowany filtr osiągalności celów `CPlayerBotManager::IsHumanTargetReachable` (`playerbot_manager.cpp`, `playerbot_manager.h`), eliminujący wybieranie potworów za ścianami w odciętych komnatach.
-• **Sklepy Offline 160 Slotów z Drewnianymi Kluczami:** Pełna obsługa 2-stronicowych magazynów i sklepów offline gracza (kompatybilność z drewnianymi kluczami `shop_unlock_slots.quest`, `ikarus_shop_manager.cpp` oraz `offlineshopmanage.py`).
+• **Sklepy Offline 160 Slotów z Drewnianymi Kluczami:** Pełna obsługa 2-stronicowych magazynów i sklepów offline gracza (kompatybilność z drewnianymi kluczami `shop_unlock_slots.quest`, `ikarus_shop_manager.cpp` z poprawnym pozycjonowaniem slotów `destPos` oraz `offlineshopmanage.py`).
 • **Seban Panel – Rozszerzona Ekonomia V2 & Caching:** Zachowano zaawansowany moduł `/economy` (analiza rynku, transakcje, doradca rotacji emerytur botów, statystyki M1/M2 i cache wydajnościowy paneli).
 • **Zarządzanie Czasem Amuletów i Stackowaniem:** 30-dniowe amulety i pierścienie z ItemShopu (`limittype0 = 9` czas noszenia) oraz stackowanie wybranych ulepszaczy i ksiąg do 200 sztuk (`apply.sh`).
-• **Ukrycie Liczbowego HP Celu:** Przywrócono czysty wygląd paska życia przeciwnika/moba bez liczb (`uitarget.py`).
+• **Ukrycie Liczbowego HP Celu:** Zachowano czysty wygląd paska życia przeciwnika/moba bez liczb (`uitarget.py`).
 • **Autorskie Zadania Gry:** Kompilacja `recykling_bonusow.quest`, `shop_unlock_slots.quest` oraz `tp_bookmarks.quest`.
 
 ---
 
-### 🌳 Nowości i Usprawnienia Upstream (2.37.0 / mod-58)
-• **Zaklęty Las (map 353) & Mapy 90+ (301-304):** Pełna integracja nowych lokacji wysokopoziomowych, mobów i bossów (En-Tai, Bagjanamu, Cape Dragon Head, Yohara mobs).
-• **Czwarty Rdzeń Mapowy (game3):** Wydzielenie mapy 353 i map 301-304 na dedykowany proces `ch1-game3` na porcie 13003 dla maksymalnej płynności i stabilności.
-• **Aktualizacja Portów:** Zakres portów gier rozszerzony do 13000-13003 w Docker Compose i konfiguracji `.env`.
-• **Flagi M2_BONUS_MODE & PLAYERBOT_HANDOVER:** Nowe dyrektywy silnika gry dla optymalizacji systemów bonusów oraz przekazywania sterowania botami.
-• **Pełna kompatybilność z mod-58:** Wszystkie schematy bazy danych i procedury mariadb zaktualizowane do najnowszego standardu.
+### 🚀 Nowości i Usprawnienia Upstream (2.37.1 / mod-58)
+• **Optymalizacja pamięci i nawigacji botów:** Kompresja siatek nawigacyjnych do 5 bajtów na węzeł, redukcja alokacji RAM oraz współdzielony bufor przeszukiwania ścieżek (`playerbot_navigation.h`).
+• **Autonomiczne rajdy Świątyni Zodiaku:** Boty gracza potrafią samodzielnie rozpoczynać i przechodzić płatne wyprawy do Świątyni Zodiaku, docierając do końca instancji i handlarza na 40. piętrze (`playerbot_zodiac_runs.h`, `playerbot_zodiac_bots.h`).
+• **Likwidacja zapętlania wizyt w magazynie:** Eliminacja uciążliwego zjawiska zapętlania botów pomiędzy handlarzami a dozorcą w M2 (`playerbot_manager.cpp`, `playerbot_town.h`).
+• **Odporności na żywioły w trybie globalnym:** Pełne przeliczanie procentowe odporności żywiołów (`playerbot_bonus_mode.cpp` / `MT2009_PLUS_ELEMENT_RESIST_FULL_V1`).
+• **Aktualizacje zielarstwa i przetrwania:** Usprawnienia w `playerbot_herbalism.h` oraz `playerbot_survival.h`.
 
 ---
 
 ### 💻 Klient Gry 2.0.68
-• **Pełna obsługa nowych lokacji i assetów:** Kompatybilność z Zaklętym Lasem, mapami 90+ i nowymi modelami potworów.
-• **Zabezpieczenie AutoFish Guard:** Spójność pakietów i zabezpieczenie modułów wędkarskich.
-• **Zsynchronizowany Patcher Web CDN:** Aktualizacja sum kontrolnych i plików patchera na GitHub Pages.
+• **Brak zmian binarnych klienta:** Klient zachowuje pełną zgodność z wersją 2.0.68.
+• **Zintegrowane paczki `root`:** Zawierają wszystkie autorskie modyfikacje interfejsu (ukrywanie szarfy, 160 slotów sklepu, brak liczb HP celu).
 
 ---
 
 ### 📦 Sumy kontrolne załączonych archiwów (SHA-256)
-- **`metin2-server-update-2.37.0.zip`** ({srv_size:,} bytes)
+- **`metin2-server-update-2.37.1.zip`** ({srv_size:,} bytes)
   `SHA-256: {srv_hash}`
 - **`metin2-client-update-2.0.68.zip`** ({cli_size:,} bytes)
   `SHA-256: {cli_hash}`
@@ -146,7 +168,7 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 ---
 
 📥 **Instrukcja Uruchomienia (Ready-to-Play):**
-1. Pobierz paczkę serwera `metin2-server-update-2.37.0.zip` oraz klienta `metin2-client-update-2.0.68.zip`.
+1. Pobierz paczkę serwera `metin2-server-update-2.37.1.zip` oraz klienta `metin2-client-update-2.0.68.zip`.
 2. Wypakuj serwer i uruchom `start.bat` (wymagany Docker Desktop).
 3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
@@ -158,7 +180,10 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Release {rel_id}: {html_url}")
 
-    upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.37.0.zip")
+    delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.37.1.zip")
+    delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.68.zip")
+
+    upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.37.1.zip")
     upload_asset_curl(token, upload_url, cli_zip, "metin2-client-update-2.0.68.zip")
 
     print(f"\nSUCCESS! Release updated at: {html_url}")
@@ -170,7 +195,7 @@ if __name__ == '__main__':
     else:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         dist_dir = os.path.join(repo_root, 'dist')
-        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.0.zip')
+        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.1.zip')
         cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.68.zip')
         import hashlib
         def h(p):

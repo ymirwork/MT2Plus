@@ -122,6 +122,9 @@ bool CheckItem(LPITEM pkItem, LPCHARACTER ch, BYTE pos)
 
 bool CHARACTER::CanPlaceOnShopSlot(BYTE slot)
 {
+	// MT2009_PLUS_FIX_BOT_SHOP_REOPEN_V1: bot shops are not subject to player lock or premium restrictions
+	if (GetDesc() && GetDesc()->IsBot())
+		return true;
     if (slot >= SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT * 2) return false;
 	if (IsInPremiumArea(slot) && GetPremiumRemainSeconds(PREMIUM_SHOP) < 1)
 	{
@@ -139,6 +142,9 @@ bool CHARACTER::CanPlaceOnShopSlot(BYTE slot)
 
 bool CHARACTER::CanPlaceItemOnShopSlot(BYTE slot, BYTE itemHeight)
 {
+	// MT2009_PLUS_FIX_BOT_SHOP_REOPEN_V1: bot shops have up to 4 pages (BOT_SHOP_PAGES) without human limits
+	if (GetDesc() && GetDesc()->IsBot())
+		return true;
     const int page = SHOP_PLAYER_WIDTH * SHOP_PLAYER_HEIGHT;
     if (slot >= page * 2 || itemHeight == 0 ||
         (slot % page) / SHOP_PLAYER_WIDTH + itemHeight > SHOP_PLAYER_HEIGHT) return false;

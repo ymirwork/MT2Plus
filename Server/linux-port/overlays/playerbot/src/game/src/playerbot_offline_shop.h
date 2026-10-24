@@ -3166,7 +3166,7 @@ namespace {
                 }
                 for (const auto& [lineId, line] : shop->GetItems())
                     if (line && line->GetTable() &&
-                            !ch->CanPlaceItemOnShopSlot((BYTE)line->GetInfo().pos, (BYTE)line->GetTable()->bSize)) {
+                            !(ch->GetDesc() && ch->GetDesc()->IsBot()) && !ch->CanPlaceItemOnShopSlot((BYTE)line->GetInfo().pos, (BYTE)line->GetTable()->bSize)) {
                         slotsOk = 0;
                         break;
                     }

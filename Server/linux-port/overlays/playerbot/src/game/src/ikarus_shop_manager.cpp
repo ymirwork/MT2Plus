@@ -2798,7 +2798,8 @@ namespace ikashop
 			auto itemHandle = it.second;
 			if (itemHandle)
 			{
-				if (!ch->CanPlaceItemOnShopSlot(itemHandle->GetInfo().pos, itemHandle->GetTable()->bSize))
+				// MT2009_PLUS_FIX_BOT_SHOP_REOPEN_V1: bot shops are not subject to player lock or premium restrictions
+				if (!(ch->GetDesc() && ch->GetDesc()->IsBot()) && !ch->CanPlaceItemOnShopSlot(itemHandle->GetInfo().pos, itemHandle->GetTable()->bSize))
 				{
 					ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("SHOP_NO_PREMIUM"));
 					return false;

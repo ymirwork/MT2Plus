@@ -301,6 +301,7 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
 | [`kolekcjoner-autodrop`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-autodrop) | Serwer (C++) + Klient (Python) | `playerbot_collector.cpp/h`, `char_item.cpp`, `char.cpp`, `input_login.cpp`, `uicollector.py` (checkbox auto-dropu do magazynu kolekcjonera przy pełnym EQ, stack merge, account flag) | **Aktywny** |
 | [`sesja-farmienia`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/sesja-farmienia) | Klient (Python) | `farmsession.py`, `farmsession_prices.py`, `uifarmsession.py`, `keybind.py`, `interfacemodule.py`, `game.py`, `uiinventory.py` (okno Sesji Farmienia, wycena Rynkowa z baza 3250 cen / NPC -3%, liczniki Metinow/Bossow/Yang, tempo /h, mini-HUD) | **Aktywny** |
 | [`odnawianie-sklepow-botow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow) | Serwer (C++) | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `playerbot_offline_shop.h` (zdjęcie ograniczeń slotów/premium gracza dla botów przy reopenie, automatyczne odnawianie 4-stronicowych sklepów offline botów) | **Aktywny** |
+| [`dom-aukcyjny-historia`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/dom-aukcyjny-historia) | Klient (Python) | `Klient/pack/root/uiauctionhouse.py` (Przycisk "Historia" obok Reset, okno historii zakupów, tooltip z bonusami/KD, wyszukiwanie 1-klik, czyszczenie, bufor JSON) | **Aktywny** |
 
 ---
 

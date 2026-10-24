@@ -15,7 +15,11 @@
 # Indeksy kategorii (CATEGORY_DEFS) musza zgadzac sie z s_categories w
 # auction_house.cpp.
 import re
+import os
+import json
+import time
 import ui
+import player
 import ikashop
 import item
 import skill
@@ -2515,6 +2519,368 @@ class BonusDialog(ui.BoardWithTitleBar):
 		self.Close()
 
 
+# ---- historia zakupow (AH_V2) ------------------------------------------------
+def GetAuctionHistoryPath():
+	try:
+		charName = player.GetName()
+		if charName:
+			safeName = re.sub(r'[^a-zA-Z0-9_\-]', '', charName)
+			return "cache/ah_history_%s.json" % safeName
+	except:
+		pass
+	return "cache/ah_history_common.json"
+
+def LoadAuctionHistory():
+	path = GetAuctionHistoryPath()
+	if not os.path.exists(path):
+		return []
+	try:
+		with open(path, "r") as f:
+			data = json.load(f)
+			if isinstance(data, list):
+				return data
+	except:
+		pass
+	return []
+
+def SaveAuctionHistory(dataList):
+	path = GetAuctionHistoryPath()
+	try:
+		dirName = os.path.dirname(path)
+		if dirName and not os.path.exists(dirName):
+			os.makedirs(dirName)
+		with open(path, "w") as f:
+			json.dump(dataList[:200], f, indent=2)
+	except:
+		pass
+
+class AuctionHistoryRow(ui.Window):
+	def __init__(self, dialog):
+		ui.Window.__init__(self)
+		self.dialog = proxy(dialog)
+		self.data = None
+		self.index = 0
+		width = 540
+		height = 42
+		self.SetSize(width, height)
+
+		self.board = ui.ThinBoard()
+		self.board.SetParent(self)
+		self.board.SetPosition(0, 0)
+		self.board.SetSize(width, height)
+		self.board.AddFlag("not_pick")
+		self.board.Show()
+
+		self.hoverBar = MakeBar(self, 2, 2, width - 4, height - 4, 0x206EDC82)
+		self.hoverBar.Hide()
+
+		self.selectBar = MakeBar(self, 2, 2, width - 4, height - 4, 0x356EDC82)
+		self.selectBar.Hide()
+
+		# Ramka ikony (32x32)
+		iconBox = 32
+		iconX, iconY = 6, (height - iconBox) // 2
+		self.iconBack = MakeBar(self, iconX + ICON_BACK_INSET, iconY + ICON_BACK_INSET, iconBox - 2 * ICON_BACK_INSET, iconBox - 2 * ICON_BACK_INSET, COLOR_ICON_BACK)
+		self.iconSlot = MakeScaledImage(self, iconX, iconY, ICON_SLOT_IMAGE, iconBox, iconBox)
+
+		self.icon = ui.ExpandedImageBox()
+		self.icon.SetParent(self)
+		self.icon.SetPosition(iconX, iconY)
+		self.icon.AddFlag("not_pick")
+		self.icon.Show()
+
+		# Nazwa przedmiotu
+		self.nameText = MakeText(self, 44, 4, "", COLOR_TEXT, True)
+		# Szczegoly / sprzedawca
+		self.subText = MakeText(self, 44, 22, "", COLOR_DIM, False)
+
+		# Ilosc
+		self.countText = MakeText(self, 274, 12, "", COLOR_TEXT, True)
+		# Cena
+		self.priceText = MakeText(self, 354, 12, "", COLOR_GOLD, True)
+		# Data
+		self.dateText = MakeText(self, 454, 12, "", COLOR_DIM, False)
+
+	def __del__(self):
+		ui.Window.__del__(self)
+
+	def SetData(self, data, index, isSelected=False):
+		self.data = data
+		self.index = index
+		vnum = data.get("vnum", 0)
+
+		# Ikona
+		try:
+			item.SelectItem(vnum)
+			iconFile = item.GetIconImageFileName()
+			zoom = GetIconZoom(item.GetItemType(), item.GetItemSubType())
+			if vnum == SKILLBOOK_VNUM:
+				try:
+					bookIcon = SKILLBOOK_ICON % int(data.get("sockets", [0])[0])
+					if app.IsExistFile(bookIcon):
+						iconFile = bookIcon
+				except:
+					pass
+			self.icon.SetScale(1.0, 1.0)
+			self.icon.LoadImage(iconFile)
+			w = self.icon.GetWidth()
+			h = self.icon.GetHeight()
+			biggest = max(1, w, h)
+			boxSize = 32
+			scale = min(zoom if zoom else 1.0, float(boxSize - 4) / biggest)
+			self.icon.SetScale(scale, scale)
+			self.icon.SetPosition(6 + int((boxSize - w * scale) / 2), (self.GetHeight() - int(h * scale)) // 2)
+		except:
+			pass
+
+		# Nazwa
+		name = data.get("name")
+		if not name and self.dialog and self.dialog.market:
+			name = self.dialog.market.GetItemName(data)
+		if not name:
+			name = ItemNameOf(vnum) or ("#%d" % vnum)
+		self.nameText.SetPosition(44, 4)
+		FitText(self.nameText, name, 220)
+
+		# Subtext (Sprzedawca + ew. cena/szt)
+		count = max(1, data.get("count", 1))
+		price = max(0, data.get("price", 0))
+		seller = data.get("seller") or data.get("seller_name") or "Rynek"
+		if count > 1:
+			unitPrice = PartPrice(price, count, 1)
+			self.subText.SetText("Od: %s (%s/szt.)" % (seller, Money(unitPrice)))
+		else:
+			self.subText.SetText("Od: %s" % seller)
+		FitText(self.subText, self.subText.GetText(), 220)
+
+		# Ilosc
+		self.countText.SetText("%d szt." % count)
+
+		# Cena
+		self.priceText.SetText(Money(price))
+
+		# Data
+		self.dateText.SetText(data.get("date", ""))
+
+		if isSelected:
+			self.selectBar.Show()
+		else:
+			self.selectBar.Hide()
+
+		self.hoverBar.Hide()
+		self.Show()
+
+	def Clear(self):
+		self.data = None
+		self.hoverBar.Hide()
+		self.selectBar.Hide()
+		self.Hide()
+
+	def OnMouseOverIn(self):
+		self.hoverBar.Show()
+		if self.data and self.dialog and self.dialog.market:
+			self.dialog.market.ShowItemToolTip(self.data)
+
+	def OnMouseOverOut(self):
+		self.hoverBar.Hide()
+		if self.dialog and self.dialog.market:
+			self.dialog.market.HideItemToolTip()
+
+	def OnMouseLeftButtonUp(self):
+		if self.data and self.dialog:
+			self.dialog.OnSelectRow(self.data)
+		return True
+
+	def OnMouseLeftButtonDoubleClick(self):
+		if self.data and self.dialog:
+			self.dialog.OnSelectRow(self.data)
+			self.dialog.SearchSelected()
+		return True
+
+
+class AuctionHistoryDialog(ui.BoardWithTitleBar):
+	WIDTH = 574
+	HEIGHT = 420
+	ROWS_VISIBLE = 6
+	ROW_HEIGHT = 44
+
+	def __init__(self, market):
+		ui.BoardWithTitleBar.__init__(self)
+		self.market = proxy(market)
+		self.historyList = []
+		self.rows = []
+		self.offset = 0
+		self.scrolling = False
+		self.selectedData = None
+		self.questionDialog = None
+
+		self.SetSize(self.WIDTH, self.HEIGHT)
+		self.AddFlag("movable")
+		self.AddFlag("float")
+		self.SetTitleName("Historia zakup\xf3w - Dom Aukcyjny")
+		self.SetCloseEvent(ui.__mem_func__(self.Close))
+
+		# Podsumowanie u gory
+		self.summaryText = MakeText(self, 16, 34, "", COLOR_GOLD, True)
+
+		# Naglowki kolumn
+		self.headerBar = MakeBar(self, 14, 56, 546, 20, 0x40000000)
+		self.headerItem = MakeText(self, 20, 58, "Przedmiot", COLOR_DIM, False)
+		self.headerCount = MakeText(self, 288, 58, "Ilo\x9c\xe6", COLOR_DIM, False)
+		self.headerPrice = MakeText(self, 368, 58, "Zap\xb3acono", COLOR_DIM, False)
+		self.headerDate = MakeText(self, 468, 58, "Data zakupu", COLOR_DIM, False)
+
+		# Wiersze
+		for i in xrange(self.ROWS_VISIBLE):
+			row = AuctionHistoryRow(self)
+			row.SetParent(self)
+			row.SetPosition(16, 78 + i * self.ROW_HEIGHT)
+			row.Hide()
+			self.rows.append(row)
+
+		# Pasek przewijania
+		listHeight = self.ROWS_VISIBLE * self.ROW_HEIGHT
+		self.scrollBar = ui.ScrollBar()
+		self.scrollBar.SetParent(self)
+		self.scrollBar.SetPosition(558, 78)
+		self.scrollBar.SetScrollBarSize(listHeight)
+		self.scrollBar.SetScrollEvent(ui.__mem_func__(self.__OnScroll))
+		self.scrollBar.Hide()
+
+		# Komunikat pustej listy
+		self.emptyText = MakeText(self, self.WIDTH // 2, 190, "Brak historii zakup\xf3w w Domu Aukcyjnym.", COLOR_DIM, True)
+		self.emptyText.SetHorizontalAlignCenter()
+		self.emptyText.Hide()
+
+		# Przyciski na dole
+		btnY = self.HEIGHT - 35
+		self.clearButton = MakeButton(self, 16, btnY, 120, "Wyczy\x9c\xe6 histori\xea", ui.__mem_func__(self.AskClearHistory))
+		self.searchButton = MakeButton(self, 144, btnY, 120, "Szukaj w AH", ui.__mem_func__(self.SearchSelected))
+		self.closeButton = MakeButton(self, self.WIDTH - 16 - 84, btnY, 84, "Zamknij", ui.__mem_func__(self.Close))
+
+		self.Hide()
+
+	def __del__(self):
+		ui.BoardWithTitleBar.__del__(self)
+
+	def Destroy(self):
+		if self.questionDialog:
+			self.questionDialog.Close()
+			self.questionDialog = None
+		self.rows = []
+		self.historyList = []
+		self.selectedData = None
+		self.scrollBar = None
+		self.Hide()
+
+	def Open(self):
+		self.Refresh()
+		self.SetCenterPosition()
+		self.SetTop()
+		self.Show()
+
+	def Close(self):
+		if self.questionDialog:
+			self.questionDialog.Close()
+			self.questionDialog = None
+		if self.market:
+			self.market.HideItemToolTip()
+		self.Hide()
+
+	def OnPressEscapeKey(self):
+		self.Close()
+		return True
+
+	def __MaxOffset(self):
+		return max(0, len(self.historyList) - self.ROWS_VISIBLE)
+
+	def __OnScroll(self):
+		if self.scrolling:
+			return
+		limit = self.__MaxOffset()
+		self.offset = int(self.scrollBar.GetPos() * limit + 0.5) if limit > 0 else 0
+		self.__RefreshRows()
+
+	def OnMouseWheel(self, length):
+		limit = self.__MaxOffset()
+		if limit > 0:
+			self.offset = max(0, min(limit, self.offset + (-1 if length > 0 else 1)))
+			self.scrolling = True
+			self.scrollBar.SetPos(float(self.offset) / limit)
+			self.scrolling = False
+			self.__RefreshRows()
+		return True
+
+	def Refresh(self):
+		self.historyList = LoadAuctionHistory()
+		self.offset = 0
+
+		# Podsumowanie
+		totalCount = len(self.historyList)
+		totalYang = sum([entry.get("price", 0) for entry in self.historyList])
+		if totalCount > 0:
+			self.summaryText.SetText("Zakup\xf3w: %d  |  \xa3\xb1cznie wydano: %s" % (totalCount, Money(totalYang)))
+			self.emptyText.Hide()
+		else:
+			self.summaryText.SetText("Historia zakup\xf3w jest pusta.")
+			self.emptyText.Show()
+
+		# Suwak
+		limit = self.__MaxOffset()
+		if limit > 0:
+			self.scrolling = True
+			self.scrollBar.SetMiddleBarSize(float(self.ROWS_VISIBLE) / len(self.historyList))
+			self.scrollBar.SetPos(0.0)
+			self.scrolling = False
+			self.scrollBar.Show()
+		else:
+			self.scrollBar.Hide()
+
+		self.__RefreshRows()
+
+	def __RefreshRows(self):
+		for i, row in enumerate(self.rows):
+			idx = self.offset + i
+			if idx < len(self.historyList):
+				data = self.historyList[idx]
+				isSelected = (self.selectedData == data)
+				row.SetData(data, idx, isSelected)
+			else:
+				row.Clear()
+
+	def OnSelectRow(self, data):
+		self.selectedData = data
+		self.__RefreshRows()
+
+	def SearchSelected(self):
+		if not self.selectedData or not self.market:
+			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: wybierz pozycj\xea z historii, aby j\xb9 wyszuka\xe6.")
+			return
+		self.market.SearchFromHistory(self.selectedData)
+
+	def AskClearHistory(self):
+		if not self.historyList:
+			return
+		dialog = uiCommon.QuestionDialog()
+		dialog.SetText("Czy na pewno chcesz wyczy\x9c\xe6 histori\xea zakup\xf3w?")
+		dialog.SetAcceptEvent(ui.__mem_func__(self.__AcceptClearHistory))
+		dialog.SetCancelEvent(ui.__mem_func__(self.__CloseQuestionDialog))
+		dialog.Open()
+		self.questionDialog = dialog
+
+	def __AcceptClearHistory(self):
+		self.__CloseQuestionDialog()
+		SaveAuctionHistory([])
+		self.selectedData = None
+		self.Refresh()
+		chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: historia zakup\xf3w zosta\xb3a wyczyszczona.")
+
+	def __CloseQuestionDialog(self):
+		if self.questionDialog:
+			self.questionDialog.Close()
+			self.questionDialog = None
+
+
 # ---- okno glowne -------------------------------------------------------------
 class BigFrameButton(FrameButton):
 	# przyciski zakupu gornego paska: wiekszy napis
@@ -2664,6 +3030,14 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		self.resetButton.SetParent(self)
 		self.resetButton.SetPosition(resetX, resetY)
 		self.resetButton.Show()
+
+		# AH_V2: Przycisk "Historia" obok "Reset"
+		self.historyButton = FrameButton(65, resetHeight, "Historia", ui.__mem_func__(self.ToggleHistory), COLOR_OPTION_FILL, COLOR_TITLE_BUTTON)
+		SetHint(self.historyButton, "Historia zakup\xf3w w Domu Aukcyjnym")
+		self.historyButton.SetParent(self)
+		self.historyButton.SetPosition(resetX + 50 + 6, resetY)
+		self.historyButton.Show()
+		self.historyDialog = None
 
 		# Gorny pasek: pole nazwy i piec przyciskow tej samej wysokosci, na srodku
 		# miedzy belka tytulu a przyciskiem "Klasa".
@@ -2834,6 +3208,9 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		if self.filterDialog:
 			self.filterDialog.Hide()
 			self.filterDialog = None
+		if self.historyDialog:
+			self.historyDialog.Destroy()
+			self.historyDialog = None
 		if self.classPopup:
 			self.classPopup.Destroy()
 			self.classPopup = None
@@ -2908,6 +3285,8 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 			self.bonusDialog.Close()
 		if self.filterDialog:
 			self.filterDialog.Close()
+		if self.historyDialog:
+			self.historyDialog.Close()
 		self.__HideSuggestions()
 		self.HideItemToolTip()
 		HideHint()
@@ -3214,6 +3593,38 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		self.__HideSuggestions()
 		self.__RefreshLock()
 		self.Search()
+
+	def ToggleHistory(self):
+		if not self.historyDialog:
+			self.historyDialog = AuctionHistoryDialog(self)
+		if self.historyDialog.IsShow():
+			self.historyDialog.Close()
+		else:
+			self.historyDialog.Open()
+
+	def AddHistoryRecord(self, vnum, name, count, price, seller, sockets=None, attrs=None):
+		entry = {
+			"vnum": int(vnum),
+			"name": str(name) if name else (ItemNameOf(vnum) or ("#%d" % vnum)),
+			"count": max(1, int(count)),
+			"price": max(0, int(price)),
+			"seller": str(seller) if seller else "Rynek",
+			"seller_name": str(seller) if seller else "Rynek",
+			"date": time.strftime("%d.%m.%Y %H:%M"),
+			"timestamp": int(time.time()),
+			"sockets": list(sockets) if sockets else [0, 0, 0],
+			"attrs": list(attrs) if attrs else []
+		}
+		history = LoadAuctionHistory()
+		history.insert(0, entry)
+		SaveAuctionHistory(history)
+		if self.historyDialog and self.historyDialog.IsShow():
+			self.historyDialog.Refresh()
+
+	def SearchFromHistory(self, data):
+		self.LockItem(data)
+		self.Search()
+		chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: szukam przedmiotu %s..." % self.GetItemName(data))
 
 	def __SetSearchText(self, text):
 		self.searchEdit.SetText(text)
@@ -3725,8 +4136,9 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 			return False
 		return True
 
-	def __BeginJob(self):
+	def __BeginJob(self, kind=JOB_SINGLE):
 		self.jobRunning = True
+		self.jobKind = kind
 		self.jobDeadline = app.GetTime() + JOB_TIMEOUT
 
 	def AskBuy(self, data):
@@ -3750,7 +4162,8 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		quantity = max(1, min(int(quantity), data["count"]))
 		if quantity == data["count"]:
 			quantity = 0		# cala oferta
-		self.__BeginJob()
+		self.buyData = data
+		self.__BeginJob(JOB_SINGLE)
 		self.__Send("/ah_buy %d %d %d %d" % (data["owner"], data["id"], quantity, data["price"]))
 
 	def AskBuySelected(self):
@@ -3780,7 +4193,7 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		if entries:
 			self.__Queue("/ah_cart_add %d %s" % (reset, ",".join(entries)))
 		self.__Queue("/ah_cart_buy")
-		self.__BeginJob()
+		self.__BeginJob(JOB_CART)
 		self.jobDeadline += len(self.sendQueue) * SEND_GAP
 
 	# "Kup wiele": najpierw pytanie o liczbe sztuk, potem wycena z serwera
@@ -3845,7 +4258,7 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		self.__CancelQuestion()
 		if not self.__CanStartJob():
 			return
-		self.__BeginJob()
+		self.__BeginJob(JOB_BULK)
 		self.__Send("/ah_bulk_buy %d" % self.quoteToken)
 
 	# ---- odpowiedzi serwera --------------------------------------------------
@@ -3880,7 +4293,7 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 					attrSet, contextName = self.__GetBonusContext()
 					self.bonusDialog.UpdateOptions(self.__GetBonusOptions(attrSet))
 		elif name == "AHBuyResult" and len(values) >= 6:
-			self.__OnBuyResult(values[0], values[1], values[2], values[3])
+			self.__OnBuyResult(values[0], values[1], values[2], values[3], values[4], values[5])
 		elif name == "AHJobDone" and len(values) >= 6:
 			self.__OnJobDone(values[0], values[1], values[2], values[3], values[4], values[5])
 		elif name == "AHJobRefused" and len(values) >= 2:
@@ -3889,9 +4302,27 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		elif name == "AHBulkQuote" and len(values) >= 6:
 			self.__OnBulkQuote(values[0], values[1], values[2], values[3], values[4], values[5])
 
-	def __OnBuyResult(self, owner, itemId, ok, reason):
+	def __OnBuyResult(self, owner, itemId, ok, reason, pieces=0, paid=0):
 		self.jobDeadline = app.GetTime() + JOB_TIMEOUT
 		if ok:
+			if getattr(self, "jobKind", JOB_SINGLE) != JOB_BULK:
+				data = self.selected.get((owner, itemId))
+				if data is None and self.buyData and self.buyData.get("owner") == owner and self.buyData.get("id") == itemId:
+					data = self.buyData
+				if data is None:
+					for other in self.items:
+						if other.get("owner") == owner and other.get("id") == itemId:
+							data = other
+							break
+				if data:
+					vnum = data.get("vnum", 0)
+					name = self.GetItemName(data)
+					count = pieces if pieces > 0 else data.get("count", 1)
+					price = paid if paid > 0 else data.get("price", 0)
+					seller = data.get("seller_name", "Rynek")
+					sockets = data.get("sockets", [])
+					attrs = data.get("attrs", [])
+					self.AddHistoryRecord(vnum, name, count, price, seller, sockets, attrs)
 			return
 		data = self.selected.get((owner, itemId))
 		if data is None:
@@ -3904,6 +4335,15 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 
 	def __OnJobDone(self, kind, okCount, total, pieces, spent, reason):
 		self.jobRunning = False
+		# AH_V2: Zakup hurtowy (Kup wiele) - rejestrujemy 1 wpis sumaryczny
+		if kind == JOB_BULK and okCount > 0 and pieces > 0 and getattr(self, "bulkTarget", None):
+			try:
+				vnum, socket0 = self.bulkTarget
+				mockData = {"vnum": vnum, "sockets": [socket0, 0, 0], "attrs": []}
+				name = self.GetItemName(mockData)
+				self.AddHistoryRecord(vnum, name, pieces, spent, "Rynek (Hurt)", [socket0, 0, 0], [])
+			except:
+				pass
 		if kind == JOB_SINGLE:
 			lines = []
 			if okCount:

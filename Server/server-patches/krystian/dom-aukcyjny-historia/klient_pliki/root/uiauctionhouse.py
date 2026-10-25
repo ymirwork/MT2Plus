@@ -2524,7 +2524,7 @@ def GetAuctionHistoryPath():
 	try:
 		charName = player.GetName()
 		if charName:
-			safeName = re.sub(r'[^a-zA-Z0-9_\-]', '', charName)
+			safeName = re.sub(r'[^a-zA-Z0-9_]', '', charName)
 			return "cache/ah_history_%s.json" % safeName
 	except:
 		pass
@@ -2557,7 +2557,10 @@ def SaveAuctionHistory(dataList):
 class AuctionHistoryRow(ui.Window):
 	def __init__(self, dialog):
 		ui.Window.__init__(self)
-		self.dialog = proxy(dialog)
+		try:
+			self.dialog = proxy(dialog)
+		except TypeError:
+			self.dialog = dialog
 		self.data = None
 		self.index = 0
 		width = 540
@@ -2610,28 +2613,32 @@ class AuctionHistoryRow(ui.Window):
 		vnum = data.get("vnum", 0)
 
 		# Ikona
-		try:
-			item.SelectItem(vnum)
-			iconFile = item.GetIconImageFileName()
-			zoom = GetIconZoom(item.GetItemType(), item.GetItemSubType())
-			if vnum == SKILLBOOK_VNUM:
-				try:
-					bookIcon = SKILLBOOK_ICON % int(data.get("sockets", [0])[0])
-					if app.IsExistFile(bookIcon):
-						iconFile = bookIcon
-				except:
-					pass
-			self.icon.SetScale(1.0, 1.0)
-			self.icon.LoadImage(iconFile)
-			w = self.icon.GetWidth()
-			h = self.icon.GetHeight()
-			biggest = max(1, w, h)
-			boxSize = 32
-			scale = min(zoom if zoom else 1.0, float(boxSize - 4) / biggest)
-			self.icon.SetScale(scale, scale)
-			self.icon.SetPosition(6 + int((boxSize - w * scale) / 2), (self.GetHeight() - int(h * scale)) // 2)
-		except:
-			pass
+		if vnum > 0:
+			try:
+				item.SelectItem(vnum)
+				iconFile = item.GetIconImageFileName()
+				zoom = GetIconZoom(item.GetItemType(), item.GetItemSubType())
+				if vnum == SKILLBOOK_VNUM:
+					try:
+						bookIcon = SKILLBOOK_ICON % int(data.get("sockets", [0])[0])
+						if app.IsExistFile(bookIcon):
+							iconFile = bookIcon
+					except:
+						pass
+				self.icon.SetScale(1.0, 1.0)
+				self.icon.LoadImage(iconFile)
+				w = self.icon.GetWidth()
+				h = self.icon.GetHeight()
+				biggest = max(1, w, h)
+				boxSize = 32
+				scale = min(zoom if zoom else 1.0, float(boxSize - 4) / biggest)
+				self.icon.SetScale(scale, scale)
+				self.icon.SetPosition(6 + int((boxSize - w * scale) / 2), (self.GetHeight() - int(h * scale)) // 2)
+				self.icon.Show()
+			except:
+				self.icon.Hide()
+		else:
+			self.icon.Hide()
 
 		# Nazwa
 		name = data.get("name")
@@ -2706,7 +2713,10 @@ class AuctionHistoryDialog(ui.BoardWithTitleBar):
 
 	def __init__(self, market):
 		ui.BoardWithTitleBar.__init__(self)
-		self.market = proxy(market)
+		try:
+			self.market = proxy(market)
+		except TypeError:
+			self.market = market
 		self.historyList = []
 		self.rows = []
 		self.offset = 0
@@ -3037,7 +3047,7 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		self.historyButton.SetParent(self)
 		self.historyButton.SetPosition(resetX + 50 + 6, resetY)
 		self.historyButton.Show()
-		self.historyDialog = None
+		self.historyDialog = AuctionHistoryDialog(self)
 
 		# Gorny pasek: pole nazwy i piec przyciskow tej samej wysokosci, na srodku
 		# miedzy belka tytulu a przyciskiem "Klasa".

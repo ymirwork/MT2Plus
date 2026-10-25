@@ -567,11 +567,11 @@ bool KeptCell(const std::string& mask, int cell)
 	return (v >> (cell % 4)) & 1;
 }
 
-void SendAll(LPCHARACTER ch, TSession& s)
+void SendAll(LPCHARACTER ch, TSession& s, bool silent = false)
 {
 	const int autoDrop = (ch->GetAccountFlag("collector_autodrop") > 0) ? 1 : 0;
-	ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL begin %d %u %u %d %d", s.tier, Capacity(s.tier), (unsigned)s.entries.size(),
-			s.tierWritable ? 1 : 0, autoDrop);
+	ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL begin %d %u %u %d %d %d", s.tier, Capacity(s.tier), (unsigned)s.entries.size(),
+			s.tierWritable ? 1 : 0, autoDrop, silent ? 1 : 0);
 	std::string line;
 	for (auto& kv : s.entries) {
 		const std::string e = Encode(kv.second);
@@ -637,7 +637,9 @@ void LoadItems(DWORD pid, DWORD handle, DWORD nonce, DWORD account)
 		}
 		s->loaded = true;
 		if (s->openRequested)
-			SendAll(ch, *s);
+			SendAll(ch, *s, false);
+		else
+			SendAll(ch, *s, true);
 	}, "SELECT id, count, vnum, socket0, socket1, socket2, "
 	   "attrtype0, attrvalue0, attrtype1, attrvalue1, attrtype2, attrvalue2, attrtype3, attrvalue3, "
 	   "attrtype4, attrvalue4, attrtype5, attrvalue5, attrtype6, attrvalue6 "
@@ -679,7 +681,7 @@ void Open(LPCHARACTER ch, bool byItem)
 		old->second.mapIndex = ch->GetMapIndex();
 		old->second.x = ch->GetX();
 		old->second.y = ch->GetY();
-		SendAll(ch, old->second);
+		SendAll(ch, old->second, false);
 		return;
 	}
 	PurgeOffline();
@@ -901,7 +903,7 @@ void EnsureLoaded(LPCHARACTER ch, bool forOpen)
 		if (forOpen) {
 			old->second.openRequested = true;
 			if (old->second.loaded)
-				SendAll(ch, old->second);
+				SendAll(ch, old->second, false);
 		}
 		return;
 	}
@@ -1050,6 +1052,98 @@ bool TryAutoCollector(LPCHARACTER ch, LPITEM item)
 	ITEM_MANAGER::instance().RemoveFromDelayedSave(item);
 	M2_DESTROY_ITEM(item);
 	return true;
+}
+
+DWORD CountItem(LPCHARACTER ch, DWORD vnum)
+{
+	if (!ch || !ch->IsPC() || vnum == 0)
+		return 0;
+
+	auto it = s_sessions.find(ch->GetPlayerID());
+	if (it == s_sessions.end() || !it->second.loaded)
+		return 0;
+
+	DWORD total = 0;
+	for (const auto& kv : it->second.entries) {
+		if (kv.second.vnum == vnum)
+			total += kv.second.count;
+	}
+	return total;
+}
+
+DWORD RemoveItem(LPCHARACTER ch, DWORD vnum, DWORD needCount)
+{
+	if (!ch || !ch->IsPC() || vnum == 0 || needCount == 0)
+		return 0;
+
+	auto it = s_sessions.find(ch->GetPlayerID());
+	if (it == s_sessions.end() || !it->second.loaded)
+		return 0;
+
+	TSession& s = it->second;
+	DWORD remaining = needCount;
+	std::vector<DWORD> toDelete;
+
+	// First pass: take from entries without attributes
+	for (auto& kv : s.entries) {
+		if (remaining == 0)
+			break;
+		TPlayerItem& r = kv.second;
+		if (r.vnum != vnum || !NoAttrs(r))
+			continue;
+
+		const DWORD take = MIN(remaining, (DWORD)r.count);
+		r.count -= take;
+		remaining -= take;
+
+		if (r.count == 0) {
+			DeleteRecord(r.id);
+			toDelete.push_back(r.id);
+			if (s.openRequested)
+				SendDel(ch, r.id);
+		} else {
+			SaveRecord(r);
+			if (s.openRequested)
+				SendSet(ch, r);
+		}
+	}
+
+	// Second pass: if still needed, take from remaining entries of this vnum
+	for (auto& kv : s.entries) {
+		if (remaining == 0)
+			break;
+		TPlayerItem& r = kv.second;
+		if (r.vnum != vnum)
+			continue;
+		if (std::find(toDelete.begin(), toDelete.end(), r.id) != toDelete.end())
+			continue;
+
+		const DWORD take = MIN(remaining, (DWORD)r.count);
+		r.count -= take;
+		remaining -= take;
+
+		if (r.count == 0) {
+			DeleteRecord(r.id);
+			toDelete.push_back(r.id);
+			if (s.openRequested)
+				SendDel(ch, r.id);
+		} else {
+			SaveRecord(r);
+			if (s.openRequested)
+				SendSet(ch, r);
+		}
+	}
+
+	for (DWORD id : toDelete)
+		s.entries.erase(id);
+
+	const DWORD taken = needCount - remaining;
+	if (taken > 0) {
+		char hint[96];
+		snprintf(hint, sizeof(hint), "%u of vnum %u for refine", (unsigned)taken, (unsigned)vnum);
+		LogManager::instance().ItemLog(ch, 0, "COLLECTOR REFINE REMOVE", hint);
+	}
+	return taken;
 }
 
 }  // namespace playerbot_collector

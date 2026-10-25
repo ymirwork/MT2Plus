@@ -985,7 +985,8 @@ class CollectorWindow(ui.BoardWithTitleBar):
 	# ------------------------------------------------------------ server
 
 	def OnBegin(self, tier, capacity, entries, tiersOk=1, *rest):
-		if not self.IsShow():
+		silent = (_Int(rest[1]) != 0) if len(rest) > 1 else False
+		if not silent and not self.IsShow():
 			self.OpenRequested()
 		self.store.Reset()
 		self.store.tier = _Int(tier)
@@ -1526,6 +1527,20 @@ def GetWindow(create=True):
 def IsOpen():
 	window = GetWindow(False)
 	return bool(window) and window.IsShow()
+
+
+def CountItem(vnum):
+	try:
+		window = _state.get('window')
+		if not window or not window.store or not window.store.entries:
+			return 0
+		total = 0
+		for entry in window.store.entries.values():
+			if entry[0] == vnum:
+				total += entry[1]
+		return total
+	except Exception:
+		return 0
 
 
 def RequestOpen():

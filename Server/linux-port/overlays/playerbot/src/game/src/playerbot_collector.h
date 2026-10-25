@@ -91,5 +91,7 @@ void Command(LPCHARACTER ch, const char* argument);
 void EnsureLoaded(LPCHARACTER ch, bool forOpen = false);
 void OnDisconnect(LPCHARACTER ch);
 bool TryAutoCollector(LPCHARACTER ch, LPITEM item);
+DWORD CountItem(LPCHARACTER ch, DWORD vnum);
+DWORD RemoveItem(LPCHARACTER ch, DWORD vnum, DWORD needCount);
 
 }  // namespace playerbot_collector

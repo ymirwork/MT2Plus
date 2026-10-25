@@ -2646,6 +2646,11 @@ class AuctionHistoryRow(ui.Window):
 			name = self.dialog.market.GetItemName(data)
 		if not name:
 			name = ItemNameOf(vnum) or ("#%d" % vnum)
+		if isinstance(name, unicode):
+			try:
+				name = name.encode("cp1250")
+			except:
+				name = name.encode("utf-8", "replace")
 		self.nameText.SetPosition(44, 4)
 		FitText(self.nameText, name, 220)
 
@@ -2653,6 +2658,11 @@ class AuctionHistoryRow(ui.Window):
 		count = max(1, data.get("count", 1))
 		price = max(0, data.get("price", 0))
 		seller = data.get("seller") or data.get("seller_name") or "Rynek"
+		if isinstance(seller, unicode):
+			try:
+				seller = seller.encode("cp1250")
+			except:
+				seller = seller.encode("utf-8", "replace")
 		if count > 1:
 			unitPrice = PartPrice(price, count, 1)
 			self.subText.SetText("Od: %s (%s/szt.)" % (seller, Money(unitPrice)))
@@ -3048,6 +3058,8 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		self.historyButton.SetPosition(resetX + 50 + 6, resetY)
 		self.historyButton.Show()
 		self.historyDialog = AuctionHistoryDialog(self)
+		self.pendingBuys = {}
+		self.lastSingleBuy = None
 
 		# Gorny pasek: pole nazwy i piec przyciskow tej samej wysokosci, na srodku
 		# miedzy belka tytulu a przyciskiem "Klasa".
@@ -3613,23 +3625,29 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 			self.historyDialog.Open()
 
 	def AddHistoryRecord(self, vnum, name, count, price, seller, sockets=None, attrs=None):
-		entry = {
-			"vnum": int(vnum),
-			"name": str(name) if name else (ItemNameOf(vnum) or ("#%d" % vnum)),
-			"count": max(1, int(count)),
-			"price": max(0, int(price)),
-			"seller": str(seller) if seller else "Rynek",
-			"seller_name": str(seller) if seller else "Rynek",
-			"date": time.strftime("%d.%m.%Y %H:%M"),
-			"timestamp": int(time.time()),
-			"sockets": list(sockets) if sockets else [0, 0, 0],
-			"attrs": list(attrs) if attrs else []
-		}
-		history = LoadAuctionHistory()
-		history.insert(0, entry)
-		SaveAuctionHistory(history)
-		if self.historyDialog and self.historyDialog.IsShow():
-			self.historyDialog.Refresh()
+		try:
+			itemName = name if name else (ItemNameOf(vnum) or ("#%d" % vnum))
+			sellerName = seller if seller else "Rynek"
+			entry = {
+				"vnum": int(vnum),
+				"name": itemName,
+				"count": max(1, int(count)),
+				"price": max(0, int(price)),
+				"seller": sellerName,
+				"seller_name": sellerName,
+				"date": time.strftime("%d.%m.%Y %H:%M"),
+				"timestamp": int(time.time()),
+				"sockets": list(sockets) if sockets else [0, 0, 0],
+				"attrs": list(attrs) if attrs else []
+			}
+			history = LoadAuctionHistory()
+			history.insert(0, entry)
+			SaveAuctionHistory(history)
+			if self.historyDialog:
+				self.historyDialog.Refresh()
+			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: zapisano w historii: %s (%d szt. za %s)." % (itemName, max(1, int(count)), Money(max(0, int(price)))))
+		except Exception as e:
+			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: b\xb3\xb9d zapisu historii: %s" % str(e))
 
 	def SearchFromHistory(self, data):
 		self.LockItem(data)
@@ -4173,6 +4191,10 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		if quantity == data["count"]:
 			quantity = 0		# cala oferta
 		self.buyData = data
+		dataCopy = dict(data)
+		dataCopy["buy_count"] = quantity if quantity > 0 else data.get("count", 1)
+		self.pendingBuys[(int(data["owner"]), int(data["id"]))] = dataCopy
+		self.lastSingleBuy = dataCopy
 		self.__BeginJob(JOB_SINGLE)
 		self.__Send("/ah_buy %d %d %d %d" % (data["owner"], data["id"], quantity, data["price"]))
 
@@ -4191,6 +4213,10 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 			return
 		# lista idzie w kilku komendach (kazda do COMMAND_MAX znakow), od najtanszej oferty
 		offers = sorted(self.selected.values(), key=lambda data: data["price"])
+		for data in offers:
+			dataCopy = dict(data)
+			dataCopy["buy_count"] = data.get("count", 1)
+			self.pendingBuys[(int(data["owner"]), int(data["id"]))] = dataCopy
 		reset = 1
 		entries = []
 		for data in offers:
@@ -4315,23 +4341,35 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 	def __OnBuyResult(self, owner, itemId, ok, reason, pieces=0, paid=0):
 		self.jobDeadline = app.GetTime() + JOB_TIMEOUT
 		if ok:
+			ownerId = int(owner)
+			itmId = int(itemId)
 			if getattr(self, "jobKind", JOB_SINGLE) != JOB_BULK:
-				data = self.selected.get((owner, itemId))
-				if data is None and self.buyData and self.buyData.get("owner") == owner and self.buyData.get("id") == itemId:
+				data = self.pendingBuys.pop((ownerId, itmId), None)
+				if data is None:
+					for k in list(self.pendingBuys.keys()):
+						if k[1] == itmId or k[0] == ownerId:
+							data = self.pendingBuys.pop(k)
+							break
+				if data is None and self.buyData:
 					data = self.buyData
+				if data is None and getattr(self, "lastSingleBuy", None):
+					data = self.lastSingleBuy
+				if data is None:
+					data = self.selected.get((ownerId, itmId))
 				if data is None:
 					for other in self.items:
-						if other.get("owner") == owner and other.get("id") == itemId:
+						if int(other.get("id", 0)) == itmId:
 							data = other
 							break
+
 				if data:
-					vnum = data.get("vnum", 0)
+					vnum = int(data.get("vnum", 0))
 					name = self.GetItemName(data)
-					count = pieces if pieces > 0 else data.get("count", 1)
-					price = paid if paid > 0 else data.get("price", 0)
-					seller = data.get("seller_name", "Rynek")
-					sockets = data.get("sockets", [])
-					attrs = data.get("attrs", [])
+					count = int(pieces) if pieces > 0 else int(data.get("buy_count", data.get("count", 1)))
+					price = int(paid) if paid > 0 else int(data.get("price", 0))
+					seller = data.get("seller_name") or data.get("seller") or "Rynek"
+					sockets = list(data.get("sockets", []))
+					attrs = list(data.get("attrs", []))
 					self.AddHistoryRecord(vnum, name, count, price, seller, sockets, attrs)
 			return
 		data = self.selected.get((owner, itemId))
@@ -4345,6 +4383,20 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 
 	def __OnJobDone(self, kind, okCount, total, pieces, spent, reason):
 		self.jobRunning = False
+		# AH_V2: Awaryjny zapis, jezeli cokolwiek zostalo w pendingBuys po udanym zakupie
+		if kind in (JOB_SINGLE, JOB_CART) and okCount > 0 and self.pendingBuys:
+			for k, data in list(self.pendingBuys.items()):
+				vnum = int(data.get("vnum", 0))
+				name = self.GetItemName(data)
+				count = int(data.get("buy_count", data.get("count", 1)))
+				price = int(data.get("price", 0))
+				seller = data.get("seller_name") or data.get("seller") or "Rynek"
+				sockets = list(data.get("sockets", []))
+				attrs = list(data.get("attrs", []))
+				self.AddHistoryRecord(vnum, name, count, price, seller, sockets, attrs)
+			self.pendingBuys.clear()
+		self.lastSingleBuy = None
+
 		# AH_V2: Zakup hurtowy (Kup wiele) - rejestrujemy 1 wpis sumaryczny
 		if kind == JOB_BULK and okCount > 0 and pieces > 0 and getattr(self, "bulkTarget", None):
 			try:
@@ -4354,6 +4406,7 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 				self.AddHistoryRecord(vnum, name, pieces, spent, "Rynek (Hurt)", [socket0, 0, 0], [])
 			except:
 				pass
+
 		if kind == JOB_SINGLE:
 			lines = []
 			if okCount:

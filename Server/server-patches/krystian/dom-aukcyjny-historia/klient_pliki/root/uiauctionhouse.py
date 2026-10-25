@@ -2520,6 +2520,49 @@ class BonusDialog(ui.BoardWithTitleBar):
 
 
 # ---- historia zakupow (AH_V2) ------------------------------------------------
+def ToUnicode(val):
+	if val is None:
+		return u""
+	try:
+		if isinstance(val, unicode):
+			return val
+	except NameError:
+		if isinstance(val, str):
+			return val
+	if not isinstance(val, (str, bytes)):
+		try:
+			val = str(val)
+		except:
+			return u""
+	for enc in ("cp1250", "utf-8", "latin-1"):
+		try:
+			return val.decode(enc)
+		except:
+			pass
+	try:
+		return val.decode("latin-1", "replace")
+	except:
+		return u""
+
+def ToGameStr(val):
+	if val is None:
+		return ""
+	try:
+		if isinstance(val, unicode):
+			try:
+				return val.encode("cp1250")
+			except:
+				try:
+					return val.encode("utf-8")
+				except:
+					return val.encode("ascii", "replace")
+	except NameError:
+		pass
+	try:
+		return str(val)
+	except:
+		return ""
+
 def GetAuctionHistoryPath():
 	try:
 		charName = player.GetName()
@@ -2538,9 +2581,20 @@ def LoadAuctionHistory():
 		with open(path, "r") as f:
 			data = json.load(f)
 			if isinstance(data, list):
-				return data
+				result = []
+				for entry in data:
+					item = dict(entry)
+					item["name"] = ToGameStr(item.get("name", ""))
+					item["seller"] = ToGameStr(item.get("seller", "Rynek"))
+					item["seller_name"] = ToGameStr(item.get("seller_name", item.get("seller", "Rynek")))
+					result.append(item)
+				return result
 	except:
-		pass
+		try:
+			if os.path.exists(path):
+				os.remove(path)
+		except:
+			pass
 	return []
 
 def SaveAuctionHistory(dataList):
@@ -2549,8 +2603,30 @@ def SaveAuctionHistory(dataList):
 		dirName = os.path.dirname(path)
 		if dirName and not os.path.exists(dirName):
 			os.makedirs(dirName)
-		with open(path, "w") as f:
-			json.dump(dataList[:200], f, indent=2)
+		cleanList = []
+		for item in dataList[:200]:
+			cleanEntry = {
+				"vnum": int(item.get("vnum", 0)),
+				"name": ToUnicode(item.get("name", "")),
+				"count": max(1, int(item.get("count", 1))),
+				"price": max(0, int(item.get("price", 0))),
+				"seller": ToUnicode(item.get("seller", "Rynek")),
+				"seller_name": ToUnicode(item.get("seller_name", item.get("seller", "Rynek"))),
+				"date": ToGameStr(item.get("date", "")),
+				"timestamp": int(item.get("timestamp", int(time.time()))),
+				"sockets": list(item.get("sockets", [0, 0, 0])),
+				"attrs": list(item.get("attrs", []))
+			}
+			cleanList.append(cleanEntry)
+		tmpPath = path + ".tmp"
+		with open(tmpPath, "w") as f:
+			json.dump(cleanList, f, indent=2, ensure_ascii=True)
+		if os.path.exists(path):
+			try:
+				os.remove(path)
+			except:
+				pass
+		os.rename(tmpPath, path)
 	except:
 		pass
 
@@ -2646,23 +2722,14 @@ class AuctionHistoryRow(ui.Window):
 			name = self.dialog.market.GetItemName(data)
 		if not name:
 			name = ItemNameOf(vnum) or ("#%d" % vnum)
-		if isinstance(name, unicode):
-			try:
-				name = name.encode("cp1250")
-			except:
-				name = name.encode("utf-8", "replace")
+		nameStr = ToGameStr(name)
 		self.nameText.SetPosition(44, 4)
-		FitText(self.nameText, name, 220)
+		FitText(self.nameText, nameStr, 220)
 
 		# Subtext (Sprzedawca + ew. cena/szt)
 		count = max(1, data.get("count", 1))
 		price = max(0, data.get("price", 0))
-		seller = data.get("seller") or data.get("seller_name") or "Rynek"
-		if isinstance(seller, unicode):
-			try:
-				seller = seller.encode("cp1250")
-			except:
-				seller = seller.encode("utf-8", "replace")
+		seller = ToGameStr(data.get("seller") or data.get("seller_name") or "Rynek")
 		if count > 1:
 			unitPrice = PartPrice(price, count, 1)
 			self.subText.SetText("Od: %s (%s/szt.)" % (seller, Money(unitPrice)))
@@ -3617,7 +3684,7 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 		self.Search()
 
 	def ToggleHistory(self):
-		if not self.historyDialog:
+		if not self.historyDialog or not getattr(self.historyDialog, "scrollBar", None):
 			self.historyDialog = AuctionHistoryDialog(self)
 		if self.historyDialog.IsShow():
 			self.historyDialog.Close()
@@ -3645,14 +3712,15 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 			SaveAuctionHistory(history)
 			if self.historyDialog:
 				self.historyDialog.Refresh()
-			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: zapisano w historii: %s (%d szt. za %s)." % (itemName, max(1, int(count)), Money(max(0, int(price)))))
+			itemNameStr = ToGameStr(itemName)
+			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: zapisano w historii: %s (%d szt. za %s)." % (itemNameStr, max(1, int(count)), Money(max(0, int(price)))))
 		except Exception as e:
 			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: b\xb3\xb9d zapisu historii: %s" % str(e))
 
 	def SearchFromHistory(self, data):
 		self.LockItem(data)
-		self.Search()
-		chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: szukam przedmiotu %s..." % self.GetItemName(data))
+		nameStr = ToGameStr(self.GetItemName(data))
+		chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: szukam przedmiotu %s..." % nameStr)
 
 	def __SetSearchText(self, text):
 		self.searchEdit.SetText(text)

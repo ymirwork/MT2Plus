@@ -39,14 +39,23 @@ Autorski moduł śledzenia i analityki sesji dropu, zniszczonych Kamieni Metin, 
 - **Udostępnianie raportu na Czat:**
   - Przycisk `Czat` generuje gotowe podsumowanie na czat gry, np.:
     `[Sesja Farmienia] Czas: 00:31:01 | Metiny: 168 | Bossy: 12 | Zarobek (Rynkowa): 1.055.794.520 Yang (~2.04 mld/h)`.
+- **Zapisywanie sesji i historia dropów:**
+  - Przycisk **Zapisz** – tworzy trwały snapshot sesji z sugerowaną nazwą mapy (np. `Loch Pajakow V2 (21:09)`) lub własną nazwą gracza i zapisuje w `autohunt/farmsessions_history.json`.
+- **Zaawansowane porównanie sesji (Porównaj):**
+  - Przycisk **Porownaj** – otwiera dedykowane okno analizy porównawczej (`FarmSessionCompareWindow`).
+  - Niezależny wybór sesji bazowej (Panel A) oraz porównywanej (Panel B) ze wskaźnikami pozycji i zabezpieczeniem przed dublowaniem.
+  - Karty metryk KPI: delta tempa zarobku (~Yang/h z % przyrostu), delta łącznego zysku, delta rozbitych Metinów/h, delta pokonanych bossów i EXP/h.
+  - Pełne zestawienie łupów w tabeli: kolumny Sesja A, Sesja B, różnica sztuk i różnica w Yang, z dymkami tooltipu.
+  - Narzędzia zarządzania: zmiana nazwy sesji, usuwanie starych zapisów, zamiana sesji miejscami (`<>`), dynamiczne przeliczanie w trybie Rynkowa / NPC.
 
 ---
 
 ## 2. Zmodyfikowane i Dodane Pliki
 
-- `Klient/pack/root/farmsession.py` (Nowy: menadżer sesji i silnik wyceny)
+- `Klient/pack/root/farmsession.py` (Nowy: menadżer sesji, historia sesji, silnik wyceny i porównywania)
 - `Klient/pack/root/farmsession_prices.py` (Nowy: baza ponad 3200 sugerowanych cen rynkowych zintegrowana z rynkiem botów)
-- `Klient/pack/root/uifarmsession.py` (Nowy: główne okno UI oraz mini-HUD)
+- `Klient/pack/root/uifarmsession.py` (Nowy: główne okno UI, mini-HUD oraz okno porównania sesji)
+- `Klient/pack/root/uicommon.py` (Dodana obsługa `SetText` dla dialogów tekstowych `InputDialog`)
 - `Klient/pack/root/keybind.py` (Dodana akcja `farm_session` pod klawiszem `F6`)
 - `Klient/pack/root/interfacemodule.py` (Metoda `ToggleFarmSessionWindow`, cykl życia okna)
 - `Klient/pack/root/game.py` (Hooki na `OnPickMoney`, `PickupSound`, `__TargetHP`, `OnUpdate`, skrót `F6`)

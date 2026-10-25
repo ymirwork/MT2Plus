@@ -11,6 +11,7 @@
 
 import os
 import json
+import time
 import app
 import player
 import item
@@ -38,9 +39,37 @@ except Exception:
 CONFIG_DIR = "autohunt"
 PRICES_FILE = os.path.join(CONFIG_DIR, "farmsession_prices.json")
 STATE_FILE = os.path.join(CONFIG_DIR, "farmsession_state.json")
+HISTORY_FILE = os.path.join(CONFIG_DIR, "farmsessions_history.json")
 
 MODE_MARKET = "MARKET"
 MODE_NPC = "NPC"
+
+# Mapowanie identyfikatorow map silnika na przyjazne polskie nazwy instancji
+MAP_NAME_OVERRIDES = {
+	"metin2_map_spiderdungeon": "Loch Pajakow V1",
+	"metin2_map_spiderdungeon_02": "Loch Pajakow V2",
+	"metin2_map_spiderdungeon_03": "Loch Pajakow V3",
+	"metin2_map_deviltower1": "Wieza Demonow",
+	"metin2_map_devilsCatacomb": "Diabelskie Katakumby",
+	"metin2_map_n_desert_01": "Pustynia Yongbi",
+	"metin2_map_n_flame_01": "Ognista Ziemia",
+	"metin2_map_milgyo": "Dolina Orkow",
+	"metin2_map_skipia_dungeon_01": "Grota Wygnancow V1",
+	"metin2_map_skipia_dungeon_02": "Grota Wygnancow V2",
+	"metin2_map_skipia_dungeon_boss": "Komnata Smoka",
+	"metin2_map_reddragon": "Twierdza Razadora",
+	"metin2_map_nemere": "Straznica Nemere",
+	"metin2_map_dawnmist": "Przyladek Smoczego Ognia",
+	"metin2_map_thunder": "Zatoka Nefrytowa",
+	"metin2_map_bay": "Gory Grzmotu",
+	"metin2_map_colosseum": "Koloseum",
+	"metin2_map_a1": "Yongan (M1 Jinno)",
+	"metin2_map_b1": "Joan (M1 Shinsoo)",
+	"metin2_map_c1": "Pyungmoo (M1 Chunjo)",
+	"metin2_map_a3": "Yayang (M2 Jinno)",
+	"metin2_map_b3": "Bakra (M2 Shinsoo)",
+	"metin2_map_c3": "Bokjung (M2 Chunjo)",
+}
 
 # Domyslny cennik bazowy dla popularnych dropow (gdy brak wlasnej ceny gracza i ceny rynkowej)
 BASE_PRICES = {
@@ -111,6 +140,7 @@ class FarmSessionManager(object):
 		self.start_time = clientclock.Now()
 		self.total_paused_duration = 0.0
 		self.last_pause_time = 0.0
+		self.custom_session_name = None
 
 		# Tryb wyceny: MARKET (rynkowa ze sklepow) lub NPC (sprzedaz u handlarza z podatkiem 3%)
 		self.price_mode = MODE_MARKET
@@ -177,6 +207,7 @@ class FarmSessionManager(object):
 		self.start_time = clientclock.Now()
 		self.total_paused_duration = 0.0
 		self.last_pause_time = 0.0
+		self.custom_session_name = None
 		self.NotifyUI()
 
 	def Pause(self):
@@ -205,6 +236,7 @@ class FarmSessionManager(object):
 		self.start_time = clientclock.Now()
 		self.total_paused_duration = 0.0
 		self.last_pause_time = 0.0
+		self.custom_session_name = None
 		self.raw_yang = 0
 		self.kills_total = 0
 		self.kills_metin = 0
@@ -557,3 +589,233 @@ class FarmSessionManager(object):
 				json.dump(self.custom_prices, f, indent=2)
 		except Exception:
 			pass
+
+	# ----------------- ZAPISYWANIE I HISTORIA SESJI -----------------
+
+	def SetSessionName(self, name):
+		"""Ustawia wlasna nazwe dla biezacej sesji."""
+		self.custom_session_name = str(name).strip() if name else None
+		self.NotifyUI()
+
+	def GetCurrentMapTitle(self):
+		"""Zwraca czytelna polska nazwe aktualnej mapy."""
+		try:
+			import background
+			mapName = background.GetCurrentMapName()
+			if mapName:
+				if mapName in MAP_NAME_OVERRIDES:
+					return MAP_NAME_OVERRIDES[mapName]
+				if hasattr(localeInfo, "MINIMAP_ZONE_NAME_DICT"):
+					val = localeInfo.MINIMAP_ZONE_NAME_DICT.get(mapName, None)
+					if val:
+						return val
+				return mapName
+		except Exception:
+			pass
+		return "Sesja farmienia"
+
+	def GetDefaultSessionName(self):
+		"""Zwraca domyslna sugerowana nazwe sesji na podstawie aktualnej mapy i godziny."""
+		if self.custom_session_name:
+			return self.custom_session_name
+
+		mapTitle = self.GetCurrentMapTitle()
+		try:
+			timeStr = time.strftime("%H:%M")
+			return "%s (%s)" % (mapTitle, timeStr)
+		except Exception:
+			return mapTitle
+
+	def GetSessionSnapshot(self, name=None):
+		"""Tworzy pelny slownik z danymi biezacej sesji do zapisu lub porownania."""
+		if not name:
+			name = self.GetDefaultSessionName()
+
+		mapTitle = self.GetCurrentMapTitle()
+
+		itemsDict = {}
+		for vnum, data in self.items.items():
+			itemsDict[str(vnum)] = {
+				"count": int(data.get("count", 0)),
+				"custom_price": data.get("custom_price"),
+				"hidden": bool(data.get("hidden", False))
+			}
+
+		duration = self.GetDuration()
+		snapshot = {
+			"id": str(long(time.time() * 1000)),
+			"name": str(name),
+			"map_name": str(mapTitle),
+			"date": time.strftime("%Y-%m-%d %H:%M"),
+			"duration": float(duration),
+			"raw_yang": long(self.raw_yang),
+			"kills_total": int(self.kills_total),
+			"kills_metin": int(self.kills_metin),
+			"kills_boss": int(self.kills_boss),
+			"exp_gained": long(self.exp_gained),
+			"price_mode": str(self.price_mode),
+			"items": itemsDict,
+			"total_value": long(self.GetTotalValue()),
+			"yang_per_hour": long(self.GetYangPerHour()),
+			"metin_per_hour": float(self.GetMetinsPerHour()),
+			"exp_per_hour": long(self.GetExpPerHour())
+		}
+		return snapshot
+
+	def SaveSession(self, name=None):
+		"""Zapisuje biezaca sesje do pliku historii."""
+		if not name:
+			name = self.GetDefaultSessionName()
+		snapshot = self.GetSessionSnapshot(name)
+		sessions = self.GetSavedSessions()
+		sessions.append(snapshot)
+		self.__WriteSavedSessions(sessions)
+		return snapshot
+
+	def GetSavedSessions(self):
+		"""Wczytuje liste wszystkich zapisanych sesji z pliku."""
+		if not os.path.exists(HISTORY_FILE):
+			return []
+		try:
+			with open(HISTORY_FILE, "r") as f:
+				data = json.load(f)
+				if isinstance(data, list):
+					return data
+				return []
+		except Exception:
+			return []
+
+	def __WriteSavedSessions(self, sessions):
+		try:
+			if not os.path.exists(CONFIG_DIR):
+				os.makedirs(CONFIG_DIR)
+			with open(HISTORY_FILE, "w") as f:
+				json.dump(sessions, f, indent=2)
+			return True
+		except Exception:
+			return False
+
+	def DeleteSavedSession(self, session_id):
+		"""Usuwa sesje o podanym ID z pliku historii."""
+		sessions = self.GetSavedSessions()
+		sessions = [s for s in sessions if str(s.get("id")) != str(session_id)]
+		self.__WriteSavedSessions(sessions)
+
+	def RenameSavedSession(self, session_id, new_name):
+		"""Zmienia nazwe sesji o podanym ID."""
+		sessions = self.GetSavedSessions()
+		for s in sessions:
+			if str(s.get("id")) == str(session_id):
+				s["name"] = str(new_name)
+				break
+		self.__WriteSavedSessions(sessions)
+
+	def CalculateSnapshotMetrics(self, session_data, mode=None):
+		"""Wylicza metryki i zysk sesji w zaleznosci od wybranego trybu wyceny (Rynkowa / NPC)."""
+		if mode is None:
+			mode = session_data.get("price_mode", MODE_MARKET)
+
+		raw_yang = long(session_data.get("raw_yang", 0))
+		duration = float(session_data.get("duration", 0.0))
+		kills_metin = int(session_data.get("kills_metin", 0))
+		kills_boss = int(session_data.get("kills_boss", 0))
+		kills_total = int(session_data.get("kills_total", 0))
+		exp_gained = long(session_data.get("exp_gained", 0))
+
+		items_val = 0
+		items = session_data.get("items", {})
+		for vnum_str, item_info in items.items():
+			try:
+				vnum = int(vnum_str)
+				if item_info.get("hidden", False):
+					continue
+				count = long(item_info.get("count", 0))
+				custom_p = item_info.get("custom_price")
+				if custom_p is not None and mode == MODE_MARKET:
+					price = long(custom_p)
+				else:
+					price = self.GetItemPrice(vnum, mode)
+				items_val += count * price
+			except Exception:
+				pass
+
+		total_val = raw_yang + items_val
+		hours = duration / 3600.0 if duration >= 10.0 else 0.0
+		yang_per_h = long(float(total_val) / hours) if hours > 0 else 0
+		metin_per_h = float(kills_metin) / hours if hours > 0 else 0.0
+		exp_per_h = long(float(exp_gained) / hours) if hours > 0 else 0
+
+		return {
+			"name": session_data.get("name", "Sesja"),
+			"map_name": session_data.get("map_name", ""),
+			"date": session_data.get("date", ""),
+			"total_value": total_val,
+			"raw_yang": raw_yang,
+			"items_value": items_val,
+			"yang_per_hour": yang_per_h,
+			"metin_per_hour": metin_per_h,
+			"exp_per_hour": exp_per_h,
+			"duration": duration,
+			"kills_metin": kills_metin,
+			"kills_boss": kills_boss,
+			"kills_total": kills_total,
+			"exp_gained": exp_gained,
+		}
+
+	def CompareSessions(self, sessionA, sessionB, mode=None):
+		"""Zestawia i porownuje dwie sesje, wyliczajac delty wskaznikow i roznice w dropie."""
+		metricsA = self.CalculateSnapshotMetrics(sessionA, mode)
+		metricsB = self.CalculateSnapshotMetrics(sessionB, mode)
+
+		delta_total = metricsB["total_value"] - metricsA["total_value"]
+		delta_rate = metricsB["yang_per_hour"] - metricsA["yang_per_hour"]
+		if metricsA["yang_per_hour"] > 0:
+			delta_rate_pct = (float(delta_rate) / float(metricsA["yang_per_hour"])) * 100.0
+		else:
+			delta_rate_pct = 0.0
+
+		delta_metins_rate = metricsB["metin_per_hour"] - metricsA["metin_per_hour"]
+		delta_bosses = metricsB["kills_boss"] - metricsA["kills_boss"]
+		delta_exp_rate = metricsB["exp_per_hour"] - metricsA["exp_per_hour"]
+
+		itemsA = sessionA.get("items", {})
+		itemsB = sessionB.get("items", {})
+		all_vnums = set([int(k) for k in itemsA.keys()] + [int(k) for k in itemsB.keys()])
+
+		drop_comparison = []
+		for vnum in all_vnums:
+			infoA = itemsA.get(str(vnum), {})
+			infoB = itemsB.get(str(vnum), {})
+			cntA = int(infoA.get("count", 0))
+			cntB = int(infoB.get("count", 0))
+			delta_cnt = cntB - cntA
+
+			price = self.GetItemPrice(vnum, mode)
+			valA = cntA * price
+			valB = cntB * price
+			delta_val = valB - valA
+
+			drop_comparison.append({
+				"vnum": vnum,
+				"count_a": cntA,
+				"count_b": cntB,
+				"delta_count": delta_cnt,
+				"price": price,
+				"val_a": valA,
+				"val_b": valB,
+				"delta_val": delta_val,
+			})
+
+		drop_comparison.sort(key=lambda x: abs(x["delta_val"]), reverse=True)
+
+		return {
+			"metricsA": metricsA,
+			"metricsB": metricsB,
+			"delta_total": delta_total,
+			"delta_rate": delta_rate,
+			"delta_rate_pct": delta_rate_pct,
+			"delta_metins_rate": delta_metins_rate,
+			"delta_bosses": delta_bosses,
+			"delta_exp_rate": delta_exp_rate,
+			"drops": drop_comparison,
+		}

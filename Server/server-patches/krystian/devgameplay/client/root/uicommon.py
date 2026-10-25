@@ -237,6 +237,10 @@ class InputDialog(ui.ScriptWindow):
 	def GetText(self):
 		return self.inputValue.GetText()
 
+	def SetText(self, text):
+		if self.inputValue:
+			self.inputValue.SetText(str(text))
+
 	def OnPressEscapeKey(self):
 		self.Close()
 		return True

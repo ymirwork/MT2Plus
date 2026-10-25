@@ -11,11 +11,11 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | Tag | Znaczenie i Cel | Zachowanie i Rola Asystenta |
 | :--- | :--- | :--- |
 | **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z oficjalnego repozytorium `mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Krok 1–5): analiza diffa, adaptacja na `dev`, a następnie **bezwzględne ponowne wgranie i zintegrowanie wszystkich naszych autorskich modyfikacji** z rejestru `Server/server-patches/krystian/` (Krok 3). Weryfikacja ewentualnych kolizji z upstreamem i bezpieczne usunięcie tylko tych modów, które oficjalny kod sam wdrożył. |
-| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie modułu w `Server/server-patches/krystian/`, testy w `mt2dev`. |
-| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. **BEZWZGLĘDNY NAKAZ: Przy KAŻDEJ nowej modyfikacji/zmianie w kliencie ZAWSZE na zakończenie musi zostać zaktualizowany i zsynchronizowany patcher (`python Server/tools/publish_patcher_web.py`), aby patcher nie nadpisał nowości!** (Zasada nr 15) |
-| **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa analiza logów (`syserr`, `syslog`, `docker logs`), identyfikacja przyczyny źródłowej (*root cause*), minimalny bezpieczny patch bez psucia logiki upstreamu. |
+| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie modułu w `Server/server-patches/krystian/`, testy w `mt2dev`. Plan krok po kroku (oszczędność tokenów AI, Zasada nr 16), obowiązkowa lista kontrolna testów na koniec; upload na GitHub wyłącznie po potwierdzeniu pomyślnego testu przez użytkownika (Zasada nr 17). |
+| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. Plan krok po kroku (Zasada nr 16), lista kontrolna testów na koniec; **dopiero po potwierdzeniu pomyślnego testu przez gracza następuje upload na GitHub oraz bezwzględna synchronizacja patchera (`python Server/tools/publish_patcher_web.py`, Zasada nr 15 i 17)**. |
+| **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa celowana analiza logów (`syserr`, `syslog`, `docker logs`), plan krok po kroku (oszczędność tokenów AI, Zasada nr 16), minimalny bezpieczny patch, lista kontrolna testów na koniec i upload na GitHub dopiero po pomyślnym przetestowaniu przez gracza (Zasada nr 17). |
 | **`[DISCORD]`** | Przygotowanie materiałów, ogłoszeń i instrukcji dla społeczności graczy na Discordzie. | Przejście na język gracza: brak zbędnego żargonu kompilacji, zwięzły opis zmian oraz jasna instrukcja instalacji krok po kroku (patrz szablony poniżej). |
-| **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika), sformatowanego Changelogu z kropkami i podsumowaniami, a **na sam koniec bezwzględne utworzenie GitHub Release i wrzucenie obu paczek (serwera i klienta z naszymi modyfikacjami) na GitHub Releases**. |
+| **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika), sformatowanego Changelogu z kropkami i podsumowaniami, a **na sam koniec utworzenie GitHub Release i wrzucenie obu paczek (serwera i klienta z naszymi modyfikacjami) na GitHub Releases (po uprzednim pomyślnym przetestowaniu zmian przez gracza)**. |
 
 ---
 
@@ -75,6 +75,35 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 1. Pobierz paczkę wydania `MT2Plus-Server-[wersja].zip` oraz `MT2Plus-Client-[wersja].zip`.
 2. Wypakuj paczkę Serwera i uruchom `start.bat` (wymagany zainstalowany Docker Desktop).
 3. Wypakuj paczkę Klienta i uruchom grę przez `metin2client.exe`.
+```
+
+#### Szablon C: Lista Kontrolna do Przetestowania (Obowiązkowa na Koniec Zadania)
+```markdown
+### 📋 Co należy przetestować (Checklist Weryfikacyjny):
+1. [ ] **Krok 1 (Przygotowanie / Wejście):** [Np. Uruchom klienta / wejdź do gry / otwórz dane okno UI / wpisz komendę]
+2. [ ] **Krok 2 (Akcja testowa):** [Np. Kliknij przycisk X, przeciągnij przedmiot Y, zabij potwora Z]
+3. [ ] **Oczekiwany rezultat:** [Co dokładnie ma się wydarzyć, jaki komunikat ma się pojawić, jak ma wyglądać poprawny stan]
+4. [ ] **Weryfikacja logów i stabilności:** [Brak błędów w `Klient/syserr.txt` oraz logach serwera `syserr`]
+
+> ⚠️ **Status Git:** Zmiany oczekują lokalnie. **Upload na GitHub nastąpi dopiero po Twoim pomyślnym przetestowaniu i potwierdzeniu!**
+```
+
+---
+
+### 0.3. Żelazny Cykl Realizacji Zadań (Oszczędność Tokenów AI & Bramka Testowa)
+
+Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzględnie realizuje poniższy 4-etapowy proces:
+
+1. **Precyzyjny Plan Krok po Kroku (Oszczędność Tokenów AI):**
+   - Przed dotknięciem kodu asystent precyzyjnie lokalizuje docelowe pliki (wąskim, celowanym wyszukiwaniem) i układa dla siebie zwięzłą instrukcję krok po kroku (które pliki, które funkcje, jaka zmiana logiczna).
+   - Zakaz bezmyślnego przeglądania całych katalogów czy wielkich plików po omacku. Maksymalna precyzja ("chirurgiczne cięcie") ogranicza zużycie tokenów AI i eliminuje halucynacje.
+2. **Chirurgiczna Implementacja:**
+   - Edycja wyłącznie niezbędnych bloków kodu z zachowaniem pełnej integralności projektu i bez naruszania istniejącej logiki upstreamu.
+3. **Obowiązkowa Lista Kontrolna Testów na Samym Końcu:**
+   - Na zakończenie każdej pracy asystent ZAWSZE generuje czytelną listę kontrolną według **Szablonu C**: co i jak użytkownik ma przetestować w grze lub panelu.
+4. **Bramka Bezpieczeństwa Git (Warunkowy Upload na GitHub):**
+   - **Kategoryczny zakaz commitowania i pushowania na GitHuba przed potwierdzeniem przez użytkownika!**
+   - Kod i spakowane paczki czekają lokalnie. Dopiero gdy użytkownik przetestuje grę i potwierdzi („Wszystko działa, możesz wrzucać”), asystent zatwierdza commity, pushuje na GitHub, tworzy wydania GitHub Release oraz wykonuje synchronizację patchera (`publish_patcher_web.py`).
 ```
 
 ---
@@ -149,7 +178,7 @@ Każda aktualizacja serwera i systemów MUSI ściśle realizować poniższy 5-et
    - Po teście czyste wygaszenie kontenerów: `docker compose down`.
 
 ### Krok 5: Publikacja na GitHub (`dev`) i Merge do `main` (Oficjalny Release)
-Dopiero po pomyślnym przejściu Kroków 1–4:
+Dopiero po pomyślnym przejściu Kroków 1–4 oraz przetestowaniu i potwierdzeniu przez użytkownika na podstawie wygenerowanej Listy Kontrolnej Testów (Zasada nr 17):
 1. **Zatwierdzenie na gałęzi `dev`:**
    - Commit przetestowanych zmian z czytelnym opisem konwencji Conventional Commits.
    - Wypchnięcie zmian: `git push origin dev`.
@@ -273,6 +302,7 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Sesja Farmienia (Farming Session Tracker & Valuation):** Nowoczesne okno analityki pod klawiszem `F6` (rebindowalne w menu skrotow). Sledzi czas sesji ze stoperem (pauza/wznowienie/reset), zniszczone Kamienie Metin, pokonanych Bossow, wszystkie zrodla oraz zdobyty EXP i tempo (`EXP / godz.`). Zlicza surowe Yang z ziemi oraz dokladna liczbe i szacowana wartosc zebranych przedmiotow z mozliwoscia przelaczania trybu wyceny: **Rynkowa** (baza ponad 3250 sugerowanych cen z rynku botow i sklepow offline, np. Klejnot Demona = 140k) vs **NPC** (wartosc sprzedazy u handlarza po odliczeniu 3% podatku handlowego). Umozliwia wlasna edycje cen (przycisk Cena z obsluga k/kk/m/b), wykluczanie z sumy (przycisk Wyklucz / Wlicz), dynamiczne tempo dochodu (`~Yang / godz.`, `~Metin / godz.`), udostepnianie raportu na czat oraz kompaktowy, ruchomy mini-widzet HUD. Modul w [`Server/server-patches/krystian/sesja-farmienia/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/sesja-farmienia).
 - **Automatyczny Drop do Magazynu Kolekcjonera przy Pełnym Ekwipunku (Kolekcjoner Auto-Drop):** Checkbox pod przyciskiem "Rozbuduj" w oknie Magazynu Kolekcjonera (`uicollector.py`). Gdy opcja jest zaznaczona i gracz ma zapełniony ekwipunek (`full EQ`), zbierany drop z ziemi (`PickupItem`) oraz przedmioty z zadań/skrzynek (`AutoGiveItem`) automatycznie trafiają do Magazynu Kolekcjonera zamiast leżeć na ziemi. Obsługuje łączenie stosów (stack merge) do 2 mld sztuk dla ulepszaczy i kamieni, uwzględnia limit pojemności magazynu (`Capacity(tier)` do 10 000 slotów), blokuje przedmioty specjalne (szarfy, alchemia smoczych kamieni, pasy, zablokowane) oraz trwale zapamiętuje ustawienie na koncie gracza (`collector_autodrop`). Moduł w [`Server/server-patches/krystian/kolekcjoner-autodrop/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-autodrop).
 - **Naprawa i Odblokowanie Odnawiania Sklepów Botów (4 Strony / 320 Slotów):** Usunięcie błędu silnika C++ w `char_shop.cpp` (`CanPlaceOnShopSlot`, `CanPlaceItemOnShopSlot`) oraz `ikarus_shop_manager.cpp` (`RecvShopReopenClientPacket`), który blokował wznawianie wygasłych po 8h sklepów offline botów po powiększeniu ich stoisk do 4 stron w 2.36.0 (`slots_ok=0` / `SHOP_NO_PREMIUM`). Zapewnia automatyczne odnawianie stoisk botów na CH1 i utrzymanie stałej puli ~1800 aktywnych sklepów na rynku. Moduł w [`Server/server-patches/krystian/odnawianie-sklepow-botow/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow).
+- **Szarfy – Szansa na Ulepszenie oraz Naprawa Pustego Tooltipa:** Wyświetlanie szansy procentowej na pomyślne ulepszenie w oknie łączenia szarf (uiacce.py, cce_combinewindow.py) w formacie identycznym jak u kowala (Szansa na Ulepszenie X%), dynamicznie dopasowanym do stopnia szarfy (80% / 70% / 50% / 30%). Naprawa błędu pustego dymka/tooltipa (AttributeError: _ItemToolTip__AdjustAttrMaxWidth w uitooltip.py), wdrożenie brakujących metod dynamicznego dostosowywania szerokości tooltipa na podstawie bonusów i opisu oraz zabezpieczenie wczesnych wyjść z HideToolTip(). Moduł w [Server/server-patches/krystian/szarfy-szansa-tooltip/](file:///d:/Github/MT2Plus/Server/server-patches/krystian/szarfy-szansa-tooltip).
 - **Pobieranie Ulepszaczy z Magazynu Kolekcjonera u Kowala i przy Zwojach (Refine Collector Fallback):** Inteligentne pobieranie ulepszaczy z Magazynu Kolekcjonera podczas ulepszania u kowala (`CHARACTER::DoRefine`) oraz przy użyciu zwojów (`CHARACTER::DoRefineWithScroll`). Bezwzględny priorytet ekwipunku postaci (materiały pobierane najpierw z `INVENTORY`, a brakująca różnica z magazynu). W pełni atomowa walidacja (sprawdzenie łącznej dostępności wszystkich składników przed pobraniem czegokolwiek). Cicha synchronizacja w tle przy logowaniu postaci (`CInputLogin::Entergame` z flagą `silent = 1`), dzięki czemu okno ulepszania (`uirefine.py`) natychmiast pokazuje dostępność materiałów na zielono w formacie `Nazwa x 02 (1 + 5 mag.)`, a gracz otrzymuje powiadomienie informacyjne na czacie o pobraniu ulepek z magazynu. Moduł w [`Server/server-patches/krystian/kolekcjoner-refine/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-refine).
 
 ### 5.1. Rejestr Autorskich Modyfikacji w `Server/server-patches/krystian/`
@@ -304,6 +334,7 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
 | [`odnawianie-sklepow-botow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow) | Serwer (C++) | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `playerbot_offline_shop.h` (zdjęcie ograniczeń slotów/premium gracza dla botów przy reopenie, automatyczne odnawianie 4-stronicowych sklepów offline botów) | **Aktywny** |
 | [`dom-aukcyjny-historia`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/dom-aukcyjny-historia) | Klient (Python) | `Klient/pack/root/uiauctionhouse.py` (Przycisk "Historia" obok Reset, okno historii zakupów, tooltip z bonusami/KD, wyszukiwanie 1-klik, czyszczenie, bufor JSON) | **Aktywny** |
 | [`kolekcjoner-refine`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-refine) | Serwer (C++) + Klient (Python) | `playerbot_collector.cpp/h`, `char_item.cpp`, `input_login.cpp`, `uirefine.py`, `uicollector.py` (pobieranie ulepszaczy z magazynu kolekcjonera u kowala i zwojami z priorytetem EQ, silent sync, zielony licznik w UI) | **Aktywny** |
+| [szarfy-szansa-tooltip](file:///d:/Github/MT2Plus/Server/server-patches/krystian/szarfy-szansa-tooltip) | Klient (Python) | uiacce.py, uitooltip.py, uicube.py, uiscript/acce_combinewindow.py (wyświetlanie % szansy ulepszenia szarf jak u kowala, fix pustego dymka/tooltipa przez brakujące metody __AdjustAttrMaxWidth i __AdjustDescMaxWidth, zabezpieczenia ClearToolTip w kliencie) | **Aktywny** |
 
 ---
 
@@ -388,5 +419,20 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
       python Server/tools/publish_patcher_web.py
       ```
     - **Zakaz zamykania zadania bez synchronizacji CDN:** Żadne zadanie dotyczące zmian w kliencie gry nie może zostać uznane za ukończone przed pomyślnym wykonaniem powyższego skryptu i wypchnięciem zmian na gałąź `gh-pages`.
-    - **Konsekwencje zaniechania:** Jeżeli pliki na CDN nie zostaną natychmiast zaktualizowane, uruchomienie gry przez `MT2009-Patcher.exe` potraktuje lokalne modyfikacje jako "uszkodzone/niezgodne" i natychmiast **pobierze starszą wersję z CDN, bezpowrotnie nadpisując autorskie zmiany w `root.data`**. Synchronizacja patchera jest integralną, obowiązkową częścią każdego taska modyfikującego klienta.
+    - **Konsekwencje zaniechania:** Jeżeli pliki na CDN nie zostaną natychmiast zaktualizowane, uruchomienie gry przez `MT2009-Patcher.exe` potraktuje lokalne modyfikacje jako "uszkodzone/niezgodne" i natychmiast **pobierze starszą wersję z CDN, bezpowrotnie nadpisując autorskie zmiany w `root.data`**. Synchronizacja patchera jest integralną, obowiązkową częścią każdego taska modyfikującego klienta (wykonywaną zaraz po pomyślnym przetestowaniu zmian przez gracza zgodnie z Zasadą nr 17).
+
+16. **Zasada Precyzyjnego Planowania i Oszczędzania Tokenów AI (Token-Saving Precision Blueprint Guard):**
+    - Przy każdym zadaniu (poprawka błędu, tworzenie nowego systemu, modyfikacja plików C++ lub Pythona), asystent ma bezwzględny obowiązek optymalizować swoją pracę pod kątem precyzji i zużycia tokenów AI:
+      - **A. Wewnętrzny plan krok po kroku:** Zanim asystent dotknie jakiegokolwiek pliku, formułuje jasną, sekwencyjną instrukcję działania: określa dokładnie docelowe pliki, docelowe funkcje/metody oraz logikę wprowadzanej zmiany.
+      - **B. Chirurgiczne wyszukiwanie i odczyt:** Kategoryczny zakaz bezcelowego wczytywania wielkich plików w całości lub skanowania całych drzew katalogów bez wyraźnej potrzeby. Zawsze należy używać precyzyjnych narzędzi (`Select-String` / grep, celowane odczytywanie konkretnych zakresów linii `StartLine`-`EndLine`).
+      - **C. Zwięzłe, celowane edycje:** Modyfikacje kodu muszą być wprowadzane punktowo, bez zbędnego przepisywania działających fragmentów, bez prób i błędów oraz bez wielokrotnego odczytywania tego samego kodu.
+
+17. **Żelazna Zasada Obowiązkowej Listy Testów i Warunkowego Uploadu na GitHub (User Verification & Guarded GitHub Push Rule):**
+    - **A. Obowiązkowa lista kontrolna testów na sam koniec zadania:**
+      - Po wprowadzeniu jakiejkolwiek poprawki, naprawieniu usterki lub zaimplementowaniu nowego modułu, asystent **zawsze na samym końcu odpowiedzi generuje dla gracza/użytkownika czytelną listę kontrolną według Szablonu C**.
+      - Lista musi zawierać konkretne kroki weryfikacyjne: jak wejść do testu, co kliknąć/sprawdzić w grze, jaki jest oczekiwany rezultat oraz jak upewnić się, że nie powstały błędy w logach (`syserr.txt`).
+    - **B. Twarda blokada uploadu na GitHub przed potwierdzeniem przez użytkownika:**
+      - **Asystentowi kategorycznie zabrania się automatycznego wykonywania `git commit`, `git push`, wydawania wersji na GitHub Releases oraz wypychania zmian patchera na `gh-pages` przed otrzymaniem od użytkownika jednoznacznego potwierdzenia, że test w grze zakończył się sukcesem i wszystko działa poprawnie.**
+      - Wszystkie zmiany po kompilacji i spakowaniu pozostają wyłącznie lokalnie na gałęzi deweloperskiej w repozytorium roboczym.
+      - Dopiero gdy użytkownik napisze np. „przetestowane, działa”, „wszystko ok, wrzucaj”, asystent przystępuje do zatwierdzenia zmian (commit), pusha do zdalnego repozytorium GitHub, publikacji wydań i synchronizacji patchera CDN (`publish_patcher_web.py`).
 

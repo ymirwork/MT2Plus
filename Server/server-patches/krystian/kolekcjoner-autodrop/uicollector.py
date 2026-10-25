@@ -1502,16 +1502,6 @@ class CollectorWindow(ui.BoardWithTitleBar):
 			self.Refresh()
 		if self.statusUntil and now > self.statusUntil:
 			self.__SetStatus('')
-		if now >= self.nextDistanceCheck and self.openPos:
-			self.nextDistanceCheck = now + 0.5
-			try:
-				x, y, z = player.GetMainCharacterPosition()
-				ox, oy, oz = self.openPos
-				if abs(x - ox) > MAX_DISTANCE or abs(y - oy) > MAX_DISTANCE:
-					Say(MSG_CLOSE[1])
-					self.Close()
-			except Exception:
-				pass
 
 
 # ---------------------------------------------------------------- module API

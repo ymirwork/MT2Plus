@@ -275,7 +275,7 @@ TSession* Live(LPCHARACTER ch, DWORD op)
 		SendRes(ch, op, RESULT_LOADING, 0);
 		return NULL;
 	}
-	if (ch->GetMapIndex() != s.mapIndex || DISTANCE_APPROX(ch->GetX() - s.x, ch->GetY() - s.y) > MAX_DISTANCE) {
+	if (ch->GetMapIndex() != s.mapIndex) {
 		s.openRequested = false;
 		if (ch->GetAccountFlag("collector_autodrop") <= 0)
 			s_sessions.erase(it);

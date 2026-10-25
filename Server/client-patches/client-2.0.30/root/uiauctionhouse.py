@@ -32,6 +32,7 @@ import uiCommon
 import wndMgr
 import gamefont
 import nonplayer		# MT2009_PLUS_AUCTION_HOUSE_FILTERS_V1: potwor marmuru polimorfii
+import file_utils
 from _weakref import proxy
 
 # ---- uklad okna (do dopasowania) ---------------------------------------------
@@ -2520,16 +2521,18 @@ class BonusDialog(ui.BoardWithTitleBar):
 
 
 # ---- historia zakupow (AH_V2) ------------------------------------------------
-def ToUnicode(val):
+def SafeUnicode(val):
 	if val is None:
 		return u""
 	try:
 		if isinstance(val, unicode):
 			return val
-	except NameError:
-		if isinstance(val, str):
-			return val
-	if not isinstance(val, (str, bytes)):
+	except:
+		pass
+	try:
+		if not isinstance(val, basestring):
+			val = str(val)
+	except:
 		try:
 			val = str(val)
 		except:
@@ -2544,7 +2547,7 @@ def ToUnicode(val):
 	except:
 		return u""
 
-def ToGameStr(val):
+def SafeGameStr(val):
 	if val is None:
 		return ""
 	try:
@@ -2556,7 +2559,7 @@ def ToGameStr(val):
 					return val.encode("utf-8")
 				except:
 					return val.encode("ascii", "replace")
-	except NameError:
+	except:
 		pass
 	try:
 		return str(val)
@@ -2568,31 +2571,31 @@ def GetAuctionHistoryPath():
 		charName = player.GetName()
 		if charName:
 			safeName = re.sub(r'[^a-zA-Z0-9_]', '', charName)
-			return "cache/ah_history_%s.json" % safeName
+			if safeName:
+				return "cache/ah_history_%s.json" % safeName
 	except:
 		pass
 	return "cache/ah_history_common.json"
 
 def LoadAuctionHistory():
 	path = GetAuctionHistoryPath()
-	if not os.path.exists(path):
-		return []
 	try:
-		with open(path, "r") as f:
-			data = json.load(f)
-			if isinstance(data, list):
-				result = []
-				for entry in data:
-					item = dict(entry)
-					item["name"] = ToGameStr(item.get("name", ""))
-					item["seller"] = ToGameStr(item.get("seller", "Rynek"))
-					item["seller_name"] = ToGameStr(item.get("seller_name", item.get("seller", "Rynek")))
-					result.append(item)
-				return result
+		content = file_utils.GetFileContent(path)
+		if not content:
+			return []
+		data = json.loads(content)
+		if isinstance(data, list):
+			result = []
+			for entry in data:
+				item = dict(entry)
+				item["name"] = SafeGameStr(item.get("name", ""))
+				item["seller"] = SafeGameStr(item.get("seller", "Rynek"))
+				item["seller_name"] = SafeGameStr(item.get("seller_name", item.get("seller", "Rynek")))
+				result.append(item)
+			return result
 	except:
 		try:
-			if os.path.exists(path):
-				os.remove(path)
+			file_utils.DeleteFile(path)
 		except:
 			pass
 	return []
@@ -2600,43 +2603,31 @@ def LoadAuctionHistory():
 def SaveAuctionHistory(dataList):
 	path = GetAuctionHistoryPath()
 	try:
-		dirName = os.path.dirname(path)
-		if dirName and not os.path.exists(dirName):
-			os.makedirs(dirName)
 		cleanList = []
 		for item in dataList[:200]:
 			cleanEntry = {
 				"vnum": int(item.get("vnum", 0)),
-				"name": ToUnicode(item.get("name", "")),
+				"name": SafeUnicode(item.get("name", "")),
 				"count": max(1, int(item.get("count", 1))),
 				"price": max(0, int(item.get("price", 0))),
-				"seller": ToUnicode(item.get("seller", "Rynek")),
-				"seller_name": ToUnicode(item.get("seller_name", item.get("seller", "Rynek"))),
-				"date": ToGameStr(item.get("date", "")),
+				"seller": SafeUnicode(item.get("seller", "Rynek")),
+				"seller_name": SafeUnicode(item.get("seller_name", item.get("seller", "Rynek"))),
+				"date": SafeGameStr(item.get("date", "")),
 				"timestamp": int(item.get("timestamp", int(time.time()))),
 				"sockets": list(item.get("sockets", [0, 0, 0])),
 				"attrs": list(item.get("attrs", []))
 			}
 			cleanList.append(cleanEntry)
-		tmpPath = path + ".tmp"
-		with open(tmpPath, "w") as f:
-			json.dump(cleanList, f, indent=2, ensure_ascii=True)
-		if os.path.exists(path):
-			try:
-				os.remove(path)
-			except:
-				pass
-		os.rename(tmpPath, path)
+		jsonStr = json.dumps(cleanList, indent=2, ensure_ascii=True)
+		file_utils.WriteFile(path, jsonStr)
+		return True
 	except:
-		pass
+		return False
 
 class AuctionHistoryRow(ui.Window):
 	def __init__(self, dialog):
 		ui.Window.__init__(self)
-		try:
-			self.dialog = proxy(dialog)
-		except TypeError:
-			self.dialog = dialog
+		self.dialog = dialog
 		self.data = None
 		self.index = 0
 		width = 540
@@ -2722,14 +2713,14 @@ class AuctionHistoryRow(ui.Window):
 			name = self.dialog.market.GetItemName(data)
 		if not name:
 			name = ItemNameOf(vnum) or ("#%d" % vnum)
-		nameStr = ToGameStr(name)
+		nameStr = SafeGameStr(name)
 		self.nameText.SetPosition(44, 4)
 		FitText(self.nameText, nameStr, 220)
 
 		# Subtext (Sprzedawca + ew. cena/szt)
 		count = max(1, data.get("count", 1))
 		price = max(0, data.get("price", 0))
-		seller = ToGameStr(data.get("seller") or data.get("seller_name") or "Rynek")
+		seller = SafeGameStr(data.get("seller") or data.get("seller_name") or "Rynek")
 		if count > 1:
 			unitPrice = PartPrice(price, count, 1)
 			self.subText.SetText("Od: %s (%s/szt.)" % (seller, Money(unitPrice)))
@@ -2744,7 +2735,7 @@ class AuctionHistoryRow(ui.Window):
 		self.priceText.SetText(Money(price))
 
 		# Data
-		self.dateText.SetText(data.get("date", ""))
+		self.dateText.SetText(SafeGameStr(data.get("date", "")))
 
 		if isSelected:
 			self.selectBar.Show()
@@ -2790,10 +2781,7 @@ class AuctionHistoryDialog(ui.BoardWithTitleBar):
 
 	def __init__(self, market):
 		ui.BoardWithTitleBar.__init__(self)
-		try:
-			self.market = proxy(market)
-		except TypeError:
-			self.market = market
+		self.market = market
 		self.historyList = []
 		self.rows = []
 		self.offset = 0
@@ -3712,14 +3700,14 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 			SaveAuctionHistory(history)
 			if self.historyDialog:
 				self.historyDialog.Refresh()
-			itemNameStr = ToGameStr(itemName)
+			itemNameStr = SafeGameStr(itemName)
 			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: zapisano w historii: %s (%d szt. za %s)." % (itemNameStr, max(1, int(count)), Money(max(0, int(price)))))
 		except Exception as e:
 			chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: b\xb3\xb9d zapisu historii: %s" % str(e))
 
 	def SearchFromHistory(self, data):
 		self.LockItem(data)
-		nameStr = ToGameStr(self.GetItemName(data))
+		nameStr = SafeGameStr(self.GetItemName(data))
 		chat.AppendChat(chat.CHAT_TYPE_INFO, "Dom Aukcyjny: szukam przedmiotu %s..." % nameStr)
 
 	def __SetSearchText(self, text):
@@ -4408,7 +4396,12 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 
 	def __OnBuyResult(self, owner, itemId, ok, reason, pieces=0, paid=0):
 		self.jobDeadline = app.GetTime() + JOB_TIMEOUT
-		if ok:
+		isOk = False
+		try:
+			isOk = (int(ok) != 0)
+		except:
+			isOk = bool(ok)
+		if isOk:
 			ownerId = int(owner)
 			itmId = int(itemId)
 			if getattr(self, "jobKind", JOB_SINGLE) != JOB_BULK:
@@ -4451,8 +4444,14 @@ class AuctionHouseWindow(ui.BoardWithTitleBar):
 
 	def __OnJobDone(self, kind, okCount, total, pieces, spent, reason):
 		self.jobRunning = False
+		try:
+			kindInt = int(kind)
+			okCountInt = int(okCount)
+		except:
+			kindInt = kind
+			okCountInt = okCount
 		# AH_V2: Awaryjny zapis, jezeli cokolwiek zostalo w pendingBuys po udanym zakupie
-		if kind in (JOB_SINGLE, JOB_CART) and okCount > 0 and self.pendingBuys:
+		if kindInt in (JOB_SINGLE, JOB_CART) and okCountInt > 0 and self.pendingBuys:
 			for k, data in list(self.pendingBuys.items()):
 				vnum = int(data.get("vnum", 0))
 				name = self.GetItemName(data)

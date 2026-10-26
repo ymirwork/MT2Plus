@@ -975,7 +975,6 @@ class CollectorWindow(ui.BoardWithTitleBar):
 			self.question.Close()
 		if self.editSearch:
 			self.editSearch.KillFocus()
-		self.store.Reset()
 		self.Hide()
 
 	def OnPressEscapeKey(self):
@@ -1519,15 +1518,21 @@ def IsOpen():
 	return bool(window) and window.IsShow()
 
 
+def RequestSync():
+	Send(COMMAND + ' sync')
+
+
 def CountItem(vnum):
 	try:
-		window = _state.get('window')
+		target_vnum = int(vnum)
+		window = GetWindow(True)
 		if not window or not window.store or not window.store.entries:
+			RequestSync()
 			return 0
 		total = 0
 		for entry in window.store.entries.values():
-			if entry[0] == vnum:
-				total += entry[1]
+			if int(entry[0]) == target_vnum:
+				total += int(entry[1])
 		return total
 	except Exception:
 		return 0
@@ -1618,10 +1623,16 @@ class Keeper(object):
 	"""One of the game's updateables: destroys the window with the game window
 	(a warp, a logout), and lets go of an entry's icon once the cursor has."""
 
+	def __init__(self):
+		self.synced = False
+
 	def CanUpdate(self):
 		return True
 
 	def OnUpdate(self):
+		if not self.synced:
+			self.synced = True
+			RequestSync()
 		if _state['icon'] and not IsEntryAttached():
 			ReleaseIcon()
 

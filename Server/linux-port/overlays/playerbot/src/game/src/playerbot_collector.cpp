@@ -253,7 +253,7 @@ void PurgeOffline()
 
 bool RealPlayer(LPCHARACTER ch)
 {
-	return ch && ch->IsPC() && ch->GetDesc() && ch->GetDesc()->IsPhase(PHASE_GAME) && ch->IsItemLoaded() &&
+	return ch && ch->IsPC() && ch->GetDesc() && ch->GetDesc()->IsPhase(PHASE_GAME) &&
 			ch->GetDesc()->GetAccountTable().id != 0;
 }
 
@@ -771,9 +771,14 @@ void Command(LPCHARACTER ch, const char* argument)
 		auto it = s_sessions.find(ch->GetPlayerID());
 		if (it != s_sessions.end()) {
 			it->second.openRequested = false;
-			if (ch->GetAccountFlag("collector_autodrop") <= 0)
-				s_sessions.erase(it);
 		}
+		return;
+	}
+	if (!strcmp(word, "sync")) {
+		EnsureLoaded(ch, false);
+		auto it = s_sessions.find(ch->GetPlayerID());
+		if (it != s_sessions.end() && it->second.loaded)
+			SendAll(ch, it->second, true);
 		return;
 	}
 	if (!strcmp(word, "autodrop")) {
@@ -785,10 +790,6 @@ void Command(LPCHARACTER ch, const char* argument)
 		ch->SetAccountFlag("collector_autodrop", enabled ? 1 : 0, false, true);
 		if (enabled) {
 			EnsureLoaded(ch, false);
-		} else {
-			auto it = s_sessions.find(ch->GetPlayerID());
-			if (it != s_sessions.end() && !it->second.openRequested)
-				s_sessions.erase(it);
 		}
 		ch->ChatPacket(CHAT_TYPE_COMMAND, "COLL autodrop %d", enabled ? 1 : 0);
 		if (enabled)
@@ -1099,12 +1100,10 @@ DWORD RemoveItem(LPCHARACTER ch, DWORD vnum, DWORD needCount)
 		if (r.count == 0) {
 			DeleteRecord(r.id);
 			toDelete.push_back(r.id);
-			if (s.openRequested)
-				SendDel(ch, r.id);
+			SendDel(ch, r.id);
 		} else {
 			SaveRecord(r);
-			if (s.openRequested)
-				SendSet(ch, r);
+			SendSet(ch, r);
 		}
 	}
 
@@ -1125,12 +1124,10 @@ DWORD RemoveItem(LPCHARACTER ch, DWORD vnum, DWORD needCount)
 		if (r.count == 0) {
 			DeleteRecord(r.id);
 			toDelete.push_back(r.id);
-			if (s.openRequested)
-				SendDel(ch, r.id);
+			SendDel(ch, r.id);
 		} else {
 			SaveRecord(r);
-			if (s.openRequested)
-				SendSet(ch, r);
+			SendSet(ch, r);
 		}
 	}
 

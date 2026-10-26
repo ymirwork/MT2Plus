@@ -626,9 +626,9 @@
  },
  {
   "name": "pack\\Index",
-  "size": 1160,
-  "md5": "1D7EC6A71EC327D63CE65C32AA584620",
-  "uid": "1d7ec6a71ec327d63ce65c32aa584620",
+  "size": 1200,
+  "md5": "2940A3F38D9F2BA7A09D3C1AAF80D42F",
+  "uid": "2940a3f38d9f2ba7a09d3c1aaf80d42f",
   "delete": 0
  },
  {
@@ -703,16 +703,16 @@
  },
  {
   "name": "pack\\property.data",
-  "size": 433664,
-  "md5": "E95830C14C3361823CF15F54B9E0548B",
-  "uid": "e95830c14c3361823cf15f54b9e0548b",
+  "size": 437248,
+  "md5": "BCC48C227C57B5162812272609876819",
+  "uid": "bcc48c227c57b5162812272609876819",
   "delete": 0
  },
  {
   "name": "pack\\property.index",
-  "size": 58692,
-  "md5": "C81551593C85875A42E0D9037D8CB895",
-  "uid": "c81551593c85875a42e0d9037d8cb895",
+  "size": 59188,
+  "md5": "C8E89FED94A5463ABC82E77C054CF383",
+  "uid": "c8e89fed94a5463abc82e77c054cf383",
   "delete": 0
  },
  {
@@ -741,6 +741,48 @@
   "size": 1140,
   "md5": "ECC13AADEC5B99632B099004F53B7537",
   "uid": "ecc13aadec5b99632b099004f53b7537",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wzmaps_map.data",
+  "size": 10738944,
+  "md5": "58B7693F8A2051CF748A2E30F2C33436",
+  "uid": "58b7693f8a2051cf748a2e30f2c33436",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wzmaps_map.index",
+  "size": 6948,
+  "md5": "B17DCFC92149FAAE2EF5D6E336488635",
+  "uid": "b17dcfc92149faae2ef5d6e336488635",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wzmaps_mobs.data",
+  "size": 7212544,
+  "md5": "FD8718E15B6B905343D18A051C7C3C69",
+  "uid": "fd8718e15b6b905343d18a051c7c3c69",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wzmaps_mobs.index",
+  "size": 11108,
+  "md5": "7C09D36C218D211D20C45159DD483AB5",
+  "uid": "7c09d36c218d211d20c45159dd483ab5",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wzmaps_obj.data",
+  "size": 5730560,
+  "md5": "58A1B2C824ABBDA93F02D1989848243E",
+  "uid": "58a1b2c824abbda93f02d1989848243e",
+  "delete": 0
+ },
+ {
+  "name": "pack\\wzmaps_obj.index",
+  "size": 5100,
+  "md5": "475F01BCB8DA37FCB5448307BB2A7807",
+  "uid": "475f01bcb8da37fcb5448307bb2a7807",
   "delete": 0
  },
  {

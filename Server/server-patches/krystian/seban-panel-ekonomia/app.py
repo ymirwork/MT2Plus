@@ -76,7 +76,7 @@ MAP_NAMES = {
     67: "Las", 68: "Czerwony Las", 66: "Wieża Demonów",
     72: "Grota Wygnańców V1", 73: "Grota Wygnańców V2",
     # MT2009_PLUS_SEBAN_MAPS_V1: the Temple of Ochao and the Arezzo places.
-    209: "Świątynia Ochao", 360: "Dolina Cyklopów", 361: "Pustkowie Faraona", 362: "Zaczarowany Las",
+    209: "Świątynia Ochao", 360: "Dolina Cyklopów", 361: "Pustkowie Faraona", 353: "Zaklęty Las",
     363: "Biblioteka Wiedzy", 364: "Wzgórze Wukonga", 365: "Ruiny Skorpiona", 366: "Starożytna Dżungla",
 }
 MAP_BOUNDS = {
@@ -103,7 +103,7 @@ MAP_BOUNDS = {
     # MT2009_PLUS_SEBAN_MAPS_V1: BasePosition + MapSize x 25600 from each map's Setting.txt.
     209: (844800, 1408000, 76800, 76800),
     360: (230400, 281600, 102400, 102400), 361: (230400, 384000, 102400, 102400),
-    362: (332800, 384000, 102400, 102400), 363: (947200, 614400, 51200, 51200),
+    353: (768000, 1408000, 76800, 102400), 363: (947200, 614400, 51200, 51200),
     364: (844800, 537600, 51200, 51200), 365: (844800, 588800, 51200, 51200),
     366: (768000, 537600, 76800, 76800),
 }
@@ -4336,6 +4336,29 @@ def not_game_master(alias="p"):
             " AND EXISTS (SELECT 1 FROM player.player rgp"
             " WHERE rgp.account_id = gacc.id AND rgp.name = rg.mName))")
 
+def item_not_gm_scope_sql(alias="i"):
+    """Excludes all items belonging to admin and GM accounts or characters across all windows."""
+    ref = (alias + ".") if alias else ""
+    return (
+        f"NOT ("
+        f"({ref}window IN ('SAFEBOX','MALL') AND ("
+        f"{ref}owner_id = 1 "
+        f"OR EXISTS (SELECT 1 FROM common.gmlist gl JOIN account.account ga ON ga.login = gl.mAccount WHERE ga.id = {ref}owner_id AND gl.mAuthority <> 'PLAYER') "
+        f"OR EXISTS (SELECT 1 FROM account.account ga WHERE ga.id = {ref}owner_id AND (ga.login = 'admin' OR ga.status = 'OK_GM'))"
+        f")) "
+        f"OR "
+        f"({ref}window NOT IN ('SAFEBOX','MALL') AND EXISTS ("
+        f"SELECT 1 FROM player.player gp JOIN account.account ga ON ga.id = gp.account_id "
+        f"WHERE gp.id = {ref}owner_id AND ("
+        f"LEFT(gp.name, 1) = '[' OR LEFT(gp.name, 5) = 'Admin' "
+        f"OR gp.name IN ('Test','Admin','AdminNinja','AdminSura','AdminSzaman') "
+        f"OR ga.login = 'admin' "
+        f"OR EXISTS (SELECT 1 FROM common.gmlist gl WHERE (gl.mAccount = ga.login OR gl.mName = gp.name) AND gl.mAuthority <> 'PLAYER')"
+        f")))"
+        f")"
+    )
+
+
 
 # MT2009_PLUS_DB_LOG_RETENTION_V1: the panel's "since the start" and 7-day
 # figures come from the summaries log_maintenance.py keeps (the collector
@@ -5072,11 +5095,11 @@ def get_dashboard_totals():
     now = time.time()
     if _DASHBOARD_TOTALS_CACHE["data"] is not None and (now - _DASHBOARD_TOTALS_CACHE["ts"]) < 30.0:
         return _DASHBOARD_TOTALS_CACHE["data"]
-    totals = one("""
+    totals = one(f"""
         SELECT
           (SELECT COUNT(*) FROM player.player) AS characters,
           (SELECT COUNT(*) FROM account.account) AS accounts,
-          (SELECT COUNT(*) FROM player.item) AS item_stacks,
+          (SELECT COUNT(*) FROM player.item WHERE {item_not_gm_scope_sql('player.item')}) AS item_stacks,
           (SELECT COALESCE(SUM(gold),0) FROM player.player WHERE name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')) AS yang
     """)
     _DASHBOARD_TOTALS_CACHE["ts"] = now
@@ -7697,7 +7720,7 @@ def economy():
     baseline_yang = int(baseline.get("value")) if baseline else total_yang
     inflation_pct = round(((total_yang - baseline_yang) / baseline_yang * 100), 1) if baseline_yang else 0.0
 
-    bonus_pool_row = one("SELECT COALESCE(SUM(count),0) AS c FROM player.item WHERE vnum IN (71151, 71152, 71284, 71285, 71084, 71085)") or {}
+    bonus_pool_row = one(f"SELECT COALESCE(SUM(count),0) AS c FROM player.item i WHERE vnum IN (71151, 71152, 71284, 71285, 71084, 71085) AND {item_not_gm_scope_sql('i')}") or {}
     bonus_pool = int(bonus_pool_row.get("c") or 0)
 
     kpi = {
@@ -7716,7 +7739,7 @@ def economy():
     # 2. Watchlist (Barometr Surowców)
     w_vnums = [w["vnum"] for w in ECONOMY_WATCHLIST_DEF]
     w_placeholders = ','.join(['%s'] * len(w_vnums))
-    w_counts_raw = rows(f"SELECT vnum, SUM(count) AS total_count FROM player.item WHERE vnum IN ({w_placeholders}) GROUP BY vnum", tuple(w_vnums))
+    w_counts_raw = rows(f"SELECT vnum, SUM(count) AS total_count FROM player.item i WHERE vnum IN ({w_placeholders}) AND {item_not_gm_scope_sql('i')} GROUP BY vnum", tuple(w_vnums))
     w_counts_map = {int(r["vnum"]): int(r["total_count"]) for r in w_counts_raw}
 
     w_prices_raw = rows(f"""
@@ -7835,11 +7858,12 @@ def economy():
         }
 
         # Dynamiczny wskaźnik skupu botów YmirWork (3% - 35% wg podaży próbek na rynku):
-        supply_row = one("""
+        supply_row = one(f"""
             SELECT COALESCE(SUM(count), 0) AS total_supply
-            FROM player.item
+            FROM player.item i
             WHERE window = 'IKASHOP_OFFLINESHOP'
               AND vnum IN (30031, 30028, 30071, 30004, 30003, 30078)
+              AND {item_not_gm_scope_sql('i')}
         """) or {}
         sample_supply = int(supply_row.get("total_supply") or 0)
         if sample_supply < 300:
@@ -7852,14 +7876,15 @@ def economy():
         buyer_bots_count = int(total_bots * buyer_pct / 100)
 
         # Obieg Zaczarowan i Wzmocnien (Tier 1 oraz Tier 2) w swiecie i na straganach
-        bonus_circ = rows("""
+        bonus_circ = rows(f"""
             SELECT vnum,
                    SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
                    SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
                    SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
                    SUM(count) AS total_count
-            FROM player.item
+            FROM player.item i
             WHERE vnum IN (71151, 71152, 71284, 71285)
+              AND {item_not_gm_scope_sql('i')}
             GROUP BY vnum
         """)
         circ_map = {int(r["vnum"]): {
@@ -7987,7 +8012,10 @@ def economy():
                  SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
                  SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
                  SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count
-          FROM player.item WHERE vnum IN ({w_placeholders}) GROUP BY vnum
+          FROM player.item i 
+          WHERE vnum IN ({w_placeholders}) 
+            AND {item_not_gm_scope_sql('i')} 
+          GROUP BY vnum
         """, tuple(vnums_on_page))
         w_map = {int(r["vnum"]): r for r in w_rows}
         for item in items_page:
@@ -8304,9 +8332,11 @@ def economy_item(vnum):
         """, (vnum,))
         market_by_skill = {int(r["skill_id"]): r for r in raw_skills_market}
 
-        raw_skills_world = rows("""
+        raw_skills_world = rows(f"""
           SELECT socket0 AS skill_id, SUM(count) AS world_count, COUNT(DISTINCT owner_id) AS owners_count
-          FROM player.item WHERE vnum = %s GROUP BY socket0
+          FROM player.item i 
+          WHERE vnum = %s AND {item_not_gm_scope_sql('i')} 
+          GROUP BY socket0
         """, (vnum,))
         world_by_skill = {int(r["skill_id"]): r for r in raw_skills_world}
 
@@ -8336,14 +8366,15 @@ def economy_item(vnum):
         history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, amount
           FROM player.web_seban_item_snapshot WHERE vnum=%s AND socket0=%s AND captured_at >= NOW() - INTERVAL 14 DAY ORDER BY captured_at""", (vnum, skill_id))
 
-        dist = one("""
+        dist = one(f"""
           SELECT 
             SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
             SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
             SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
             SUM(count) AS total_count,
             COUNT(DISTINCT owner_id) AS total_owners
-          FROM player.item WHERE vnum=%s AND socket0=%s
+          FROM player.item i 
+          WHERE vnum=%s AND socket0=%s AND {item_not_gm_scope_sql('i')}
         """, (vnum, skill_id)) or {}
 
         holders = rows("""
@@ -8449,14 +8480,15 @@ def economy_item(vnum):
         history = rows("""SELECT DATE_FORMAT(captured_at, '%%m-%%d %%H:%%i') AS captured_at, amount
           FROM player.web_seban_item_snapshot WHERE vnum=%s AND captured_at >= NOW() - INTERVAL 14 DAY ORDER BY captured_at""", (vnum,))
 
-        dist = one("""
+        dist = one(f"""
           SELECT 
             SUM(CASE WHEN window IN ('INVENTORY','EQUIPMENT') THEN count ELSE 0 END) AS inv_count,
             SUM(CASE WHEN window='SAFEBOX' THEN count ELSE 0 END) AS safebox_count,
             SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN count ELSE 0 END) AS shop_count,
             SUM(count) AS total_count,
             COUNT(DISTINCT owner_id) AS total_owners
-          FROM player.item WHERE vnum=%s
+          FROM player.item i 
+          WHERE vnum=%s AND {item_not_gm_scope_sql('i')}
         """, (vnum,)) or {}
 
         holders = rows("""

@@ -44,6 +44,29 @@ def decode_cp1250(value):
         return bytes(value).decode("cp1250", "replace")
     return value or ""
 
+def item_not_gm_scope_sql(alias="i"):
+    """Excludes all items belonging to admin and GM accounts or characters across all windows."""
+    ref = (alias + ".") if alias else ""
+    return (
+        f"NOT ("
+        f"({ref}window IN ('SAFEBOX','MALL') AND ("
+        f"{ref}owner_id = 1 "
+        f"OR EXISTS (SELECT 1 FROM common.gmlist gl JOIN account.account ga ON ga.login = gl.mAccount WHERE ga.id = {ref}owner_id AND gl.mAuthority <> 'PLAYER') "
+        f"OR EXISTS (SELECT 1 FROM account.account ga WHERE ga.id = {ref}owner_id AND (ga.login = 'admin' OR ga.status = 'OK_GM'))"
+        f")) "
+        f"OR "
+        f"({ref}window NOT IN ('SAFEBOX','MALL') AND EXISTS ("
+        f"SELECT 1 FROM player.player gp JOIN account.account ga ON ga.id = gp.account_id "
+        f"WHERE gp.id = {ref}owner_id AND ("
+        f"LEFT(gp.name, 1) = '[' OR LEFT(gp.name, 5) = 'Admin' "
+        f"OR gp.name IN ('Test','Admin','AdminNinja','AdminSura','AdminSzaman') "
+        f"OR ga.login = 'admin' "
+        f"OR EXISTS (SELECT 1 FROM common.gmlist gl WHERE (gl.mAccount = ga.login OR gl.mName = gp.name) AND gl.mAuthority <> 'PLAYER')"
+        f")))"
+        f")"
+    )
+
+
 
 def check_plus9_refines(cur):
     """Gold "/b"-style server announcement when a real player (not a bot --
@@ -486,9 +509,11 @@ def collect(con, previous):
         # item this way would fragment ordinary equipment into one row per
         # gem combination for no reason, since only 50300's socket0 changes
         # what the item actually *is*.
-        cur.execute("""INSERT IGNORE INTO player.web_seban_item_snapshot (captured_at,vnum,socket0,amount)
+        cur.execute(f"""INSERT IGNORE INTO player.web_seban_item_snapshot (captured_at,vnum,socket0,amount)
           SELECT %s, vnum, IF(vnum=50300, socket0, 0), SUM(count)
-          FROM player.item GROUP BY vnum, IF(vnum=50300, socket0, 0)""", (now,))
+          FROM player.item i
+          WHERE {item_not_gm_scope_sql('i')}
+          GROUP BY vnum, IF(vnum=50300, socket0, 0)""", (now,))
         # Only what can be bought (Playerbots 2.2.23): a stand with duration 0
         # ran out and holds its goods until its owner renews it - on m2zip on
         # 26 September 970 of 1 641 stands, nearly all of them of bots not in
@@ -506,13 +531,25 @@ def collect(con, previous):
           LEFT JOIN player.item i ON i.owner_id = o.owner AND i.window = 'IKASHOP_OFFLINESHOP'
             AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
           WHERE o.duration > 0
+            AND p.name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')
+            AND LEFT(p.name, 1) <> '['
+            AND LEFT(p.name, 5) <> 'Admin'
+            AND NOT EXISTS (SELECT 1 FROM common.gmlist gl JOIN account.account ga ON ga.login=gl.mAccount
+                            WHERE ga.id=p.account_id AND gl.mAuthority<>'PLAYER')
           GROUP BY o.map, pi.empire""", (now,))
         cur.execute("""INSERT IGNORE INTO player.web_seban_shop_item_snapshot (captured_at, vnum, socket0, offers, total_units, total_value)
           SELECT %s, vnum, IF(vnum=50300, socket0, 0), COUNT(*), SUM(count),
                  COALESCE(SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(ikashop_data,'$.yang')) AS UNSIGNED)),0)
-          FROM player.item i JOIN player.ikashop_offlineshop o ON o.owner=i.owner_id
+          FROM player.item i 
+          JOIN player.ikashop_offlineshop o ON o.owner=i.owner_id
+          JOIN player.player p ON p.id = o.owner
           WHERE i.window = 'IKASHOP_OFFLINESHOP' AND o.duration > 0
             AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
+            AND p.name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')
+            AND LEFT(p.name, 1) <> '['
+            AND LEFT(p.name, 5) <> 'Admin'
+            AND NOT EXISTS (SELECT 1 FROM common.gmlist gl JOIN account.account ga ON ga.login=gl.mAccount
+                            WHERE ga.id=p.account_id AND gl.mAuthority<>'PLAYER')
           GROUP BY vnum, IF(vnum=50300, socket0, 0)""", (now,))
         cur.execute("SELECT COALESCE(SUM(gold),0) FROM player.player WHERE name NOT IN ('[SA]Admin','Test','Admin','AdminNinja','AdminSura','AdminSzaman')")
         yang = cur.fetchone()[0]

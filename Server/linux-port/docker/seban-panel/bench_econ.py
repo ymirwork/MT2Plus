@@ -10,7 +10,7 @@ def time_query(label, fn):
 print("=== BENCHMARK START ===")
 time_query("KPI world_yang", lambda: app.one("SELECT COALESCE(SUM(gold),0) AS world_yang FROM player.player"))
 time_query("KPI baseline_yang", lambda: app.one("SELECT value FROM player.web_seban_metric_snapshot WHERE metric='total_yang' AND captured_at >= NOW() - INTERVAL 24 HOUR ORDER BY captured_at ASC LIMIT 1"))
-time_query("KPI bonus_pool", lambda: app.one("SELECT COALESCE(SUM(count),0) AS c FROM player.item WHERE vnum IN (71284, 71285, 71084, 71085)"))
+time_query("KPI bonus_pool", lambda: app.one(f"SELECT COALESCE(SUM(count),0) AS c FROM player.item i WHERE vnum IN (71284, 71285, 71084, 71085) AND {app.item_not_gm_scope_sql('i')}"))
 
 w_vnums = [w["vnum"] for w in app.ECONOMY_WATCHLIST_DEF]
 w_placeholders = ",".join(["%s"] * len(w_vnums))

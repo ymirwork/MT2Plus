@@ -6,6 +6,7 @@ Rozszerzenie panelu administracyjnego i monitoringu gospodarki serwera (Flask / 
 - **Centrum Gospodarki i Podgląd Rynku:**
   - Klikalne przedmioty w podglądzie rynku przenoszące bezpośrednio do szczegółowej analizy `/economy/item/<vnum>`.
   - Wykluczenie kont i postaci administracyjnych (`Admin%`, `[%`, `gmlist`) z rankingu Największych Posiadaczy danego przedmiotu.
+  - Globalne wykluczenie kont i postaci administracyjnych/GM (Admin%, [%, gmlist, konta z mAuthority <> 'PLAYER') ze wszystkich przedmiotów, migawek telemetrycznych (web_seban_item_snapshot, web_seban_shop_snapshot), wykresów historycznych, kafelków KPI oraz zasobów magazynowych (ekwipunków, dozorcy i magazynu IS).
   - Pełna obsługa Ksiąg Umiejętności (VNUM 50300) z podziałem i filtrowaniem wg konkretnych skilli (`?skill=<ID>`), selektorem umiejętności oraz tabelą zbiorczą.
   - Zaawansowany panel telemetrii YmirWork: karty bilansu dobowego (Faucet/Sink/Boty), monitorowanie obiegu Zaczarowań/Wzmocnień (71284/71285), wskaźniki skupu botów (1% – 35%), interpretacja inflacji oraz kosztu przetopień.
   - Tabela ostatnich operacji przetopień z interaktywnym tooltipem z dokładną datą i czasem rejestracji (`dd.mm.yyyy HH:MM:SS`).

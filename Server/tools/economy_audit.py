@@ -186,6 +186,7 @@ def analyze():
         FROM player.item i
         LEFT JOIN player.item_proto p ON p.vnum = i.vnum
         WHERE i.vnum IN ({placeholders})
+          AND {app.item_not_gm_scope_sql('i')}
         GROUP BY i.vnum
     """, tuple(key_vnums))
     report["critical_items"] = circ
@@ -200,11 +201,12 @@ def analyze():
     report["infinite_money_exploits"] = bad_prices
 
     # 8. M1/M2 upgrade materials sample supply in offline shops
-    supply_row = app.one("""
+    supply_row = app.one(f"""
         SELECT COALESCE(SUM(count), 0) AS total_supply
-        FROM player.item
+        FROM player.item i
         WHERE window = 'IKASHOP_OFFLINESHOP'
           AND vnum IN (30031, 30028, 30071, 30004, 30003, 30078)
+          AND {app.item_not_gm_scope_sql('i')}
     """) or {}
     sample_supply = int(supply_row.get("total_supply") or 0)
     if sample_supply < 300:
@@ -219,13 +221,13 @@ def analyze():
     }
 
     # 9. Skill books (50300) availability
-    ku_stats = app.one("""
+    ku_stats = app.one(f"""
         SELECT 
             COUNT(DISTINCT socket0) as distinct_skills,
             COUNT(*) as total_books,
             SUM(CASE WHEN window='IKASHOP_OFFLINESHOP' THEN 1 ELSE 0 END) as shop_books
-        FROM player.item
-        WHERE vnum=50300
+        FROM player.item i
+        WHERE vnum=50300 AND {app.item_not_gm_scope_sql('i')}
     """) or {}
     report["skill_books"] = ku_stats
 

@@ -38,10 +38,10 @@ def deep_check():
         """, (v,)) or {}
         
         # Total in world
-        wdata = app.one("""
+        wdata = app.one(f"""
             SELECT COALESCE(SUM(count), 0) as world_count
-            FROM player.item
-            WHERE vnum = %s
+            FROM player.item i
+            WHERE vnum = %s AND {app.item_not_gm_scope_sql('i')}
         """, (v,)) or {}
         
         pricing.append({
@@ -86,7 +86,7 @@ def deep_check():
               AND i.ikashop_data IS NOT NULL AND i.ikashop_data <> ''
         """, (s["id"],)) or {}
 
-        bwdata = app.one("SELECT COALESCE(SUM(count), 0) as world_count FROM player.item WHERE vnum=50300 AND socket0=%s", (s["id"],)) or {}
+        bwdata = app.one(f"SELECT COALESCE(SUM(count), 0) as world_count FROM player.item i WHERE vnum=50300 AND socket0=%s AND {app.item_not_gm_scope_sql('i')}", (s["id"],)) or {}
 
         books_report.append({
             "skill_id": s["id"],

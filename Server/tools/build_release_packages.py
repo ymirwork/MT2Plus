@@ -31,13 +31,13 @@ def download_with_progress(url, dest_path):
 
 def build_server_package(repo_root, dist_dir):
     server_root = os.path.join(repo_root, 'Server')
-    base_zip = os.path.join(dist_dir, 'base_server_2.37.1.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.37.1/metin2-server-update-2.37.1.zip'
+    base_zip = os.path.join(dist_dir, 'base_server_2.38.0.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.38.0/metin2-server-update-2.38.0.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.37.1.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.38.0.zip')
     temp_dir = os.path.join(dist_dir, 'server_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -66,7 +66,7 @@ def build_server_package(repo_root, dist_dir):
     engine_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'src', 'server', 'game', 'src')
     if os.path.exists(engine_src):
         os.makedirs(engine_dst, exist_ok=True)
-        for f in ['char_skill.cpp', 'char.cpp', 'battle.cpp', 'input_main.cpp', 'char_battle.cpp', 'char_item.cpp']:
+        for f in ['char_skill.cpp', 'char.cpp', 'battle.cpp', 'input_main.cpp', 'char_battle.cpp', 'char_item.cpp', 'building.cpp', 'building.h', 'cmd_gm.cpp']:
             src_f = os.path.join(engine_src, f)
             if os.path.exists(src_f):
                 shutil.copy2(src_f, engine_dst)
@@ -128,13 +128,13 @@ def build_server_package(repo_root, dist_dir):
 
 def build_client_package(repo_root, dist_dir):
     klient_root = os.path.join(repo_root, 'Klient')
-    base_zip = os.path.join(dist_dir, 'base_client_2.0.68.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.37.1/metin2-client-update-2.0.68.zip'
+    base_zip = os.path.join(dist_dir, 'base_client_2.0.69.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.38.0/metin2-client-update-2.0.69.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.68.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.69.zip')
     temp_dir = os.path.join(dist_dir, 'client_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)

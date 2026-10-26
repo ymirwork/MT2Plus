@@ -339,7 +339,7 @@ namespace
 		{ 30010,    78231 },	// Zolc Niedzwiedzia
 		{ 30011,    20410 },	// Klab
 		{ 30014,    79373 },	// Futro Yeti
-		{ 30015,   8487085 },	// Pamiatka Po Demonie
+		{ 30015,   2500000 },	// Pamiatka Po Demonie (the owner, 23 October 2026)
 		{ 30016,    90712 },	// Klejnot Demona
 		{ 30017,    48749 },	// Ozdobna Spinka Do Wlosow
 		{ 30018,   113390 },	// Czerwona Wstega
@@ -364,10 +364,10 @@ namespace
 		{ 30042,    51017 },	// Pazur Tygrysa
 		{ 30045,    45356 },	// Igla Skorpiona
 		{ 30046,    73695 },	// Ogon Skorpiona
-		{ 30047,   3190495 },	// Ksiega Klatw
+		{ 30047,   1500000 },	// Ksiega Klatw (the owner, 23 October 2026)
 		{ 30048,    68017 },	// Kawalek Lodu
 		{ 30049,    44214 },	// Lodowy Rog Wieloryba
-		{ 30050,   205217 },	// Matowy Lod
+		{ 30050,   2600000 },	// Matowy Lod (the owner, 23 October 2026)
 		{ 30051,   116783 },	// Nieznany Talizman
 		{ 30052,    50456 },	// Flaga
 		{ 30053,    64624 },	// Niedzwiedzia Skora
@@ -682,8 +682,6 @@ namespace
 		{ 71089,   120000 },	// Ksiega Misji (Normalna)
 		{ 71090,   250000 },	// Ksiega Misji (Trudna)
 		{ 71092,    75000 },	// Ksiega Polimorfii
-		{ 71151,   100000 },	// Zielony Czar (scaled like the sheet)
-		{ 71152,   250000 },	// Zielona Sila (scaled like the sheet)
 		{ 71284,  1380000 },	// Zaczarowanie Przedmiotu (MT2009_PLUS_TRADEABLE_BONUS_V3: 69 SM by the 50 SM coupon; scaled like the sheet)
 		{ 71285,  5000000 },	// Wzmocnienie Przedmiotu (MT2009_PLUS_TRADEABLE_BONUS_V3: the owner's 5 000 000; scaled like the sheet)
 		{ 72001,   500000 },	// Pierscien Doswiadczenia

@@ -1,34 +1,51 @@
+#!/usr/bin/env python3
+"""
+Publishes MT2Plus server and client update packages to GitHub Releases.
+Complies with Project Rule 13 (Mandatory GitHub Release publication).
+"""
 import os
 import sys
 import subprocess
-import urllib.request
 import json
+import urllib.request
+import urllib.error
 
 def get_github_token():
-    proc = subprocess.Popen(['git', 'credential', 'fill'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    out, _ = proc.communicate(input='protocol=https\nhost=github.com\n\n')
-    for line in out.splitlines():
-        if line.startswith('password='):
-            return line.split('=', 1)[1]
-    raise RuntimeError("Could not find GitHub token via git credential fill")
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        return token
+    try:
+        proc = subprocess.run(
+            ['git', 'credential', 'fill'],
+            input="protocol=https\nhost=github.com\n",
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        for line in proc.stdout.splitlines():
+            if line.startswith("password="):
+                return line.split("=", 1)[1].strip()
+    except Exception as e:
+        print(f"Warning: could not get token from git credential helper: {e}")
+    return None
 
 def create_or_get_release(token, tag, name, body):
-    url = "https://api.github.com/repos/ymirwork/MT2Plus/releases"
-    payload = {
-        "tag_name": tag,
-        "target_commitish": "main",
-        "name": name,
-        "body": body,
-        "draft": False,
-        "prerelease": False
+    api_url = "https://api.github.com/repos/ymirwork/MT2Plus/releases"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'User-Agent': 'MT2Plus-Release'
     }
-    data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-    req = urllib.request.Request(url, data=data, method='POST')
-    req.add_header('Authorization', f'Bearer {token}')
-    req.add_header('Accept', 'application/vnd.github+json')
-    req.add_header('Content-Type', 'application/json; charset=utf-8')
-    req.add_header('User-Agent', 'MT2Plus-Release')
-
+    payload = {
+        'tag_name': tag,
+        'target_commitish': 'main',
+        'name': name,
+        'body': body,
+        'draft': False,
+        'prerelease': False
+    }
+    req = urllib.request.Request(api_url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
     try:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read().decode('utf-8'))
@@ -58,7 +75,7 @@ def create_or_get_release(token, tag, name, body):
             print(f"HTTPError {e.code}: {err_msg}")
             raise
 
-def delete_existing_asset_if_exists(token, release_id, asset_name):
+def delete_existing_asset_if_exists(token, release_id, asset_name, expected_size=None):
     url = f"https://api.github.com/repos/ymirwork/MT2Plus/releases/{release_id}/assets"
     req = urllib.request.Request(url, headers={
         'Authorization': f'Bearer {token}',
@@ -70,6 +87,9 @@ def delete_existing_asset_if_exists(token, release_id, asset_name):
             assets = json.loads(resp.read().decode('utf-8'))
             for a in assets:
                 if a.get('name') == asset_name:
+                    if expected_size and a.get('state') == 'uploaded' and a.get('size') == expected_size:
+                        print(f"Asset {asset_name} is already completely uploaded ({a.get('size')} bytes), keeping.")
+                        return False
                     del_url = f"https://api.github.com/repos/ymirwork/MT2Plus/releases/assets/{a['id']}"
                     del_req = urllib.request.Request(del_url, method='DELETE', headers={
                         'Authorization': f'Bearer {token}',
@@ -77,17 +97,69 @@ def delete_existing_asset_if_exists(token, release_id, asset_name):
                         'User-Agent': 'MT2Plus-Release'
                     })
                     with urllib.request.urlopen(del_req) as del_resp:
-                        print(f"Deleted old asset {asset_name} (id {a['id']})")
+                        print(f"Deleted old/incomplete asset {asset_name} (id {a['id']}, state: {a.get('state')})")
     except Exception as e:
         print(f"Notice on asset check: {e}")
+    return True
 
-def upload_asset_curl(token, upload_url, file_path, name):
+class ProgressFileReader:
+    def __init__(self, filepath, block_size=1024 * 1024):
+        self.f = open(filepath, 'rb')
+        self.total = os.path.getsize(filepath)
+        self.read_so_far = 0
+        self.block_size = block_size
+        self.last_pct = -1
+
+    def read(self, size=-1):
+        n = self.block_size if (size is None or size < 0) else size
+        chunk = self.f.read(n)
+        if chunk:
+            self.read_so_far += len(chunk)
+            pct = int(self.read_so_far * 100 / self.total)
+            if pct != self.last_pct and pct % 10 == 0:
+                print(f"  {pct}% ({self.read_so_far // 1048576} MB / {self.total // 1048576} MB)")
+                self.last_pct = pct
+        return chunk
+
+    def close(self):
+        self.f.close()
+
+def upload_asset(token, upload_url, file_path, name):
     base_upload_url = upload_url.split('{')[0]
     target_url = f"{base_upload_url}?name={name}"
-    print(f"Uploading asset {name} ({os.path.getsize(file_path)} bytes) via streaming curl...")
+    total_size = os.path.getsize(file_path)
+    print(f"Uploading asset {name} ({total_size} bytes)...")
+
+    # Try streaming upload with Python OpenSSL first
+    try:
+        reader = ProgressFileReader(file_path)
+        req = urllib.request.Request(
+            target_url,
+            data=reader,
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Accept': 'application/vnd.github+json',
+                'Content-Type': 'application/zip',
+                'Content-Length': str(total_size),
+                'User-Agent': 'MT2Plus-Release'
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=1800) as resp:
+            resp_data = json.loads(resp.read().decode('utf-8'))
+            print(f"Uploaded successfully: {resp_data.get('name')} ({resp_data.get('size')} bytes)")
+            reader.close()
+            return resp_data
+    except Exception as e:
+        print(f"Python stream upload notice: {e}. Falling back to curl with --http1.1...")
+        reader.close()
 
     cmd = [
         'curl.exe', '-S', '-s',
+        '--http1.1',
+        '--retry', '3',
+        '--retry-delay', '5',
+        '--keepalive-time', '30',
         '-X', 'POST',
         '-H', f'Authorization: Bearer {token}',
         '-H', 'Accept: application/vnd.github+json',
@@ -134,37 +206,30 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 
 ---
 
-### 🛡️ Autorskie Modyfikacje i Systemy MT2Plus
-• **Optymalizacja Autołowów (Lochy Małp & Zabezpieczenie Ścian):** Wbudowany filtr osiągalności celów `CPlayerBotManager::IsHumanTargetReachable` (`playerbot_manager.cpp`, `playerbot_manager.h`), eliminujący wybieranie potworów za ścianami w odciętych komnatach.
-• **Sklepy Offline 160 Slotów z Drewnianymi Kluczami:** Pełna obsługa 2-stronicowych magazynów i sklepów offline gracza (kompatybilność z drewnianymi kluczami `shop_unlock_slots.quest`, `ikarus_shop_manager.cpp` z poprawnym pozycjonowaniem slotów `destPos` oraz `offlineshopmanage.py`).
-• **Seban Panel – Rozszerzona Ekonomia V2 & Caching:** Zachowano zaawansowany moduł `/economy` (analiza rynku, transakcje, doradca rotacji emerytur botów, statystyki M1/M2 i cache wydajnościowy paneli) oraz **nowy filtr wykluczający konta i postacie GM/Admin z metryk rynkowych**.
-• **Zarządzanie Czasem Amuletów i Stackowaniem:** 30-dniowe amulety i pierścienie z ItemShopu (`limittype0 = 9` czas noszenia) oraz stackowanie wybranych ulepszaczy i ksiąg do 200 sztuk (`apply.sh`).
-• **Ukrycie Liczbowego HP Celu:** Zachowano czysty wygląd paska życia przeciwnika/moba bez liczb (`uitarget.py`).
-• **Autorskie Zadania Gry:** Kompilacja `recykling_bonusow.quest`, `shop_unlock_slots.quest` oraz `tp_bookmarks.quest`.
+### 🛡️ Sumy Kontrolne SHA-256 i Rozmiary Paczek
+
+| Paczka | Nazwa Pliku | Rozmiar (bajty) | Suma kontrolna SHA-256 |
+| :--- | :--- | :--- | :--- |
+| **Serwer MT2Plus** | `metin2-server-update-2.38.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
+| **Klient MT2Plus** | `metin2-client-update-2.0.69.zip` | `{cli_size:,} B` | `{cli_hash}` |
 
 ---
 
-### 🚀 Nowości i Usprawnienia Upstream (2.38.0 / mod-59)
-• **Wężowe Pole (map 80) i Kraina Gigantów (map 70):** Przeniesienie lokacji na dedykowany proces mapowy `game3`, Piasek Kwarcowy z golemów, brak limitu botów na nowych mapach, usunięcie Przełęczy (map 69).
-• **Budynki gildii i płatności:** Obsługa obrotu budynków gildii (`building.cpp`, `building.h`), naprawa kolizji i granic terenu, opłaty pobierane bezpośrednio ze skarbca gildii (`uiguild.py`).
-• **Magiczne Nasiona w trybie mt2009:** Dodano drop Magicznych Nasion w Czerwonym Lesie również w trybie domyślnym mt2009.
-• **Boty na wierzchowcach umiejętności:** Boty na wierzchowcach walczą w wojnie gildii oraz w Wieży Demonów z siodła.
-• **Usunięcie pozostałości klątwy:** Usunięto nieużywaną ikonę Klątwy Świątyni i zadanie Nabiry.
+### 🌟 Najważniejsze Zmiany i Autorskie Modyfikacje (MT2Plus):
 
----
+1. **Baza Upstream v2.38.0 (mod-59, Klient 2.0.69):**
+   - Dodano Wężowe Pole (`metin2_map_snakefield`, mapa 80) i Krainę Gigantów (`metin2_map_giantland`, mapa 70) na rdzeniu `ch1-game3` (port 13003). Usunięto Przełęcz (mapa 69).
+   - Nowe questy: wytwarzanie Zbroi z Czarnej Stali (`black_steel_crafting.quest`), Labirynt (`labirynth.quest`), zakładki teleportacji (`tp_bookmarks.quest`).
+   - 18 sequential engine fixes dla rotacji budynków gildii i pozycjonowania (`building.cpp`, `building.h`, `cmd_gm.cpp`).
+   - Aktualizacja logiki i nagłówków Playerbotów (zoptymalizowana nawigacja i obsługa walk).
 
-### 💻 Klient Gry 2.0.69
-• **Nowe interfejsy i poprawki:** Aktualizacja `uiguild.py`, `uitpbookmarks.py`, `uidropwiki.py`, `uigmpanel.py`, `protoglobal.py`.
-• **Paczki WZ maps:** Zaktualizowane paczki map w kliencie.
-• **Zintegrowane paczki `root`:** Zawierają wszystkie autorskie modyfikacje interfejsu (ukrywanie szarfy, 160 slotów sklepu, brak liczb HP celu).
-
----
-
-### 📦 Sumy kontrolne załączonych archiwów (SHA-256)
-- **`metin2-server-update-2.38.0.zip`** ({srv_size:,} bytes)
-  `SHA-256: {srv_hash}`
-- **`metin2-client-update-2.0.69.zip`** ({cli_size:,} bytes)
-  `SHA-256: {cli_hash}`
+2. **Autorskie Rozszerzenia MT2Plus (W pełni zachowane i aktywne):**
+   - **Seban Panel & Collector GM Filter:** Nowy mechanizm wykluczenia postaci i kont GM/administratorów z agregacji ekonomicznej, statystyk bogactwa, rozkładu yang i wykresów rynkowych (`item_not_gm_scope_sql`).
+   - **Sklep Offline 160 Slotów:** Zachowano rozszerzoną strukturę `offlineshopmanage.py` i `offlineshopguest.py` z obsługą drewnianych kluczy (`item_unlock_slots`) oraz naprawioną obsługą `destPos`.
+   - **Ukrywanie Paska Życia Mobów/Bossów:** Zachowano celowe ukrycie wartości liczbowej i procentowej HP potworów w `uitarget.py`.
+   - **System Szarf:** Zachowano ukrywanie szarf w podglądzie kostiumów oraz dedykowany tooltip szansy na ulepszenie.
+   - **Ekonomia & Przedmioty:** Stackowanie kluczowych przedmiotów do 200, pierścienie i amulety z czasem 30 dni czasu noszenia (`limittype0=9`), 92 oferty błyskawiczne w ItemShopie.
+   - **Playerbot Engine:** Zachowano regułę `IsHumanTargetReachable` zapobiegającą blokowaniu botów przez ściany w DT.
 
 ---
 
@@ -181,11 +246,10 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Release {rel_id}: {html_url}")
 
-    delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.38.0.zip")
-    delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.69.zip")
-
-    upload_asset_curl(token, upload_url, srv_zip, "metin2-server-update-2.38.0.zip")
-    upload_asset_curl(token, upload_url, cli_zip, "metin2-client-update-2.0.69.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.38.0.zip", srv_size):
+        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.38.0.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.69.zip", cli_size):
+        upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.69.zip")
 
     print(f"\nSUCCESS! Release updated at: {html_url}")
     return html_url

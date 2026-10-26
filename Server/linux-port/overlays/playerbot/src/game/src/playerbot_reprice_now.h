@@ -151,6 +151,7 @@ namespace
 
 	void StartPlayerBotRepricePass(DWORD dwNow, const char* why)
 	{
+		playerbot_custom_prices::Reload();
 		TPlayerBotRepricePass& pass = s_PlayerBotRepricePass;
 		if (pass.running)
 			sys_log(0, "PLAYERBOT_REPRICE_NOW: restarted why=%s (was %s, %u of %u keepers done)",

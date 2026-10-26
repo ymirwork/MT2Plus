@@ -17,6 +17,52 @@ every version here.
 
 ---
 
+## 2.38.0 — 2026-10-26 — Wężowe Pole i Kraina Gigantów, budynki gildii, boty na wojnie
+
+### Wężowe Pole i Kraina Gigantów
+- **Nowe mapy: Wężowe Pole i Kraina Gigantów.** Dodałem dwie mapy tak, jak opisuje je wiki. Na Wężowe Pole wchodzi się z Pustyni Yongbi portalem w prawym dolnym rogu pustyni, a z Wężowego Pola portal prowadzi dalej do Krainy Gigantów (i z powrotem). Na Wężowym Polu żyją przeklęte wilki, dziki, niedźwiedzie i tygrysy, a za rzeką Niszczyciele, Ogry i golemy; w Krainie Gigantów Giganci i Ogry, Metiny Pung-Ma i Ma-An oraz krzaki ziół. Teren map wymaga nowej łatki klienta.
+- **Piasek Kwarcowy wypada z golemów.** Skalny Golem, Kamienny Golem i Olbrzymi Skalny Golem z Wężowego Pola upuszczają teraz Piasek Kwarcowy – tak jak na globalu. Do tej pory nic go nie dawało, a jest potrzebny do ulepszenia zbroi 80 poziomu z +5 na +6. Szansa wynosi 0,5% na zabicie.
+- Z potworów obu map wypada też to, co podaje wiki, a czego u nas brakowało: Orkowa Maczuga (Ogr Wojownik i Ogr Rzeźnik), zioła, Marmur Polimorfii, Srebrna Szkatułka, Kamienne Strzały oraz broń, zbroje i biżuteria +0 z listy wiki.
+- Poziomy Gigantów i Ogrów są teraz takie jak na wiki i globalu: Niszczyciel 66, Wojownik z Toporem 73, Tysięczny Wojownik 77, Ogr Wojownik 71, Ogr Rzeźnik 73, Ogr Szaleniec 75. Ich PŻ, obrażenia i doświadczenie się nie zmieniają.
+- **Obie mapy działają na osobnym rdzeniu** razem z Zaklętym Lasem i mapami 90 poziomu (game3, w każdym kanale; przy `M2_MAP_CORE=0` – na rdzeniu game2). Nie trzeba otwierać żadnych nowych portów.
+- **Usunąłem Przełęcz.** Jej portal na pustyni prowadzi teraz na Wężowe Pole. Postacie zapisane na Przełęczy trafiają raz, przy starcie serwera po aktualizacji, na Wężowe Pole. Min-Sun (Labirynt, wytwarzanie Czarnej Stali, jego sklep) stoi teraz na Pustyni Yongbi obok portalu na Wężowe Pole.
+- Wężowe Pole zastąpiło Przełęcz w zapisanych teleportach i w panelu GM; nazwy obu map widać na minimapie (wymaga nowej łatki klienta). Dla GM: `/goto wezowe` i `/goto gigantow`.
+
+### Boty – Wężowe Pole i Kraina Gigantów
+- **Boty expią na Wężowym Polu i w Krainie Gigantów.** Boty 63–78 poziomu chodzą na Wężowe Pole (do golemów, Ogrów i Niszczycieli), a boty 63–80 do Krainy Gigantów – mniej więcej co czwarty bot z tego przedziału na każdą mapę. Przechodzą tam przez przekazanie między rdzeniami, tak jak do Zaklętego Lasu, zostają ok. 2 godzin, a mikstury uzupełniają na miejscu. Ustawienia w panelu (Boty): `PLAYERBOT_SNAKEFIELD_MAX` i `PLAYERBOT_GIANTLAND_MAX` (domyślnie bez limitu liczby botów na obu mapach; 0 wyłącza mapę dla botów, a liczba większa od zera ustawia limit na kanał) oraz `PLAYERBOT_WZ_STAY_MIN` (długość wyprawy w minutach).
+
+### Gildie
+- **Budynki gildii znów można postawić za Yang ze skarbca gildii.** Serwer już wcześniej płacił za budynek najpierw ze skarbca, a resztę brał od lidera, ale okno budowy w kliencie sprawdzało tylko Yang w ekwipunku lidera i od razu pokazywało „za mało Yang”, więc prośba o budowę w ogóle nie docierała do serwera. Poprawiłem okno: liczy teraz Yang lidera razem ze skarbcem gildii (cena świeci się na biało, gdy razem wystarcza). Poprawka jest w kliencie, więc wymaga nowej łatki klienta.
+- **Odmowa postawienia budynku ma teraz powód.** Gdy budynek nie mógł stanąć, serwer milczał – komunikat dostawał tylko serwer testowy, więc budynek po prostu się nie pojawiał. Dodałem komunikat dla lidera, który mówi, co przeszkadza: budynek wychodzi poza teren gildii, w tym miejscu stoi już inny budynek albo ktoś stoi tam, gdzie budynek ma stanąć (z imieniem tej osoby). Boty, zwierzaki i wierzchowce nie blokują już budowy – bot sam schodzi z miejsca nowego budynku. Za odrzucony budynek nic nie jest pobierane.
+- **Obrócone budynki gildii zajmują teraz dokładnie swoje miejsce.** Serwer liczył teren pod obróconym budynkiem źle: przy obrocie o 90° lub 270° przesuwał go o pół budynku w bok, a przy innym kącie brał tylko część budynku. Przez to np. Kowal Zbroi obrócony o 90° tuż obok Kwatery Głównej był odrzucany („W tym miejscu stoi już inny budynek”), a obrócony kamień zostawiał większość swojej powierzchni wolną dla innych budynków i do przechodzenia. Poprawiłem to: obrócony budynek zajmuje, sprawdza i zwalnia dokładnie ten teren, na którym klient go rysuje, i nie może już wystawać poza teren gildii. Budynki bez obrotu działają tak jak wcześniej. Nie wymaga nowego klienta.
+
+### Boty
+- **Boty nie utykają już na budynkach gildii.** Poprzednia poprawka pomagała tylko botom, które już stały w budynku. Boty planują trasy na mapie zbudowanej przy starcie serwera, więc budynku postawionego później w ogóle nie widziały: prowadziły trasę prosto przez ścianę, zatrzymywały się na niej i w kółko dostawały tę samą trasę. Poprawiłem to: każdy postawiony albo zburzony budynek od razu aktualizuje mapę botów w swoim miejscu, a bot, który znalazł się w środku nowego budynku, z niego wychodzi.
+- **Potwory nie zostają w środku nowego budynku.** Budynek mógł stanąć na potworach (np. bezpańskich psach), które potem zostawały zamknięte w jego ścianach. Poprawiłem to: każdy taki potwór jest od razu przenoszony na najbliższe wolne miejsce obok budynku.
+- **Boty na wierzchowcach z umiejętnościami walczą w wojnie gildii i w Wieży Demonów.** Bot na desce, chmurze Wukonga albo drakkarze nie zsiada z niego na wojnie, ale wojna próbowała go w kółko zsadzić – przez to stał przy portalu przez całą wojnę. Teraz walczy z siodła, tak jak gracz; to samo w Wieży Demonów. Konie i inne wierzchowce boty dalej odwołują jak wcześniej.
+
+### Świątynia Hwang
+- **Usunąłem ikonę „Klątwa Świątyni” i resztki tej klątwy.** Klątwa Świątyni Hwang dawno przestała działać (razem z Maską Sabaha), ale stary quest nadal przy każdym wejściu na mapę Świątyni Hwang dokładał wiecznie trwającą ikonę „Twój umysł jest otępiony…”, która niczego już nie robiła. Usunąłem ten quest i ikonę z klienta, a także cały powiązany quest Nabiry („Ucieczka Nabiry”): potwory w świątyni nie upuszczają już Listu Gończego. Listy Gończe i Kamienie Tygrysa, które ktoś jeszcze ma, znikają raz przy starcie serwera po aktualizacji. Ikona znika z klienta po nowej łatce klienta, a na serwerze już po aktualizacji.
+
+### Tryb global
+- **Bonusy przedmiotów trybu global nie znikają już z opisów po zmianie postaci.** Po wylogowaniu do wyboru postaci klient wczytywał od nowa zwykłą tabelę przedmiotów i do ponownego uruchomienia gry pokazywał w opisach wartości trybu mt2009. Poprawiłem to – wymaga nowej łatki klienta. Sam serwer zawsze liczył właściwe wartości.
+
+### Drop
+- **Magiczne Nasiona wypadają też w trybie mt2009.** Do tej pory dawał je tylko tryb global. Dodałem je w domyślnym trybie mt2009 tym samym potworom z Czerwonego Lasu i z tą samą szansą co w trybie global: Czerw. Duch Drzewa, Czerw. Duch Pniaka, Czerwona Driada i Czerw. Duch Wierzby, 0,125% na zabicie. W trybie global nic się nie zmienia (nasiona nie wypadają tam podwójnie).
+
+### Ceny
+- Zmieniłem ceny w cenniku botów: Pamiątka po Demonie – 2 500 000 Yang, Księga Klątw – 1 500 000 Yang, Matowy Lód – 2 600 000 Yang.
+
+
+## Klient 2.0.69 — 2026-10-26 — Wężowe Pole i Kraina Gigantów
+- **Wężowe Pole i Kraina Gigantów** – teren, obiekty i potwory obu map (Giganci, Ogry i golemy), nazwy map na minimapie.
+- **Okno budowy gildii** liczy Yang lidera razem ze skarbcem gildii.
+- **Usunięta ikona „Klątwa Świątyni”.**
+- **Tryb global** – stałe bonusy przedmiotów nie wracają do wartości mt2009 po zmianie postaci.
+- Panel GM i zapisane teleporty prowadzą na Wężowe Pole zamiast na Przełęcz.
+
+---
+
 ## 2.37.1 — 2026-10-23 — Boty: mniej pamięci, mniej krążenia, samodzielny Zodiak
 
 ### Boty

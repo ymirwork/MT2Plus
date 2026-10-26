@@ -1,0 +1,353 @@
+{% extends 'base.html' %}
+{# MT2009_PLUS_PLAYERBOT_CUSTOM_PRICES_V1: "Ceny bazowe botów" (app.py, economy_bot_prices) #}
+{% block title %}Ceny bazowe botów · {{ panel_brand }}{% endblock %}
+{% block content %}
+<style>
+.bp-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.bp-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+.bp-stat-card { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 12px 18px; min-width: 140px; }
+.bp-stat-card .val { font-size: 20px; font-weight: 700; color: #fff; margin-top: 2px; }
+.bp-stat-card .lbl { font-size: 12px; color: var(--muted, #8a94a6); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.bp-actions-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.bp-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bp-filter-btn { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: var(--muted, #8a94a6); padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
+.bp-filter-btn:hover { border-color: var(--blue2, #4979ff); color: #fff; }
+.bp-filter-btn.active { background: color-mix(in srgb, var(--blue2, #4979ff) 25%, transparent); border-color: var(--blue2, #4979ff); color: #fff; font-weight: 600; }
+
+.bp-search-box { position: relative; min-width: 280px; }
+.bp-search-box input { width: 100%; padding: 8px 14px 8px 34px; border-radius: 20px; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: #fff; font-size: 13px; }
+.bp-search-box input:focus { border-color: var(--blue2, #4979ff); outline: none; }
+.bp-search-box .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted, #8a94a6); pointer-events: none; }
+
+.bp-table-wrap { overflow-x: auto; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; }
+.bp-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.bp-table th { padding: 12px 14px; background: rgba(0, 0, 0, 0.2); color: var(--muted, #8a94a6); font-weight: 600; border-bottom: 1px solid var(--border, #2a3246); white-space: nowrap; }
+.bp-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
+.bp-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+.bp-table tr.flash-save td { background: rgba(57, 232, 144, 0.15); transition: background 0.8s ease; }
+
+.bp-item-cell { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.bp-item-icon { width: 32px; height: 32px; image-rendering: pixelated; object-fit: contain; flex-shrink: 0; background: rgba(0,0,0,0.3); border-radius: 4px; padding: 2px; }
+.bp-item-info { display: flex; flex-direction: column; gap: 2px; }
+.bp-item-name { font-weight: 600; color: #fff; }
+.bp-item-cat { font-size: 11px; color: var(--muted, #8a94a6); }
+
+.bp-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.bp-badge.default { background: rgba(255, 255, 255, 0.06); color: var(--muted, #8a94a6); }
+.bp-badge.custom { background: rgba(245, 184, 61, 0.2); color: #f5b83d; border: 1px solid rgba(245, 184, 61, 0.4); }
+
+.bp-price-input-group { display: flex; align-items: center; gap: 6px; }
+.bp-price-input { width: 130px; padding: 6px 8px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border, #2a3246); border-radius: 4px; color: #fff; font-size: 13px; font-family: monospace; }
+.bp-price-input:focus { border-color: var(--blue2, #4979ff); outline: none; }
+.bp-price-input.is-custom { border-color: rgba(245, 184, 61, 0.6); color: #ffd679; }
+
+.bp-btn { padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s ease; }
+.bp-btn-save { background: #39e890; color: #0b1a13; }
+.bp-btn-save:hover { background: #2cd07f; }
+.bp-btn-reset { background: rgba(255, 87, 87, 0.15); color: #ff5757; border: 1px solid rgba(255, 87, 87, 0.3); }
+.bp-btn-reset:hover { background: rgba(255, 87, 87, 0.25); }
+.bp-btn-reprice-all { background: var(--blue2, #4979ff); color: #fff; padding: 8px 16px; border-radius: 6px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.bp-btn-reprice-all:hover { opacity: 0.9; }
+
+.bp-info-box { background: rgba(73, 121, 255, 0.08); border-left: 4px solid var(--blue2, #4979ff); padding: 12px 16px; border-radius: 0 6px 6px 0; margin-bottom: 20px; font-size: 13px; line-height: 1.5; }
+.bp-info-box p { margin: 4px 0; }
+
+.bp-toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; background: #1a1e29; border: 1px solid #39e890; color: #fff; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-size: 14px; font-weight: 500; display: none; z-index: 9999; }
+</style>
+
+<p class="eyebrow">MT2009 PLUS · GOSPODARKA I BOTY</p>
+
+<div class="bp-header">
+  <div>
+    <h1 style="margin:0 0 6px 0;">🏷️ Ceny bazowe botów</h1>
+    <p class="muted" style="margin:0;">Zarządzaj bazowymi cenami skupu i sprzedaży u playerbotów. Wprowadzona zmiana automatycznie uruchamia rekalkulację straganów botów w czasie rzeczywistym.</p>
+  </div>
+  <button type="button" class="bp-btn bp-btn-reprice-all" onclick="repriceAllNow(this)">
+    <span>🔄</span> Przelicz ceny w sklepach teraz
+  </button>
+</div>
+
+<div class="bp-info-box">
+  <p>💡 <b>Jak działa wycena bota:</b> Cena wystawienia na tobołku = <code>Cena bazowa × Mnożnik Yang ({{ yang_multiplier }}%)</code>. W polach edycji możesz wpisywać skróty np. <code>1.5kk</code>, <code>800k</code>, <code>2m</code>, <code>40kk</code>.</p>
+  <p class="muted">Aktualna rata Yang na serwerze: <b>{{ yang_rate }}%</b> &nbsp;|&nbsp; Mnożnik krzywej Iwakury: <b>{{ yang_multiplier }}%</b> &nbsp;|&nbsp; Sygnał natychmiastowy do rdzeni gry: <code>/opt/m2spool/playerbot_reprice_now</code>.</p>
+</div>
+
+<div class="bp-stats">
+  <div class="bp-stat-card">
+    <div class="lbl">Pozycji w bazie</div>
+    <div class="val">{{ items|length }}</div>
+  </div>
+  <div class="bp-stat-card">
+    <div class="lbl">Zmodyfikowanych</div>
+    <div class="val" id="custom-count-val" style="color:#f5b83d;">{{ custom_count }}</div>
+  </div>
+  <div class="bp-stat-card">
+    <div class="lbl">Rata Yang</div>
+    <div class="val">{{ yang_rate }}%</div>
+  </div>
+  <div class="bp-stat-card">
+    <div class="lbl">Mnożnik cen</div>
+    <div class="val" style="color:#39e890;">{{ yang_multiplier }}%</div>
+  </div>
+</div>
+
+<div style="height: 16px;"></div>
+
+<div class="bp-actions-bar">
+  <div class="bp-filters">
+    <button class="bp-filter-btn active" data-category="all" onclick="filterCategory('all', this)">Wszystkie ({{ items|length }})</button>
+    <button class="bp-filter-btn" data-category="refine" onclick="filterCategory('refine', this)">Ulepszacze ({{ count_refine }})</button>
+    <button class="bp-filter-btn" data-category="kd" onclick="filterCategory('kd', this)">Kamienie Duszy KD ({{ count_kd }})</button>
+    <button class="bp-filter-btn" data-category="ku" onclick="filterCategory('ku', this)">Księgi Umiejętności KU ({{ count_ku }})</button>
+    <button class="bp-filter-btn" data-category="ores" onclick="filterCategory('ores', this)">Rudy i Przetopy ({{ count_ores }})</button>
+    <button class="bp-filter-btn" data-category="other" onclick="filterCategory('other', this)">Inne ({{ count_other }})</button>
+    <button class="bp-filter-btn" data-category="custom" onclick="filterCategory('custom', this)" style="border-color:#f5b83d; color:#f5b83d;">★ Zmodyfikowane (<span id="btn-custom-count">{{ custom_count }}</span>)</button>
+  </div>
+  <div class="bp-search-box">
+    <span class="icon">🔍</span>
+    <input type="text" id="bp-search" placeholder="Szukaj po nazwie lub VNUM/ID..." oninput="handleSearch(this.value)">
+  </div>
+</div>
+
+<div class="bp-table-wrap">
+  <table class="bp-table" id="bp-table">
+    <thead>
+      <tr>
+        <th>Przedmiot</th>
+        <th style="width:100px;">VNUM / ID</th>
+        <th style="width:140px;">Cena domyślna</th>
+        <th style="width:230px;">Cena bazowa</th>
+        <th style="width:150px;">Cena na rynku (~est.)</th>
+        <th style="width:110px;">Status</th>
+        <th style="width:90px;">Akcja</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr id="row-{{ item.key }}" data-category="{{ item.category }}" data-has-custom="{{ '1' if item.has_custom else '0' }}" data-search="{{ item.name|lower }} {{ item.target_id }}">
+        <td>
+          <div class="bp-item-cell">
+            <img class="bp-item-icon" src="{{ item.icon or url_for('static', filename='icons/unknown.png') }}" alt="" loading="lazy" onerror="this.src='/static/icons/unknown.png'">
+            <div class="bp-item-info">
+              <span class="bp-item-name">{{ item.name }}</span>
+              <span class="bp-item-cat">{{ item.category_label }}</span>
+            </div>
+          </div>
+        </td>
+        <td><code style="font-size:12px;">{{ item.target_id }}</code></td>
+        <td class="muted" style="font-family:monospace;">{{ "{:,}".format(item.default_price).replace(',', ' ') }} Yang</td>
+        <td>
+          <div class="bp-price-input-group">
+            <input type="text" 
+                   class="bp-price-input {{ 'is-custom' if item.has_custom else '' }}" 
+                   id="input-{{ item.key }}" 
+                   value="{{ item.custom_price if item.has_custom else item.default_price }}" 
+                   data-default="{{ item.default_price }}"
+                   data-type="{{ item.price_type }}" 
+                   data-id="{{ item.target_id }}"
+                   onkeydown="if(event.key==='Enter') savePrice('{{ item.price_type }}', {{ item.target_id }}, document.getElementById('input-{{ item.key }}').value)">
+            <button type="button" class="bp-btn bp-btn-save" title="Zapisz nową cenę bazową" onclick="savePrice('{{ item.price_type }}', {{ item.target_id }}, document.getElementById('input-{{ item.key }}').value)">Zapisz</button>
+          </div>
+        </td>
+        <td style="font-family:monospace; font-weight:600; color:#fff;" id="eff-{{ item.key }}">
+          {{ "{:,}".format(item.effective_price).replace(',', ' ') }} Yang
+        </td>
+        <td>
+          <span class="bp-badge {{ 'custom' if item.has_custom else 'default' }}" id="badge-{{ item.key }}">
+            {{ 'Zmodyfikowana' if item.has_custom else 'Domyślna' }}
+          </span>
+        </td>
+        <td>
+          <button type="button" 
+                  class="bp-btn bp-btn-reset" 
+                  id="reset-{{ item.key }}" 
+                  style="{{ 'display:inline-block;' if item.has_custom else 'display:none;' }}"
+                  title="Przywróć cenę z cennika domyślnego" 
+                  onclick="resetPrice('{{ item.price_type }}', {{ item.target_id }})">
+            Reset
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="bp-toast" class="bp-toast"></div>
+
+<script>
+let currentCategory = 'all';
+let currentSearch = '';
+const yangMultiplier = {{ yang_multiplier }};
+
+function showToast(text, isError=false) {
+  const toast = document.getElementById('bp-toast');
+  toast.innerText = text;
+  toast.style.borderColor = isError ? '#ff5757' : '#39e890';
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 3200);
+}
+
+function updateStats(delta) {
+  const cVal = document.getElementById('custom-count-val');
+  const bVal = document.getElementById('btn-custom-count');
+  let count = parseInt(cVal.innerText || '0') + delta;
+  if (count < 0) count = 0;
+  cVal.innerText = count;
+  bVal.innerText = count;
+}
+
+function filterRows() {
+  const rows = document.querySelectorAll('#bp-table tbody tr');
+  const term = currentSearch.trim().toLowerCase();
+  
+  rows.forEach(row => {
+    const cat = row.getAttribute('data-category');
+    const hasCustom = row.getAttribute('data-has-custom') === '1';
+    const searchText = row.getAttribute('data-search') || '';
+    
+    let catMatch = false;
+    if (currentCategory === 'all') catMatch = true;
+    else if (currentCategory === 'custom') catMatch = hasCustom;
+    else catMatch = (cat === currentCategory);
+    
+    let searchMatch = true;
+    if (term) {
+      searchMatch = searchText.includes(term);
+    }
+    
+    row.style.display = (catMatch && searchMatch) ? '' : 'none';
+  });
+}
+
+function filterCategory(cat, btn) {
+  currentCategory = cat;
+  document.querySelectorAll('.bp-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterRows();
+}
+
+let searchDebounce = null;
+function handleSearch(val) {
+  currentSearch = val;
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(filterRows, 120);
+}
+
+function formatYang(num) {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " Yang";
+}
+
+async function savePrice(type, targetId, rawVal) {
+  const key = `${type}_${targetId}`;
+  const row = document.getElementById(`row-${key}`);
+  const input = document.getElementById(`input-${key}`);
+  const badge = document.getElementById(`badge-${key}`);
+  const resetBtn = document.getElementById(`reset-${key}`);
+  const effCell = document.getElementById(`eff-${key}`);
+  
+  try {
+    const res = await fetch('{{ url_for("economy_bot_prices_update") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, target_id: targetId, price: rawVal })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message);
+      row.classList.add('flash-save');
+      setTimeout(() => row.classList.remove('flash-save'), 800);
+      
+      const wasCustom = row.getAttribute('data-has-custom') === '1';
+      if (data.is_custom) {
+        if (!wasCustom) updateStats(1);
+        row.setAttribute('data-has-custom', '1');
+        input.classList.add('is-custom');
+        input.value = data.price;
+        badge.className = 'bp-badge custom';
+        badge.innerText = 'Zmodyfikowana';
+        resetBtn.style.display = 'inline-block';
+      } else {
+        if (wasCustom) updateStats(-1);
+        row.setAttribute('data-has-custom', '0');
+        input.classList.remove('is-custom');
+        input.value = input.getAttribute('data-default');
+        badge.className = 'bp-badge default';
+        badge.innerText = 'Domyślna';
+        resetBtn.style.display = 'none';
+      }
+      effCell.innerText = formatYang(data.effective_price);
+    } else {
+      showToast(data.error || 'Wystąpił błąd podczas zapisu.', true);
+    }
+  } catch (err) {
+    showToast('Błąd połączenia z serwerem.', true);
+  }
+}
+
+async function resetPrice(type, targetId) {
+  const key = `${type}_${targetId}`;
+  const row = document.getElementById(`row-${key}`);
+  const input = document.getElementById(`input-${key}`);
+  const badge = document.getElementById(`badge-${key}`);
+  const resetBtn = document.getElementById(`reset-${key}`);
+  const effCell = document.getElementById(`eff-${key}`);
+  
+  try {
+    const res = await fetch('{{ url_for("economy_bot_prices_reset") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, target_id: targetId })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message);
+      row.classList.add('flash-save');
+      setTimeout(() => row.classList.remove('flash-save'), 800);
+      
+      const wasCustom = row.getAttribute('data-has-custom') === '1';
+      if (wasCustom) updateStats(-1);
+      
+      row.setAttribute('data-has-custom', '0');
+      const defPrice = input.getAttribute('data-default');
+      input.value = defPrice;
+      input.classList.remove('is-custom');
+      badge.className = 'bp-badge default';
+      badge.innerText = 'Domyślna';
+      resetBtn.style.display = 'none';
+      effCell.innerText = formatYang(data.effective_price);
+    } else {
+      showToast(data.error || 'Wystąpił błąd podczas resetu.', true);
+    }
+  } catch (err) {
+    showToast('Błąd połączenia z serwerem.', true);
+  }
+}
+
+async function repriceAllNow(btn) {
+  btn.disabled = true;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span>⏳</span> Wysyłanie sygnału...';
+  try {
+    const res = await fetch('{{ url_for("economy_bot_prices_reprice_all") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message);
+    } else {
+      showToast(data.error || 'Wystąpił błąd.', true);
+    }
+  } catch (err) {
+    showToast('Błąd połączenia z serwerem.', true);
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    }, 1200);
+  }
+}
+</script>
+{% endblock %}

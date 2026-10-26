@@ -3701,6 +3701,7 @@ bool CPlayerBotManager::LoadRegisteredBots()
 	// be started as the population's bot (playerbot_sidekick.h).
 	LoadPlayerBotSidekicks();
 	s_dwPlayerBotSidekickNextLoad = get_dword_time() + PLAYERBOT_SIDEKICK_RELOAD_MS;
+	playerbot_custom_prices::Reload();
 
 	// The second channel's plan (playerbot_channel_rules.h): the switch and the
 	// share from the container's environment, which every core of this world

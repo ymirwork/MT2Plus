@@ -314,19 +314,6 @@ PLAYERBOT_STATUS_PATHS = (
     "/opt/metin2/var/channel2/first/playerbot_status.tsv",
     "/opt/metin2/var/channel2/game1/playerbot_status.tsv",
     "/opt/metin2/var/channel2/game2/playerbot_status.tsv",
-    # MT2009_PLUS_CH34_V1: the third and fourth channel's, when switched on
-    # (the entrypoint clears a switched-off channel's files at start).
-    "/opt/metin2/var/channel3/first/playerbot_status.tsv",
-    "/opt/metin2/var/channel3/game1/playerbot_status.tsv",
-    "/opt/metin2/var/channel3/game2/playerbot_status.tsv",
-    "/opt/metin2/var/channel4/first/playerbot_status.tsv",
-    "/opt/metin2/var/channel4/game1/playerbot_status.tsv",
-    "/opt/metin2/var/channel4/game2/playerbot_status.tsv",
-    # MT2009_PLUS_237_NEWCORE_V1: each channel's map core (Zaklety Las, 301-304) - the bots handed over there.
-    "/opt/metin2/var/channel1/game3/playerbot_status.tsv",
-    "/opt/metin2/var/channel2/game3/playerbot_status.tsv",
-    "/opt/metin2/var/channel3/game3/playerbot_status.tsv",
-    "/opt/metin2/var/channel4/game3/playerbot_status.tsv",
 )
 _PLAYERBOT_STATUS_LOCK = threading.Lock()
 _PLAYERBOT_STATUS_CACHE_KEY = None
@@ -346,8 +333,6 @@ BOT_PERSONALITY_LABELS = {
         9: "Dropek z M2", 10: "Dropek medali", 11: "Dropek surowców",
         # MT2009_PLUS_L30_WEAPON_DROPPER_V1
         12: "Dropek broni 30 lv",
-        # MT2009_PLUS_ORNAMENT_FARMERS_V1
-        13: "Dropek ornamentów",
     },
     "en": {
         0: "Steady adventurer", 1: "Metin breaker", 2: "Team companion",
@@ -355,7 +340,6 @@ BOT_PERSONALITY_LABELS = {
         6: "Wanderer", 7: "Metin dropper", 8: "M3 weapon dropper",
         9: "M2 Bestial dropper", 10: "Medal dropper",
         11: "Guild materials dropper", 12: "Level-30 weapon dropper",
-        13: "Ornament farmer",
     },
 }
 # The status file's columns before Iwakura's personalities (2.0.85): a core of
@@ -1241,8 +1225,6 @@ def read_ai_weights():
     # too dear to buy at once (playerbot_haggle.h, MT2009_PLUS_BOT_HAGGLE_V1).
     # On; off is the market as it was.
     vals["HAGGLE"] = 1
-    # MT2009_PLUS_MARKET_LIFE_V1: the material market's test option; off.
-    vals["MATERIAL_MARKET"] = 0
     vals["SCRAP"] = 0
     # MT2009_PLUS_SALE_TAX_V1: the percent of a sale between players and bots
     # that leaves the game (playerbot_sale_tax.h, server-patches/saletax);
@@ -1253,14 +1235,6 @@ def read_ai_weights():
     vals["REST"] = 100
     # Percent of bots that pick fights with bots of another kingdom; 0 is off.
     vals["KINGDOMPVP"] = 0
-    # MT2009_PLUS_BOT_CHAT_V2 (playerbot_config.h): a bot's whispers at a
-    # person on its spot, the bots' '@' trade chat (seconds between two lines
-    # on a core, 0 off; minutes between one bot's lines) and the share of the
-    # shout channel's questions they answer.
-    vals["SPOT"] = 1
-    vals["TRADECHAT"] = 75
-    vals["TRADECHAT_BOT"] = 20
-    vals["SHOUT_ANSWER"] = 100
     # The three wills (playerbot_config.h): percent of what the build does -
     # the Battle Pass errands, the sash keepers, the Dragon Soul users.
     vals["BATTLEPASS"] = 100
@@ -1273,10 +1247,10 @@ def read_ai_weights():
     # start of one to the next in a kingdom (1-4). DUDU's ask; the defaults are
     # what the core did before there was a choice.
     vals["WAR_MINUTES"] = 30
-    vals["WAR_HOURS"] = 1
+    vals["WAR_HOURS"] = 2
     # And the kills that win a war with a bot guild on a side before its clock
     # runs out (0: the clock alone; MT2009_PLUS_GUILD_WAR_KILLS_V1).
-    vals["WAR_KILLS"] = 200
+    vals["WAR_KILLS"] = 100
     # The chest event's two figures. None until the file says: the panel does
     # not know what CONFIG holds, and must not write a guess over it.
     vals["CHEST"] = None
@@ -1340,9 +1314,6 @@ def read_ai_weights():
                 if name == "HAGGLE":
                     vals["HAGGLE"] = 0 if parts[1].strip() in ("0", "off", "no") else 1
                     continue
-                if name == "MATERIAL_MARKET":
-                    vals["MATERIAL_MARKET"] = 0 if parts[1].strip() in ("0", "off", "no") else 1
-                    continue
                 if name == "SCRAP":
                     try:
                         vals["SCRAP"] = max(0, min(100, int(parts[1])))
@@ -1364,29 +1335,6 @@ def read_ai_weights():
                 if name == "KINGDOMPVP":
                     try:
                         vals["KINGDOMPVP"] = max(0, min(100, int(parts[1])))
-                    except ValueError:
-                        pass
-                    continue
-                # MT2009_PLUS_BOT_CHAT_V2
-                if name == "SPOT":
-                    vals["SPOT"] = 0 if parts[1].strip() in ("0", "off", "no") else 1
-                    continue
-                if name == "TRADECHAT":
-                    try:
-                        v = int(parts[1])
-                        vals["TRADECHAT"] = 0 if v <= 0 else max(15, min(3600, v))
-                    except ValueError:
-                        pass
-                    continue
-                if name == "TRADECHAT_BOT":
-                    try:
-                        vals["TRADECHAT_BOT"] = max(1, min(240, int(parts[1])))
-                    except ValueError:
-                        pass
-                    continue
-                if name == "SHOUT_ANSWER":
-                    try:
-                        vals["SHOUT_ANSWER"] = max(0, min(100, int(parts[1])))
                     except ValueError:
                         pass
                     continue
@@ -1492,8 +1440,6 @@ def write_ai_weights(vals):
     # Not a weight: whether a bot haggles with a person over a line too dear
     # to buy at once.
     body.append("HAGGLE\t%d" % (1 if vals.get("HAGGLE", 1) else 0))
-    # MT2009_PLUS_MARKET_LIFE_V1: the material market's test option.
-    body.append("MATERIAL_MARKET\t%d" % (1 if vals.get("MATERIAL_MARKET", 0) else 0))
     # Percent of stall keepers that sell scrap gear; 0 is off.
     body.append("SCRAP\t%d" % max(0, min(100, int(vals.get("SCRAP", 0)))))
     # MT2009_PLUS_SALE_TAX_V1: percent of a sale between players and bots that
@@ -1504,14 +1450,6 @@ def write_ai_weights(vals):
     # Percent of bots hostile to the other kingdoms; 0 means the world is at
     # peace with itself, which is the default the core also starts from.
     body.append("KINGDOMPVP\t%d" % max(0, min(100, int(vals.get("KINGDOMPVP", 0)))))
-    # MT2009_PLUS_BOT_CHAT_V2: the bots' chat - the spot's whispers (1 on),
-    # the '@' trade chat (seconds between two lines on a core, 0 off; minutes
-    # between one bot's lines) and the percent of shout questions answered.
-    body.append("SPOT\t%d" % (1 if vals.get("SPOT", 1) else 0))
-    tc = int(vals.get("TRADECHAT", 75))
-    body.append("TRADECHAT\t%d" % (0 if tc <= 0 else max(15, min(3600, tc))))
-    body.append("TRADECHAT_BOT\t%d" % max(1, min(240, int(vals.get("TRADECHAT_BOT", 20)))))
-    body.append("SHOUT_ANSWER\t%d" % max(0, min(100, int(vals.get("SHOUT_ANSWER", 100)))))
     # The three wills, percent of the build's: 100 is the world as it was.
     for key in ("BATTLEPASS", "SASH", "ALCHEMY"):
         body.append("%s\t%d" % (key, max(0, min(250, int(vals.get(key, 100))))))
@@ -1521,8 +1459,8 @@ def write_ai_weights(vals):
     # The bots' guild wars: how long (15 or 30 minutes) and how often (every
     # 1-4 hours in each kingdom).
     body.append("WAR_MINUTES\t%d" % (15 if int(vals.get("WAR_MINUTES", 30)) <= 15 else 30))
-    body.append("WAR_HOURS\t%d" % max(1, min(4, int(vals.get("WAR_HOURS", 1)))))
-    body.append("WAR_KILLS\t%d" % max(0, min(1000, int(vals.get("WAR_KILLS", 200)))))
+    body.append("WAR_HOURS\t%d" % max(1, min(4, int(vals.get("WAR_HOURS", 2)))))
+    body.append("WAR_KILLS\t%d" % max(0, min(1000, int(vals.get("WAR_KILLS", 100)))))
     # The Moonlight chest: thousandths per kill and per Metin. Written only once
     # the operator has set them, so an untouched install keeps its CONFIG.
     for key in ("CHEST", "CHEST_STONE"):
@@ -1609,7 +1547,6 @@ EVENTS_STATUS_FILES = [
     "/opt/metin2/var/channel1/game1/playerbot_events_status.tsv",
     "/opt/metin2/var/channel1/first/playerbot_events_status.tsv",
     "/opt/metin2/var/channel1/game2/playerbot_events_status.tsv",
-    "/opt/metin2/var/channel1/game3/playerbot_events_status.tsv",  # MT2009_PLUS_237_NEWCORE_V1
 ]
 # The bot guilds, one file per core (playerbot_guild.h writes it once a
 # minute): every core knows every guild, but counts only the bots of it
@@ -1618,22 +1555,10 @@ GUILD_STATUS_FILES = [
     "/opt/metin2/var/channel1/game1/playerbot_guild_status.tsv",
     "/opt/metin2/var/channel1/first/playerbot_guild_status.tsv",
     "/opt/metin2/var/channel1/game2/playerbot_guild_status.tsv",
-    "/opt/metin2/var/channel1/game3/playerbot_guild_status.tsv",  # MT2009_PLUS_237_NEWCORE_V1
 ]
 GUILD_TIER_KEYS = ("gl_tier_elite", "gl_tier_strong", "gl_tier_medium", "gl_tier_ordinary")
 GUILD_EMPIRE_KEYS = {1: "gl_empire_shinsoo", 2: "gl_empire_chunjo", 3: "gl_empire_jinno"}
-EVENT_NOW_MINUTES = (15, 30, 60, 120, 180, 360, 720, 1440, 2880, 4320, 7200, 10080)  # MT2009_PLUS_EVENTS_7_DAYS_V1: up to 7 days
-
-def event_minutes_label(minutes):
-    """MT2009_PLUS_EVENTS_7_DAYS_V1: "45 min", "6 h", "3 dni" for the "now" lists."""
-    minutes = int(minutes)
-    if minutes < 60:
-        return "%d min" % minutes
-    if minutes < 1440 or minutes % 1440:
-        return "%d h" % (minutes // 60) if minutes % 60 == 0 else "%d min" % minutes
-    days = minutes // 1440
-    return "1 dzie\u0144" if days == 1 else "%d dni" % days
-
+EVENT_NOW_MINUTES = (15, 30, 60, 120, 180, 360)
 _EVENT_HHMM = re.compile(r"^([01]?\d|2[0-4]):([0-5]\d)$")
 
 
@@ -2080,12 +2005,6 @@ def read_legend_tiers(cur, pids):
     return out
 
 
-# MT2009_PLUS_LEGEND_NAMES_V1: the 27 Legends, the most legendary first (the
-# game core's PLAYERBOT_LEGEND_NAMES, playerbot_legend_tier.h); the ranking
-# lists them in this order.
-LEGEND_NAME_ORDER_SQL = "IF(l.tier >= 3 AND FIELD(p.name, 'FuBu', 'Wallander4ever', 'SirMamutPOL', 'Zwierz', 'IsAmU', 'GoToSleep', 'Kasanga', 'Loth', 'SQRCZYBYKU', 'KAPRAL', 'BumBum', 'NinjaxesPL', 'Xuminnek', 'ShiveR', 'Scoobany', 'Schenk', 'Kosikredki', 'Tream', 'Sabal', 'Gimper', 'BuenaCosta', 'Uzurpator', 'DIIIM2', 'TNT', 'Asfen', 'LifeIsDeath', 'ZAXEP') > 0, FIELD(p.name, 'FuBu', 'Wallander4ever', 'SirMamutPOL', 'Zwierz', 'IsAmU', 'GoToSleep', 'Kasanga', 'Loth', 'SQRCZYBYKU', 'KAPRAL', 'BumBum', 'NinjaxesPL', 'Xuminnek', 'ShiveR', 'Scoobany', 'Schenk', 'Kosikredki', 'Tream', 'Sabal', 'Gimper', 'BuenaCosta', 'Uzurpator', 'DIIIM2', 'TNT', 'Asfen', 'LifeIsDeath', 'ZAXEP'), 99)"
-
-
 def read_legends(empire=0, tier=0):
     """(rows, events, missing): every tiered bot, the best first, with name,
     level, guild and counters, and the last fifty events."""
@@ -2108,7 +2027,7 @@ def read_legends(empire=0, tier=0):
                 "LEFT JOIN player.guild_member gm ON gm.pid = l.pid "
                 "LEFT JOIN player.guild g ON g.id = gm.guild_id "
                 "WHERE " + " AND ".join(where) + " "
-                "ORDER BY (l.tier >= 3) DESC, " + LEGEND_NAME_ORDER_SQL + ", l.tier DESC, l.reputation DESC, p.level DESC LIMIT 2000", args)
+                "ORDER BY l.tier DESC, l.reputation DESC, p.level DESC LIMIT 2000", args)
             rows = cur.fetchall()
     except Exception:
         return [], [], True
@@ -2201,11 +2120,6 @@ def weekly_tidy(r):
     return r
 
 
-# MT2009_PLUS_RANKING_NO_SIDEKICK_V1: companions (Towarzysze) take no part in the
-# weekly ranking - not in its lists, not among its title holders.
-WEEKLY_NOT_SIDEKICK = "NOT EXISTS (SELECT 1 FROM player.playerbot_sidekick wsk WHERE wsk.sidekick_pid = {})"
-
-
 def read_weekly_ranking(cat=1):
     """(state, holders, ranking, missing): the state row (defaults when it is
     not there yet), the title holders of the current season by category, and
@@ -2221,8 +2135,7 @@ def read_weekly_ranking(cat=1):
                 state.update({k: int(row[k] or 0) for k in state})
             season = state["season"]
             cur.execute("SELECT t.cat, t.place, t.pid, t.name, t.level, t.empire, t.value, t.is_bot "
-                        "FROM player.weekly_rank_title t WHERE t.season = %s AND " + WEEKLY_NOT_SIDEKICK.format("t.pid") + " "
-                        "ORDER BY t.cat, t.place", (season,))
+                        "FROM player.weekly_rank_title t WHERE t.season = %s ORDER BY t.cat, t.place", (season,))
             for r in cur.fetchall():
                 r = weekly_tidy(r)
                 r["title"] = weekly_title_text(r["cat"], r["place"])
@@ -2234,14 +2147,14 @@ def read_weekly_ranking(cat=1):
                             "FROM player.player p "
                             "LEFT JOIN account.account a ON a.id = p.account_id "
                             "LEFT JOIN player.player_index pi ON pi.id = p.account_id "
-                            "WHERE LEFT(p.name, 1) <> '[' AND " + WEEKLY_NOT_SIDEKICK.format("p.id") + " "
+                            "WHERE LEFT(p.name, 1) <> '[' "
                             "ORDER BY p.level DESC, p.exp DESC LIMIT 50")
             else:
                 cur.execute("SELECT s.pid, s.value, s.is_bot, p.name, p.level, pi.empire "
                             "FROM player.weekly_rank_score s "
                             "LEFT JOIN player.player p ON p.id = s.pid "
                             "LEFT JOIN player.player_index pi ON pi.id = p.account_id "
-                            "WHERE s.season = %s AND s.cat = %s AND " + WEEKLY_NOT_SIDEKICK.format("s.pid") + " "
+                            "WHERE s.season = %s AND s.cat = %s "
                             "ORDER BY s.value DESC LIMIT 50", (season, cat))
             ranking = [weekly_tidy(r) for r in cur.fetchall()]
     except Exception:
@@ -3636,14 +3549,6 @@ T = {
                   "de":"Das höchste Level dieses Servers ist {max}, es wurde nichts geändert. Für mehr M2_MAX_LEVEL in der .env erhöhen und neu starten — das Spiel selbst endet bei 120.",
                   "tr":"Bu sunucunun en yüksek seviyesi {max}, bu yüzden hiçbir şey değiştirilmedi. Daha yükseği için .env dosyasındaki M2_MAX_LEVEL değerini artırıp yeniden başlat — oyunun kendisi 120'de biter."},
  "change_level": {"pl":"⭐ Zmień poziom","en":"⭐ Change level","de":"⭐ Level ändern","tr":"⭐ Seviyeyi değiştir"},
- # MT2009_PLUS_SHOP_SLOTS_PANEL_V1: the offline shop's unlocked rows (special flag shop_unlock_slot)
- "shop_slots":   {"pl":"🏪 Powiększenie sklepu offline","en":"🏪 Offline shop size","de":"🏪 Offline-Shop-Größe","tr":"🏪 Çevrimdışı dükkan boyutu"},
- "shop_slots_now": {"pl":"Teraz: {n}/4 odblokowanych rzędów","en":"Now: {n}/4 rows unlocked","de":"Jetzt: {n}/4 Reihen freigeschaltet","tr":"Şu an: {n}/4 sıra açık"},
- "shop_slots_opt": {"pl":"{n}/4 rzędów ({cells} miejsc)","en":"{n}/4 rows ({cells} slots)","de":"{n}/4 Reihen ({cells} Plätze)","tr":"{n}/4 sıra ({cells} yuva)"},
- "shop_slots_set": {"pl":"🏪 Ustaw","en":"🏪 Set","de":"🏪 Setzen","tr":"🏪 Ayarla"},
- "tip_shop_slots": {"pl":"Prawa połowa sklepu offline ma 4 zablokowane rzędy po 5 miejsc (te same, które odblokowuje przedmiot 30376). Ustawia, ile z nich jest otwartych: 0 = żaden, 4 = wszystkie. Dolne 4 rzędy prawej połowy to nadal miejsca premium. Działa w grze i offline (wtedy zapisuje się w bazie).",
-                  "en":"The right half of the offline shop has 4 locked rows of 5 slots (the ones item 30376 unlocks). Sets how many of them are open: 0 = none, 4 = all. The lower 4 rows of the right half stay premium slots. Works in game and offline (then written to the database)."},
- "shop_slots_range": {"pl":"Powiększenie sklepu: dozwolone 0-4.","en":"Shop size: 0-4 allowed."},
  "teleport":     {"pl":"🗺️ Teleportuj","en":"🗺️ Teleport","de":"🗺️ Teleportieren","tr":"🗺️ Işınla"},
  "ingame_only":  {"pl":"(działa, gdy gracz jest w grze)","en":"(works while the player is in game)","de":"(nur wenn der Spieler online ist)","tr":"(oyuncu oyundayken çalışır)"},
  "speed":        {"pl":"🏃 Szybkość biegu","en":"🏃 Running speed","de":"🏃 Laufgeschwindigkeit","tr":"🏃 Koşma hızı"},
@@ -3872,32 +3777,17 @@ T = {
  "rare_ds_day":  {"pl":"Cor Draconis z odłamków dziennie (1–20, domyślnie 5):","en":"Cor Draconis from shards a day (1-20, default 5):"},
  "rare_ds_range":{"pl":"Szansa na odłamek 1–100%, Cor dziennie 1–20. Nic nie zmieniono.","en":"Shard chance 1-100%, Cors a day 1-20. Nothing was changed."},
  "az_nav":       {"pl":"🗺️ Moduł Arezzo","en":"🗺️ Arezzo module"},
- # MT2009_PLUS_SHOP_QOL_V2: the bigger offline shops (event flag m2_shop_big_on)
- "shopbig_nav":  {"pl":"🏪 Większe sklepy offline","en":"🏪 Bigger offline shops"},
- "shopbig_open": {"pl":"🏪 Ustaw rozmiar sklepów","en":"🏪 Set the shops' size"},
- "shopbig_dash_hint": {"pl":"Sklepy graczy: domyślne (1 strona) albo duże jak u botów (2 strony obok siebie).","en":"Players' shops: the default (1 page) or as big as the bots' (2 pages side by side)."},
- "tip_shopbig":  {"pl":"Włącza graczom drugą stronę sklepu offline, taką jak mają boty. Działa od razu, bez restartu.","en":"Gives players the second offline shop page the bots have. Takes effect immediately, no restart."},
- "shopbig_intro":{"pl":"Włączone: okno sklepu offline gracza ma dwie strony obok siebie (160 miejsc, jak sklepy botów); druga strona nie ma blokad ani miejsc premium. Wyłączone: tylko pierwsza strona. Przedmioty, które już stoją na drugiej stronie, zostają w sprzedaży i nadal je widać — po wyłączeniu nie da się tam tylko dokładać nowych. Gracz zobaczy zmianę przy następnym otwarciu okna sklepu.","en":"On: a player's offline shop window has two pages side by side (160 slots, like the bots' shops); the second page has no locked or premium slots. Off: the first page only. Items already on the second page stay for sale and visible - once off, only new ones cannot go there. The player sees the change the next time the shop window opens."},
- "shopbig_enable": {"pl":"Większe sklepy offline graczy (2 strony)","en":"Bigger player offline shops (2 pages)"},
- "shopbig_saved_live": {"pl":"Zapisano i przełączono na żywo. 🏪","en":"Saved and switched live. 🏪"},
  "az_open":      {"pl":"🗺️ Otwórz moduł Arezzo","en":"🗺️ Open the Arezzo module"},
  "tip_az":       {"pl":"Włącz albo wyłącz nowe mapy i lochy z Arezzo. Działa od razu, bez restartu serwera.","en":"Switch the new Arezzo maps and dungeons on or off. Takes effect immediately, no server restart."},
  "az_dash_hint": {"pl":"Czy na tym świecie są dostępne mapy i lochy z Arezzo (moduł dobrowolny).","en":"Whether the Arezzo maps and dungeons are open in this world (an optional module)."},
  "az_intro":     {"pl":"Moduł dobrowolny: Dolina Cyklopów, Pustkowie Faraona oraz lochy Biblioteka Wiedzy, Wzgórze Wukonga, Ruiny Skorpiona i Starożytna Dżungla. Klient (2.0.30 i nowszy) ma wszystkie pliki zawsze — ten przełącznik decyduje tylko, czy serwer do nich prowadzi. Zapis działa od razu, bez restartu. Ustawienie z panelu zostaje po restarcie, dopóki ktoś nie zmieni M2_AREZZO w .env.","en":"An optional module: Dolina Cyklopow, Pustkowie Faraona and the dungeons Biblioteka Wiedzy, Wzgorze Wukonga, Ruiny Skorpiona and Starozytna Dzungla. The client (2.0.30 and newer) always has the files - this switch only decides whether the server leads there. Saving takes effect immediately, no restart. The panel's setting survives restarts until M2_AREZZO in .env is changed."},
  "az_enable":    {"pl":"Moduł Arezzo włączony","en":"Arezzo module on"},
- "az_help":      {"pl":"Włączony: strony w Teleporterze i Pierścieniu, strażnicy wejść do lochów i lochy Arezzo w oknie „Wyprawy” (X). Wyłączony: nic z tego nie jest widoczne, a gracz, który stoi na mapie Arezzo albo jest w jej lochu, w ciągu kilku sekund wraca do miasta (GM może zostać).","en":"On: the Teleporter and ring pages, the dungeon entrance guards and the Arezzo lines in the dungeon window (X). Off: none of it is visible, and a player standing on an Arezzo map or in one of its dungeons is sent to the town within seconds (a GM may stay)."},
+ "az_help":      {"pl":"Włączony: strony w Teleporterze i Pierścieniu, strażnicy wejść do lochów i lochy Arezzo w oknie „Wyprawy” (X), zestawy kostiumów z Arezzo w ItemShopie (w grze i na stronie). Wyłączony: nic z tego nie jest widoczne, a gracz, który stoi na mapie Arezzo albo jest w jej lochu, w ciągu kilku sekund wraca do miasta (GM może zostać).","en":"On: the Teleporter and ring pages, the dungeon entrance guards and the Arezzo lines in the dungeon window (X), the Arezzo costume sets in the ItemShop (in game and on the web). Off: none of it is visible, and a player standing on an Arezzo map or in one of its dungeons is sent to the town within seconds (a GM may stay)."},
  "az_saved_live":{"pl":"Zapisano i przełączono na żywo, przez pomocnika w grze. 🗺️","en":"Saved and switched live, through the in-game helper. 🗺️"},
  "seon_nav":     {"pl":"💎 Seon-Hae: 6. i 7. bonus","en":"💎 Seon-Hae: 6th and 7th bonus"},
  "seon_open":    {"pl":"💎 Otwórz Seon-Hae","en":"💎 Open Seon-Hae"},
  "tip_seon":     {"pl":"Włącz albo wyłącz dodawanie 6. i 7. bonusu u Seon-Hae i ustaw czas, przez jaki trzyma przedmiot. Działa od razu, bez restartu serwera.","en":"Switch Seon-Hae's 6th and 7th bonus on or off and set how long he keeps an item. Takes effect immediately, no server restart."},
  "seon_dash_hint":{"pl":"Czy Seon-Hae (NPC 20095) dodaje graczom 6. i 7. bonus (system dobrowolny).","en":"Whether Seon-Hae (NPC 20095) adds the 6th and 7th bonus for players (an optional system)."},
- "tpm_nav":      {"pl":"🧭 Mapa teleportacji (TAB) – autor: Mur4s","en":"🧭 Teleport map (TAB) – author: Mur4s"},
- "tpm_open":     {"pl":"🧭 Otwórz mapę teleportacji","en":"🧭 Open the teleport map"},
- "tip_tpm":      {"pl":"Włącz albo wyłącz mapę teleportacji pod klawiszem TAB. Działa od razu, bez restartu serwera.","en":"Switch the teleport map under the TAB key on or off. Takes effect immediately, no restart."},
- "tpm_dash_hint":{"pl":"Czy TAB otwiera graczom mapę świata z 18 punktami i darmowym teleportem (moduł dobrowolny).","en":"Whether TAB opens the world map with 18 points and a free teleport for players (an optional module)."},
- "tpm_intro":    {"pl":"Moduł dobrowolny (autor: Mur4s): klawisz TAB otwiera mapę świata z 18 punktami (miasta królestw, Dolina, Pustynia, Góra Sohan, Świątynia, Wieża Demonów, Las Duchów, Czerwony Las, Kraina Gigantów, Piekło, Loch Pająków V1, Dolina Cyklopów i Pustkowie Faraona przy włączonym Arezzo). Kliknięcie teleportuje za darmo, bez pierścienia. Wymaga klienta z mapą. Zapis działa od razu, bez restartu. Ustawienie z panelu zostaje po restarcie, dopóki ktoś nie zmieni M2_TELEPORT_MAP w .env.","en":"An optional module (author: Mur4s): the TAB key opens a world map with 18 points (the kingdoms' towns, Orc Valley, Desert, Mount Sohan, Temple, Demon Tower, Ghost Forest, Red Forest, Land of Giants, Hell, Spider Dungeon V1, and the Cyclops Valley and Pharaoh's Wasteland with Arezzo on). A click teleports for free, no ring. Needs the client with the map. Saving takes effect immediately, no restart. The panel's setting survives restarts until M2_TELEPORT_MAP in .env is changed."},
- "tpm_enable":   {"pl":"Mapa teleportacji (TAB) włączona","en":"Teleport map (TAB) on"},
- "tpm_help":     {"pl":"Włączona: TAB (bez Ctrl) otwiera mapę, Ctrl+TAB dalej ukrywa interfejs; nie działa w trakcie handlu, pojedynku, na arenie wojny gildii, OX i mapach wojny. Wyłączona: TAB działa jak dawniej (Slot 6 paska), a serwer ignoruje teleporty z mapy. Gracze w grze dostają zmianę w ciągu kilku sekund.","en":"On: TAB (without Ctrl) opens the map, Ctrl+TAB still hides the interface; not during a trade or a duel, nor from the guild war arena, OX or the war maps. Off: TAB works as before (quick slot 6) and the server ignores the map's teleports. Players in game get the change within seconds."},
  "seon_intro":   {"pl":"System dobrowolny (z Owsapa): gracz oddaje Seon-Hae (NPC 20095 w pierwszych wioskach) broń albo zbroję/biżuterię z pięcioma bonusami, Odłamki poziomu przedmiotu (39070–39077, 39081; 2% szansy za każdy, do 10) i Suplementy (72064–72067; do 5, do +50%). Seon-Hae trzyma przedmiot przez ustawiony czas i oddaje go z nowym bonusem albo bez. Wymaga klienta z oknem Seon-Hae. Zapis działa od razu, bez restartu. Włączenie z panelu zostaje po restarcie, dopóki ktoś nie zmieni M2_SEONHAE w .env.","en":"An optional system (from Owsap): a player hands Seon-Hae (NPC 20095 in the first villages) a weapon or an armour/jewel with five bonuses, Powershards of the item's level (39070-39077, 39081; 2% chance each, up to 10) and Additives (72064-72067; up to 5, up to +50%). Seon-Hae keeps the item for the set time and gives it back with a new bonus or without. Needs the client with the Seon-Hae window. Saving takes effect immediately, no restart. Switching on here survives restarts until M2_SEONHAE in .env is changed."},
  "seon_enable":  {"pl":"Seon-Hae przyjmuje przedmioty","en":"Seon-Hae takes items"},
  "seon_help":    {"pl":"Wyłączenie zatrzymuje tylko nowe zlecenia — przedmiot, który Seon-Hae już trzyma, zawsze można odebrać. Suplementy wypadają z Metinów i bossów, a Odłamki ze zwykłych potworów w Grocie Wygnańców, Świątyni Ochao i Zaczarowanym Lesie (reguły niżej).","en":"Switching off stops new hand-ins only - an item Seon-Hae already keeps can always be collected. The Additives drop from Metins and bosses, the Powershards from ordinary monsters, in the Grotto of Exile, the Temple of Ochao and the Enchanted Forest (the rules below)."},
@@ -3942,27 +3832,25 @@ T = {
  "fl_flower_5":  {"pl":"Słonecznik","en":"Sunflower"},
  "regen_title": {"pl":"Czas odradzania Metinów, bossów i potworów",
                  "en":"Respawn time of Metin stones, bosses and monsters"},
- "regen_help":  {"pl":"Procent zwykłego czasu odradzania: 100 = jak w grze, 50 = dwa razy szybciej, 10 = dziesięć razy szybciej. Działa od razu (przez pomocnika w grze), a po restarcie zostaje. Osobno dla Metinów, osobno dla bossów i osobno dla zwykłych potworów.",
-                 "en":"Percent of the normal respawn time: 100 = as in the game, 50 = twice as fast, 10 = ten times as fast. Live at once (through the in-game helper) and kept across a restart. Metin stones, bosses and ordinary monsters each have their own."},
- "regen_metin": {"pl":"Metiny (% czasu)", "en":"Metin stones (% of time)"},
- "regen_boss":  {"pl":"Bossowie (% czasu)", "en":"Bosses (% of time)"},
+ "regen_help":  {"pl":"Procent zwykłego czasu odradzania: 100 = jak w grze, 50 = dwa razy szybciej, 10 = dziesięć razy szybciej. Działa od razu (przez pomocnika w grze), a po restarcie zostaje. Osobno dla Metinów i bossów, osobno dla zwykłych potworów.",
+                 "en":"Percent of the normal respawn time: 100 = as in the game, 50 = twice as fast, 10 = ten times as fast. Live at once (through the in-game helper) and kept across a restart. Stones and bosses apart from ordinary monsters."},
+ "regen_boss":  {"pl":"Metiny i bossowie (% czasu)", "en":"Metin stones and bosses (% of time)"},
  "regen_mob":   {"pl":"Zwykłe potwory (% czasu)", "en":"Ordinary monsters (% of time)"},
  "regen_faster": {"pl":"Szybciej:", "en":"Faster:"},
  "regen_mult":  {"pl":"≈ ×{n} szybciej niż w grze", "en":"≈ ×{n} faster than the game"},
  "regen_save":  {"pl":"Zapisz czasy odradzania", "en":"Save the respawn times"},
- "regen_range": {"pl":"Wszystkie trzy wartości muszą być liczbą całkowitą od 10 do 100. Nic nie zmieniono.",
-                 "en":"All three have to be whole numbers between 10 and 100. Nothing was changed."},
+ "regen_range": {"pl":"Obie wartości muszą być liczbą całkowitą od 10 do 100. Nic nie zmieniono.",
+                 "en":"Both have to be whole numbers between 10 and 100. Nothing was changed."},
  "regen_saved_live": {"pl":"✅ Zapisano! Nowe czasy odradzania działają już w grze, bez restartu.",
                       "en":"✅ Saved! The new respawn times are live in game, no restart needed."},
  "regen_saved_restart": {"pl":"Zapisano. Nikt nie jest zalogowany, więc pomocnik w grze nie odpowiedział — nowe czasy zadziałają po restarcie serwera (albo zapisz jeszcze raz, gdy ktoś będzie w grze).",
                          "en":"Saved. Nobody is logged in, so the in-game helper did not answer — the new times apply after a server restart (or save again while somebody is in game)."},
  "count_title": {"pl":"Liczba potworów w respie", "en":"Monsters per respawn"},
- "count_help":  {"pl":"Ile potworów stoi w każdym miejscu respu: ×1 = jak w grze, ×2 = dwa razy więcej, aż do ×4. Nie trzeba restartu, a po restarcie ustawienie zostaje; dodatkowe potwory dochodzą przy najbliższym respie danego miejsca (Metiny i bossowie po swoim czasie odradzania, zwykle 15–25 minut). Osobno dla Metinów, bossów i zwykłych potworów. Postacie niezależne (także żyły rud i krzaki ziół), portale, lochy i jednorazowe respy z misji zostają bez zmian.",
-                 "en":"How many monsters stand at each spawn point: ×1 = as in the game, ×2 = twice as many, up to ×4. No restart needed and kept across one; the extra monsters come at each spot's next respawn (stones and bosses after their own respawn time, usually 15-25 minutes). Metin stones, bosses and ordinary monsters each have their own. NPCs (ore veins and herb bushes too), portals, dungeons and a quest's one-off spawns are left alone."},
+ "count_help":  {"pl":"Ile potworów stoi w każdym miejscu respu: ×1 = jak w grze, ×2 = dwa razy więcej, aż do ×4. Nie trzeba restartu, a po restarcie ustawienie zostaje; dodatkowe potwory dochodzą przy najbliższym respie danego miejsca (Metiny i bossowie po swoim czasie odradzania, zwykle 15–25 minut). Osobno dla Metinów i bossów, osobno dla zwykłych potworów. Postacie niezależne (także żyły rud i krzaki ziół), portale, lochy i jednorazowe respy z misji zostają bez zmian.",
+                 "en":"How many monsters stand at each spawn point: ×1 = as in the game, ×2 = twice as many, up to ×4. No restart needed and kept across one; the extra monsters come at each spot's next respawn (stones and bosses after their own respawn time, usually 15-25 minutes). Stones and bosses apart from ordinary monsters. NPCs (ore veins and herb bushes too), portals, dungeons and a quest's one-off spawns are left alone."},
  "count_warn":  {"pl":"Uwaga: ×2 to dwa razy więcej potworów na każdej mapie — serwer i boty mają przez to więcej pracy. Po zmniejszeniu mnożnika nadmiarowe potwory znikają dopiero, gdy ktoś je zabije.",
                  "en":"Mind: ×2 is twice as many monsters on every map, and the server and the bots work that much harder. After lowering it, the extra monsters go only as they are killed."},
- "count_metin": {"pl":"Metiny", "en":"Metin stones"},
- "count_boss":  {"pl":"Bossowie", "en":"Bosses"},
+ "count_boss":  {"pl":"Metiny i bossowie", "en":"Metin stones and bosses"},
  "count_mob":   {"pl":"Zwykłe potwory", "en":"Ordinary monsters"},
  "count_save":  {"pl":"Zapisz liczbę potworów", "en":"Save the monster counts"},
  "count_range": {"pl":"Wybierz mnożnik od ×1 do ×4. Nic nie zmieniono.",
@@ -4038,29 +3926,13 @@ T = {
                    "en":"✅ Saved! The new monster health is live in game."},
  "mh_saved_restart": {"pl":"Zapisano. Gra nie odpowiedziała (serwer jest wyłączony albo dopiero startuje) — zmiana zadziała przy następnym starcie serwera.",
                       "en":"Saved. The game did not answer (the server is down or still starting) - the change applies at the next server start."},
- "dbonus_title": {"pl": "Szansa na bonus w wydropionym przedmiocie",
-                  "en": "Chance of bonuses on dropped items"},
- "dbonus_help": {"pl": "Jak często broń i zbroja (także biżuteria, buty, hełmy i tarcze) wypadające z potworów mają bonusy i ile: procent szansy z gry, 100% = jak w grze. Zmienia szansę na pierwszy bonus oraz na drugi i trzeci — najwyżej trzy, jak w grze, a ich wartości zostają takie same. W grze broń ze zwykłych potworów nie ma bonusów (tylko z Metinów, bossów i wodzów); powyżej 100% dostaje je z szansą z tabeli przedmiotu razy nadwyżka (przy 200% tyle, ile ma w tabeli). Tylko drop z potworów — sklepy, nagrody z questów, skrzynie i ItemShop bez zmian. Dotyczy też dropu botów. Zmiana działa od następnego dropu, bez restartu, i zostaje po restarcie.",
-                 "en": "How often weapons and armour (jewellery, boots, helmets and shields too) dropped by monsters come with bonuses, and how many: a percent of the game's own chance, 100% = as in the game. It changes the chance of the first bonus and of the second and third - three at most, as in the game, and their values stay the same. In the game weapons from ordinary monsters have no bonuses (only from Metin stones, bosses and chiefs); above 100% they get them at the item's own chance times the excess (at 200% what its table says). Monster drops only - shops, quest rewards, chests and the ItemShop stay as they are. The bots' drops too. A change applies from the next drop, without a restart, and stays across a restart."},
- "dbonus_label": {"pl": "Procent szansy z gry (10–1000):",
-                  "en": "Percent of the game's chance (10–1000):"},
- "dbonus_examples": {"pl": "Przykład — broń z Metina: 100% → 30% ma bonus, 7% dwa lub trzy; 200% → 60%, 28% dwa lub trzy; 500% → zawsze, i zawsze dwa lub trzy. Broń 25–65 poziomu ze zwykłego potwora: 100% → nigdy, 200% → 20%, 500% → 80%. Zbroja ze zwykłego dropu: 3%, 6%, 15%.",
-                     "en": "For example - a weapon from a Metin stone: 100% → 30% have a bonus, 7% two or three; 200% → 60%, 28% two or three; 500% → always, and always two or three. A level 25-65 weapon from an ordinary monster: 100% → never, 200% → 20%, 500% → 80%. Armour from an ordinary drop: 3%, 6%, 15%."},
- "dbonus_save": {"pl": "Zapisz szansę na bonus",
-                 "en": "Save the bonus chance"},
- "dbonus_range": {"pl": "Wybierz procent od 10 do 1000. Nic nie zmieniono.",
-                  "en": "Pick a percent from 10 to 1000. Nothing was changed."},
- "dbonus_saved_live": {"pl": "✅ Zapisano! Nowa szansa na bonus działa już w grze, od następnego dropu.",
-                       "en": "✅ Saved! The new bonus chance is live in game, from the next drop."},
- "dbonus_saved_restart": {"pl": "Zapisano. Gra nie odpowiedziała (serwer jest wyłączony albo dopiero startuje) — zmiana zadziała przy następnym starcie serwera.",
-                          "en": "Saved. The game did not answer (the server is down or still starting) - the change applies at the next server start."},
  "ai_books_moved": {"pl":"Na tym serwerze ustawia to poziom trudności (Mnożniki serwera → Poziom trudności): osobno czas dla graczy, osobno dla botów; 0 = od razu.",
                     "en":"On this server the difficulty sets it (Server rates → Difficulty): one wait for the players, one for the bots; 0 = at once."},
  "ch2_title":   {"pl":"Drugi kanał (CH2)", "en":"Second channel (CH2)"},
  "ch2_help":    {"pl":"Drugi kanał gry. Część botów gra na CH2, więc serwer rozkłada je na dwa rdzenie procesora i udźwignie więcej botów naraz. Wszystkie sklepy (botów i graczy) stoją tylko na CH1: bot z CH2, który chce otworzyć albo obsłużyć swój sklep albo coś kupić, przechodzi na CH1, a wolny bot z CH1 przechodzi na jego miejsce na CH2. Ustawiony udział to najmniej tyle botów na CH2; gdy nikt nie czeka na przejście, CH2 może przejąć do 10 punktów więcej. Domyślnie wyłączony.",
                  "en":"A second game channel. Some of the bots play on CH2, so the server spreads them over two CPU cores and carries more bots at once. Every shop, bots' and players', stands on CH1: a bot on CH2 that wants to open or serve its shop or to buy something moves to CH1, and a free bot of CH1 moves to CH2 in its place. The share set here is the least CH2 carries; with nobody waiting to move, CH2 may take up to ten points more. Off by default."},
  "ch2_enable":  {"pl":"Włącz drugi kanał (CH2)", "en":"Switch the second channel on (CH2)"},
- "ch2_share":   {"pl":"Botów poza CH1 (na CH2, a z CH3/CH4 po równo)", "en":"Bots off CH1 (on CH2, evenly over CH2-CH4 with CH3/CH4)"},
+ "ch2_share":   {"pl":"Botów na CH2", "en":"Bots on CH2"},
  "ch2_save":    {"pl":"Zapisz (zadziała po restarcie serwera)", "en":"Save (applies after a server restart)"},
  "ch2_now_off": {"pl":"Teraz: CH2 wyłączony - wszystkie boty grają na CH1.", "en":"Now: CH2 is off - every bot plays on CH1."},
  "ch2_now_on":  {"pl":"Teraz: CH2 włączony, na CH2 gra {share}% botów.", "en":"Now: CH2 is on, {share}% of the bots play on it."},
@@ -4073,19 +3945,6 @@ T = {
                  "en":"✅ Saved. The channel change applies after a server restart (GRAJ in the launcher or a restart of the game container)."},
  "ch2_bad":     {"pl":"Udział botów na CH2 musi być liczbą od 10 do 90. Nic nie zmieniono.", "en":"The share of bots on CH2 has to be between 10 and 90. Nothing was changed."},
  "ch2_failed":  {"pl":"Nie udało się zapisać ustawienia kanałów w katalogu wymiany z serwerem.", "en":"Could not write the channel setting into the spool shared with the server."},
- # MT2009_PLUS_CH34_V1: the third and fourth channel.
- "ch34_title":  {"pl":"Trzeci i czwarty kanał (CH3, CH4)", "en":"Third and fourth channel (CH3, CH4)"},
- "ch34_help":   {"pl":"Na tej samej zasadzie co CH2: boty i gracze grają też na CH3/CH4, ale sklepy i stragany stoją tylko na CH1 - bot, który ma coś do zrobienia przy straganach, przelogowuje się na CH1. CH3 działa tylko z włączonym CH2, CH4 tylko z CH3. Ustawiony wyżej udział botów to wtedy udział poza CH1, dzielony po równo między CH2-CH4. Domyślnie wyłączone.",
-                 "en":"On the same principle as CH2: bots and players play on CH3/CH4 too, but every shop and stall stands on CH1 only - a bot with business at the stalls relogs to CH1. CH3 works only with CH2 on, CH4 only with CH3. The bot share above then is the share off CH1, split evenly between CH2-CH4. Off by default."},
- "ch34_warn":   {"pl":"⚠️ Każdy kanał to trzy osobne rdzenie gry: ok. 2,5-3 GB RAM więcej i od pół do jednego rdzenia CPU pod obciążeniem (CH1-CH4 razem ok. 11 GB RAM na same rdzenie gry). Porty: CH3 {p3}, CH4 {p4}.",
-                 "en":"⚠️ Every channel is three game cores of its own: about 2.5-3 GB of RAM more and half to one CPU core under load (CH1-CH4 together ~11 GB of RAM for the game cores alone). Ports: CH3 {p3}, CH4 {p4}."},
- "ch3_enable":  {"pl":"Włącz trzeci kanał (CH3)", "en":"Switch the third channel on (CH3)"},
- "ch4_enable":  {"pl":"Włącz czwarty kanał (CH4)", "en":"Switch the fourth channel on (CH4)"},
- "ch34_now":    {"pl":"Teraz: CH3 {ch3}, CH4 {ch4}.", "en":"Now: CH3 {ch3}, CH4 {ch4}."},
- "ch34_on":     {"pl":"włączony", "en":"on"},
- "ch34_off":    {"pl":"wyłączony", "en":"off"},
- "ch34_ports":  {"pl":"Gracze wejdą na CH{n} po najbliższym uruchomieniu serwera z launchera (GRAJ) albo aktualizacji na VPS - otworzą się wtedy porty {ports}.",
-                 "en":"Players reach CH{n} after the next start from the launcher (GRAJ) or an update on a VPS, which opens ports {ports}."},
  "rates_yang_range": {"pl":"Yang może być najwyżej 1000%. Nic nie zmieniono. 🙂","en":"Yang can be at most 1000%. Nothing was changed. 🙂",
                   "de":"Yang darf höchstens 1000% sein. Es wurde nichts geändert. 🙂",
                   "tr":"Yang en fazla %1000 olabilir. Hiçbir şey değiştirilmedi. 🙂"},
@@ -4581,11 +4440,6 @@ T.update({
                   "de":"Ein Bot, der ein fertiges Ausrüstungsteil (ab +6) im Offline-Laden eines Spielers will, es aber teurer findet, als er zahlen würde (mit der Obergrenze der Bots für den Preis eines Spielers: höchstens das 1,5- bis 2-Fache des Marktpreises), flüstert dem Besitzer - einmal, mit verlinktem Gegenstand - sein Angebot und geht bis zu seinem letzten Preis, dem Höchsten, das er zahlt, wenn der Besitzer mehr will. Der Besitzer antwortet \"ok\", \"no\" oder mit einem eigenen Preis (\"5kk\") oder senkt einfach den Preis im Laden; sobald der Gegenstand den vereinbarten Preis (oder weniger) kostet, kommt der Bot und kauft ihn, innerhalb von zehn Minuten. Gefragt wird nur ein Besitzer, der auf dem Kern des Bots online ist; höchstens ein Feilschen gleichzeitig mit einer Person, drei Angebote pro Stunde an eine Person, ein Angebot zum selben Gegenstand in drei Stunden (zwölf nach einem Nein), drei gleichzeitig auf einem Kern. Was ein Bot sofort kauft, bleibt unverändert. Aus: kein Bot flüstert ein Angebot, und alle Abmachungen werden vergessen.",
                   "tr":"Bir oyuncunun çevrimdışı dükkânında bitmiş bir ekipman (+6 ve üstü) isteyen ama onu ödeyeceğinden pahalı bulan bot (botların oyuncu fiyatı sınırı dahil: eşyanın piyasa fiyatının en fazla 1,5-2 katı), sahibine bir kez, eşyanın bağlantısıyla teklifini fısıldar ve sahip daha fazlasını isterse son fiyatına, ödeyeceği en yüksek fiyata çıkar. Sahip \"ok\", \"no\" ya da kendi fiyatıyla (\"5kk\") cevap verir veya dükkândaki fiyatı düşürür; eşya anlaşılan fiyata (ya da daha azına) indiğinde bot gelip on dakika içinde satın alır. Yalnızca botun çekirdeğinde çevrimiçi olan sahibe sorulur; bir kişiyle aynı anda en fazla bir pazarlık, bir kişiye saatte üç teklif, aynı eşya için üç saatte bir teklif (bir hayırdan sonra on iki), bir çekirdekte aynı anda üç pazarlık. Botun hemen satın aldığı şeyler değişmez. Kapalı: hiçbir bot teklif fısıldamaz ve tüm anlaşmalar unutulur."},
  "ai_haggle_on": {"en":"Enabled","pl":"Włączone","de":"Eingeschaltet","tr":"Açık"},
- "ai_material_market": {"en":"Material market (test)","pl":"Rynek materiałów (test)","de":"Materialmarkt (Test)","tr":"Malzeme pazarı (deneme)"},
- "ai_material_market_help": {"en":"A test option, off by default. When the world lacks a refine material (under 80% of its usual supply on the shops), the bots take it out of their storage and list it more often. When a bot wants to list something and its offline shop is full, it takes off its cheapest stack of materials or skill books (never goods the world lacks, a mispriced line or an item the item policy rules on) and sells a quarter of it to the general merchant at its next visit, so the cheapest goods nobody buys slowly leave the market. At most one cut a bot every ten minutes. The event flag bot_material_market (/eventflag bot_material_market 1) switches it on as well.",
-                   "pl":"Opcja testowa, domyślnie wyłączona. Gdy światu brakuje jakiegoś ulepszacza (mniej niż 80% zwykłej podaży na sklepach), boty częściej wyjmują go z magazynu i wystawiają. Gdy bot chce coś wystawić, a jego sklep offline jest pełny, zdejmuje najtańszy stos materiałów lub ksiąg (nigdy towaru, którego brakuje, ceny z pomyłką ani przedmiotu objętego polityką przedmiotów) i jedną czwartą sprzedaje u Handlarki przy najbliższej wizycie - zalegające najtańsze materiały powoli schodzą z rynku. Najwyżej jedno cięcie na bota co dziesięć minut. To samo włącza flaga bot_material_market (/eventflag bot_material_market 1).",
-                   "de":"Testoption, standardmäßig aus. Fehlt der Welt ein Verbesserungsmaterial (unter 80% des üblichen Angebots), holen die Bots es öfter aus dem Lager und stellen es ein. Ist der Offline-Laden eines Bots voll, nimmt er seinen billigsten Stapel Materialien oder Bücher herunter und verkauft ein Viertel beim nächsten Besuch an die Krämerin. Höchstens ein Schnitt pro Bot alle zehn Minuten. Die Event-Flag bot_material_market schaltet es ebenfalls ein.",
-                   "tr":"Deneme seçeneği, varsayılan olarak kapalı. Dünyada bir geliştirme malzemesi eksikse (olağan arzın %80'inin altı) botlar onu depodan daha sık çıkarıp satışa koyar. Bir botun çevrimdışı dükkânı doluysa en ucuz malzeme ya da kitap yığınını indirir ve dörtte birini bir sonraki ziyarette tüccara satar. Bot başına en fazla on dakikada bir kesim. bot_material_market olay bayrağı da açar."},
  "ai_shop_m2":   {"en":"Bots open their offline shops in the second villages (M2) too","pl":"Boty wystawiają sklepy offline również w M2","de":"Bots stellen ihre Offline-Läden auch in den zweiten Dörfern (M2) auf","tr":"Botlar çevrimdışı tezgahlarını ikinci köylerde (M2) de açar"},
  "ai_shop_m2_help": {"en":"Only about where the bots' offline shops (stands) stand - not buying from NPC merchants. Off (the default): a bot opens its stand only in the first villages, where the players shop; an expired stand that stood in a second village is renewed on the first village's market ring at its owner's next service visit. On: the stands stand in both villages, as before.",
                   "pl":"Dotyczy tylko miejsca, w którym boty wystawiają swoje sklepy offline (stragany) - nie zakupów u sprzedawców NPC. Wyłączone (domyślnie): bot otwiera sklep tylko w pierwszych wioskach, tam gdzie kupują gracze; sklep, który stał w drugiej wiosce, po wygaśnięciu zostaje odnowiony na rynku pierwszej wioski przy najbliższej wizycie właściciela. Włączone: sklepy stoją w obu wioskach, jak wcześniej.",
@@ -4644,15 +4498,6 @@ T.update({
                   "tr":"Ortak arazide - Ork Vadisi, çöl, Sohan Dağı, zindanlar - başka krallıktan bir botla karşılaştığında düello başlatacak botların oranı. Asla köyde, asla bir oyuncuya karşı ve asla yaralı ya da zaten dövüşen bir bota karşı değil. Hangi botların saldırgan olduğu karaktere sabittir, yani her yeniden başlatmadan sonra aynıları kavga eder. Varsayılan olarak kapalı. Yalnızca ortak dünya düzeninde çalışır (unified, 1500 bota kadar varsayılan): split'te her çekirdek tek krallığın botlarını tutar, dövüşecek kimse yoktur."},
  "ai_kpvp_off":  {"en":"peace","pl":"pokój","de":"Frieden","tr":"barış"},
  "ai_kpvp_all":  {"en":"every bot","pl":"każdy bot","de":"jeder Bot","tr":"her bot"},
- # MT2009_PLUS_BOT_CHAT_V2
- "ai_botchat":   {"en":"Bots' chat","pl":"Czat botów"},
- "ai_botchat_help": {"en":"A bot whispers at a person who hits it or takes the monsters it is fighting (a warning first, then \"to moj spot\", \"spadaj\", \"SPIEEEEEEEE STAD\"; gentle bots leave the spot instead, hot-headed ones call a friend). The bots of every kingdom write on the '@' trade chat when they really sell or buy something (\"S> ... - price\", \"K> ... place .../szt\"); a person's '@ K> ...' is answered by whisper. On the shout channel a bot answers questions like \"gdzie metki na 30?\" or \"ile stoi fms?\".",
-                     "pl":"Bot pisze na priv do gracza, który go bije albo zabiera mu moby (najpierw ostrzeżenie, potem „to mój spot”, „spadaj”, „SPIEEEEEEEE STĄD”; łagodne boty zamiast tego zmieniają spot, porywcze wołają kolegę). Boty wszystkich królestw piszą na czacie handlowym „@”, kiedy naprawdę coś sprzedają albo kupują („S> … – cena”, „K> … płacę …/szt”); na „@ K> …” gracza odpisują na priv. Na wołaj bot odpowiada na pytania typu „gdzie metki na 30?” albo „ile stoi fms?”."},
- "ai_spot_on":   {"en":"Bots defend their spot (whispers)","pl":"Boty bronią swojego spota (priv)"},
- "ai_tradechat": {"en":"Bots' trade chat '@' - one line every","pl":"Czat handlowy botów „@” – jedna linia co"},
- "ai_tradechat_off": {"en":"off","pl":"wyłączony"},
- "ai_tradechat_bot": {"en":"One bot's next trade line after","pl":"Ten sam bot znowu po"},
- "ai_shout_answer": {"en":"Shout questions the bots answer","pl":"Pytania na wołaj, na które boty odpowiadają"},
  "ai_scroll":    {"en":"Blessing and Dragon God Scrolls","pl":"Zwoje Błogosławieństwa i Boga Smoków","de":"Segens- und Drachengott-Schriftrollen","tr":"Kutsama ve Ejderha Tanrısı parşömenleri"},
  "ai_scroll_help":{"en":"The lowest plus a bot upgrades to under a Blessing Scroll or a Dragon God Scroll. At +7 a scroll goes only on the upgrades to +7, +8 and +9, and every lower one is done at the blacksmith without a scroll, like a player who has none - so the item can burn. At +1 nothing is restricted and the bots use scrolls as before: from +7, and earlier on a worn item that could burn and on an item with valuable bonuses. Applies within five seconds.",
                   "pl":"Najniższy plus, na jaki bot ulepsza pod Zwojem Błogosławieństwa albo Zwojem Boga Smoków. Przy +7 zwój idzie tylko na ulepszenia na +7, +8 i +9, a każde niższe bot robi u kowala bez zwoju, jak gracz, który zwojów nie ma - więc przedmiot może spłonąć. Przy +1 nie ma ograniczenia i boty używają zwojów tak jak dotąd: od +7, a wcześniej na założonym przedmiocie, który mógłby spłonąć, i na przedmiocie z cennymi bonusami. Działa w pięć sekund.",
@@ -5261,7 +5106,6 @@ app = Flask(__name__)
 app.jinja_env.globals["DISCORD"] = DISCORD_URL
 app.jinja_env.globals["WEBSITE"] = WEBSITE_URL
 app.jinja_env.globals["COFFEE"] = COFFEE_URL
-app.jinja_env.globals["minutes_label"] = event_minutes_label  # MT2009_PLUS_EVENTS_7_DAYS_V1
 app.secret_key = CONF["flask_secret"]
 
 
@@ -5636,21 +5480,14 @@ MT2009_RATE_BASE_FLAGS = {
 # regen_event scales the next spawn by the event flags fastBossSpawn and
 # fastMobSpawn (0 = untouched, 1..100 = that share of the delay; playerbotify
 # adds the map-less names as the fallback to Seban's per-map ones). The page
-# shows 100 for "normal", the flag carries 0 for it. Metins apart from bosses
-# (MT2009_PLUS_REGEN_METIN_SPLIT_V1, server-patches/regenmetin): fastMetinSpawn
-# for the lines that put down a Metin stone, fastBossSpawn for the bosses; the
-# migration copied the old "Metiny i bossowie" value into the Metins' row once
-# (apply.sh), and a world without the row yet reads the bosses'.
-MT2009_REGEN_FLAGS = {"regen_metin": "fastMetinSpawn", "regen_boss": "fastBossSpawn", "regen_mob": "fastMobSpawn"}
-# The Metins' rows and the bosses' they were copied from.
-MT2009_REGEN_METIN_FALLBACK = {"fastMetinSpawn": "fastBossSpawn", "m2_metin_count": "m2_boss_count"}
+# shows 100 for "normal", the flag carries 0 for it.
+MT2009_REGEN_FLAGS = {"regen_boss": "fastBossSpawn", "regen_mob": "fastMobSpawn"}
 REGEN_MIN_PERCENT = 10
 # How many a respawn line keeps standing: regen_spawn tops each line up to
 # its own count times m2_boss_count / m2_mob_count percent (playerbotify's
 # regen_target_count; 100 = as written, 400 at most). Kiciamol, 18 September:
 # his own edit of regen.cpp was undone by every update.
-MT2009_REGEN_COUNT_FLAGS = {"count_metin": "m2_metin_count", "count_boss": "m2_boss_count",
-                            "count_mob": "m2_mob_count"}
+MT2009_REGEN_COUNT_FLAGS = {"count_boss": "m2_boss_count", "count_mob": "m2_mob_count"}
 REGEN_COUNT_CHOICES = (100, 150, 200, 250, 300, 400)
 # The world's difficulty: a level and seven waits in seconds, the flags the
 # migrator writes from .env at a start (apply.sh) - the Biologist's, the stable
@@ -5774,23 +5611,6 @@ MT2009_MOB_HP_FLAG = "m2_mob_hp"
 MOB_HP_CHOICES = (100, 80)
 MOB_HP_MIN_PERCENT, MOB_HP_MAX_PERCENT = 10, 300
 
-# MT2009_PLUS_DROP_BONUS_PCT_V1 (server-patches/dropbonus): the chance of bonus
-# lines on a dropped weapon or piece of armour - the event flag
-# m2_drop_bonus_pct, a percent of the game's own chance that every core reads
-# at its next drop (item_manager.cpp SetDropRarePct; 100, 0 or no row is the
-# game as it was made, 10..1000). The row is what a restart keeps (event flags
-# load from player.quest); web_admin.quest's DROP_BONUS makes it live.
-MT2009_DROP_BONUS_FLAG = "m2_drop_bonus_pct"
-DROP_BONUS_MIN_PERCENT, DROP_BONUS_MAX_PERCENT = 10, 1000
-
-def read_drop_bonus_mt2009():
-    """The percent as the card shows it, read as the cores read the flag."""
-    with db() as c, c.cursor() as cur:
-        cur.execute("SELECT lValue FROM player.quest WHERE dwPID=0 AND szName=%s LIMIT 1", (MT2009_DROP_BONUS_FLAG,))
-        row = cur.fetchone()
-    value = int((row["lValue"] if isinstance(row, dict) else row[0]) or 0) if row else 0
-    return 100 if value <= 0 else max(DROP_BONUS_MIN_PERCENT, min(DROP_BONUS_MAX_PERCENT, value))
-
 def read_mob_hp_mt2009():
     """The percent as the card shows it and the choices it offers: 100 and 80,
     and a percent of the operator's own from .env beside them."""
@@ -5802,16 +5622,12 @@ def read_mob_hp_mt2009():
     return {"pct": value, "choices": sorted(set(MOB_HP_CHOICES) | {value}, reverse=True)}
 
 def read_regen_mt2009():
-    """The three flags as the page shows them (100 = normal), from player.quest."""
+    """The two flags as the page shows them (100 = normal), from player.quest."""
     out = {name: 100 for name in MT2009_REGEN_FLAGS}
     with db() as c, c.cursor() as cur:
         for name, flag in MT2009_REGEN_FLAGS.items():
             cur.execute("SELECT lValue FROM player.quest WHERE dwPID=0 AND szName=%s LIMIT 1", (flag,))
             row = cur.fetchone()
-            if not row and flag in MT2009_REGEN_METIN_FALLBACK:
-                cur.execute("SELECT lValue FROM player.quest WHERE dwPID=0 AND szName=%s LIMIT 1",
-                            (MT2009_REGEN_METIN_FALLBACK[flag],))
-                row = cur.fetchone()
             if row:
                 value = int(row["lValue"] if isinstance(row, dict) else row[0])
                 if REGEN_MIN_PERCENT <= value < 100:
@@ -5819,16 +5635,12 @@ def read_regen_mt2009():
     return out
 
 def read_regen_count_mt2009():
-    """The three multipliers as percents (100 = as the game has it), from player.quest."""
+    """The two multipliers as percents (100 = as the game has it), from player.quest."""
     out = {name: 100 for name in MT2009_REGEN_COUNT_FLAGS}
     with db() as c, c.cursor() as cur:
         for name, flag in MT2009_REGEN_COUNT_FLAGS.items():
             cur.execute("SELECT lValue FROM player.quest WHERE dwPID=0 AND szName=%s LIMIT 1", (flag,))
             row = cur.fetchone()
-            if not row and flag in MT2009_REGEN_METIN_FALLBACK:
-                cur.execute("SELECT lValue FROM player.quest WHERE dwPID=0 AND szName=%s LIMIT 1",
-                            (MT2009_REGEN_METIN_FALLBACK[flag],))
-                row = cur.fetchone()
             if row:
                 value = int(row["lValue"] if isinstance(row, dict) else row[0])
                 if 100 < value <= max(REGEN_COUNT_CHOICES):
@@ -5942,24 +5754,6 @@ def persist_arezzo(cur, on):
     """The event-flag row the db core reads at its next start."""
     cur.execute("REPLACE INTO player.quest (dwPID, szName, szState, lValue) "
                 "VALUES (0, 'mt2009_arezzo_closed', '', %s)", (0 if on else 1,))
-
-# MT2009_PLUS_TELEPORT_MAP_V1 (Autor: Mur4s): the teleport map under TAB, the
-# event flag m2_teleport_map_on (1 = on; no row = off, apply.sh writes it from
-# M2_TELEPORT_MAP, default 0). Quest mapa_tab reads it.
-def read_teleport_map():
-    with db() as c, c.cursor() as cur:
-        cur.execute("SELECT lValue FROM player.quest WHERE dwPID = 0 "
-                    "AND szName = 'm2_teleport_map_on' LIMIT 1")
-        row = cur.fetchone()
-    try:
-        return {"on": 1 if (row is not None and int(row["lValue"]) == 1) else 0}
-    except (TypeError, ValueError, KeyError):
-        return {"on": 0}
-
-def persist_teleport_map(cur, on):
-    """The event-flag row the db core reads at its next start."""
-    cur.execute("REPLACE INTO player.quest (dwPID, szName, szState, lValue) "
-                "VALUES (0, 'm2_teleport_map_on', '', %s)", (1 if on else 0,))
 
 # MT2009_PLUS_SEONHAE_V1: Seon-Hae's 6th/7th bonus (playerbot_seonhae.h), the
 # event flags m2_seonhae_on (1 = on; no row = off, apply.sh writes it from
@@ -7289,19 +7083,9 @@ TPL_DASH = BASE.replace("__BODY__", """
 <a class="btn" href="{{url_for('arezzo')}}" title="{{t('tip_az')}}">{{t('az_open')}}</a>
 </div>
 <div class="card">
-<h3 class="help" title="{{t('tip_shopbig')}}">{{t('shopbig_nav')}}</h3>
-<p class="muted">{{t('shopbig_dash_hint')}}</p>
-<a class="btn" href="{{url_for('shop_big')}}" title="{{t('tip_shopbig')}}">{{t('shopbig_open')}}</a>
-</div>
-<div class="card">
 <h3 class="help" title="{{t('tip_seon')}}">{{t('seon_nav')}}</h3>
 <p class="muted">{{t('seon_dash_hint')}}</p>
 <a class="btn" href="{{url_for('seonhae')}}" title="{{t('tip_seon')}}">{{t('seon_open')}}</a>
-</div>
-<div class="card">
-<h3 class="help" title="{{t('tip_tpm')}}">{{t('tpm_nav')}}</h3>
-<p class="muted">{{t('tpm_dash_hint')}}</p>
-<a class="btn" href="{{url_for('teleport_map')}}" title="{{t('tip_tpm')}}">{{t('tpm_open')}}</a>
 </div>
 <div class="card">
 <h3 class="help" title="{{t('tip_fl')}}">{{t('fl_nav')}}</h3>
@@ -7574,16 +7358,6 @@ TPL_PLAYER = BASE.replace("__BODY__", """
 <input name="arg1" type="number" min="1" max="{{max_level}}" placeholder="{{t('new_level').format(max=max_level)}}" title="{{t('tip_level')}}" required>
 <button class="big" title="{{t('tip_level')}}">{{t('change_level')}}</button></form></div>
 
-<div class="card"><h3 class="help" title="{{t('tip_shop_slots')}}">{{t('shop_slots')}}</h3>
-<form method="post" action="{{url_for('action')}}">
-<input type="hidden" name="_csrf" value="{{csrf_token}}">
-<input type="hidden" name="pid" value="{{p.id}}"><input type="hidden" name="cmd" value="SHOP_SLOTS">
-<div class="muted">{{t('shop_slots_now').format(n=shop_slots)}}</div>
-<select name="arg1" title="{{t('tip_shop_slots')}}">
-{% for n in range(0, 5) %}<option value="{{n}}"{% if n == (shop_slots + 1 if shop_slots < 4 else 4) %} selected{% endif %}>{{t('shop_slots_opt').format(n=n, cells=20 + n*5)}}</option>{% endfor %}
-</select>
-<button class="big" title="{{t('tip_shop_slots')}}">{{t('shop_slots_set')}}</button></form></div>
-
 <div class="card"><h3 class="help" title="{{t('tip_teleport')}}">{{t('teleport')}} <span class="muted">{{t('ingame_only')}}</span></h3>
 <form method="post" action="{{url_for('action')}}">
 <input type="hidden" name="_csrf" value="{{csrf_token}}">
@@ -7680,7 +7454,7 @@ function m2rates(e,d,y){
 <input type="hidden" name="_csrf" value="{{csrf_token}}">
 <h3>⏱️ {{t('regen_title')}}</h3>
 <p class="muted">{{t('regen_help')}}</p>
-{% for key, icon in (("regen_metin", "🪨"), ("regen_boss", "👹"), ("regen_mob", "👾")) %}
+{% for key, icon in (("regen_boss", "🪨"), ("regen_mob", "👾")) %}
 <h3 style="margin-top:{{ 12 if loop.first else 18 }}px">{{icon}} {{t(key)}}</h3>
 <input id="{{key}}" name="{{key}}" type="number" min="10" max="100" step="1" value="{{regen[key]}}" required oninput="regenLabel('{{key}}')">
 <div class="muted" style="margin-top:6px">{{t('regen_faster')}}
@@ -7692,7 +7466,7 @@ function regenLabel(k){var v=parseInt(document.getElementById(k).value||"100",10
   var m=Math.round(100/v*10)/10;var s=(m%1===0)?String(m):m.toFixed(1);
   document.getElementById(k+"_mult").textContent={{ t('regen_mult') | tojson }}.replace("{n}", s);}
 function regenSet(k,v){document.getElementById(k).value=v;regenLabel(k);}
-regenLabel("regen_metin");regenLabel("regen_boss");regenLabel("regen_mob");
+regenLabel("regen_boss");regenLabel("regen_mob");
 </script>
 <button class="big" style="margin-top:18px">{{t('regen_save')}}</button>
 </form></div>
@@ -7704,7 +7478,7 @@ regenLabel("regen_metin");regenLabel("regen_boss");regenLabel("regen_mob");
 <h3>👥 {{t('count_title')}}</h3>
 <p class="muted">{{t('count_help')}}</p>
 <p class="muted">⚠️ {{t('count_warn')}}</p>
-{% for key, icon in (("count_metin", "🪨"), ("count_boss", "👹"), ("count_mob", "👾")) %}
+{% for key, icon in (("count_boss", "🪨"), ("count_mob", "👾")) %}
 <h3 style="margin-top:{{ 12 if loop.first else 18 }}px">{{icon}} {{t(key)}}</h3>
 <select id="{{key}}" name="{{key}}">
 {% for p in count_choices %}<option value="{{p}}"{% if regen_count[key] == p %} selected{% endif %}>×{{ (p / 100) | round(1) | replace(".0", "") | replace(".", ",") }}</option>{% endfor %}
@@ -7771,17 +7545,6 @@ regenLabel("regen_metin");regenLabel("regen_boss");regenLabel("regen_mob");
 <button class="big" style="margin-top:12px">{{t('mh_save')}}</button>
 </form></div>
 {% endif %}
-{% if drop_bonus %}
-<div class="card">
-<form method="post" action="{{url_for('rates_drop_bonus')}}">
-<input type="hidden" name="_csrf" value="{{csrf_token}}">
-<h3>🎲 {{t('dbonus_title')}}</h3>
-<p class="muted">{{t('dbonus_help')}}</p>
-<p><label>{{t('dbonus_label')}} <input type="number" name="pct" min="{{drop_bonus_min}}" max="{{drop_bonus_max}}" step="1" value="{{drop_bonus}}" style="width:90px"> %</label></p>
-<p class="muted">{{t('dbonus_examples')}}</p>
-<button class="big" style="margin-top:12px">{{t('dbonus_save')}}</button>
-</form></div>
-{% endif %}
 {% if channels %}
 <div class="card">
 <form method="post" action="{{url_for('rates_channels')}}">
@@ -7792,14 +7555,6 @@ regenLabel("regen_metin");regenLabel("regen_boss");regenLabel("regen_mob");
 {% if channels.on and not channels.ports_open %}<p class="muted">⚠️ {{t('ch2_ports').replace('{ports}', channels.ch2_ports)}}</p>{% endif %}
 {% if channels.pending %}<p class="muted">🕓 {{ t('ch2_pending').replace('{what}', channels.pending) }}</p>{% endif %}
 <label><input type="checkbox" name="ch2" value="1"{% if channels.want_on %} checked{% endif %}> {{t('ch2_enable')}}</label>
-<h3 style="margin-top:12px">🔀 {{t('ch34_title')}}</h3>
-<p class="muted">{{t('ch34_help')}}</p>
-<p class="muted">{{ t('ch34_warn').replace('{p3}', channels.ch3_ports).replace('{p4}', channels.ch4_ports) }}</p>
-<p>{{ t('ch34_now').replace('{ch3}', t('ch34_on') if channels.ch3 else t('ch34_off')).replace('{ch4}', t('ch34_on') if channels.ch4 else t('ch34_off')) }}</p>
-{% if channels.ch3 and not channels.ch3_ports_open %}<p class="muted">⚠️ {{t('ch34_ports').replace('{n}', '3').replace('{ports}', channels.ch3_ports)}}</p>{% endif %}
-{% if channels.ch4 and not channels.ch4_ports_open %}<p class="muted">⚠️ {{t('ch34_ports').replace('{n}', '4').replace('{ports}', channels.ch4_ports)}}</p>{% endif %}
-<label><input type="checkbox" name="ch3" value="1"{% if channels.want_ch3 %} checked{% endif %}> {{t('ch3_enable')}}</label><br>
-<label><input type="checkbox" name="ch4" value="1"{% if channels.want_ch4 %} checked{% endif %}> {{t('ch4_enable')}}</label>
 <h3 style="margin-top:12px">{{t('ch2_share')}}</h3>
 <select name="share">
 {% for p in channels.choices %}<option value="{{p}}"{% if channels.want_share == p %} selected{% endif %}>{{p}}%</option>{% endfor %}
@@ -7878,39 +7633,6 @@ TPL_AREZZO = BASE.replace("__BODY__", """
 <input type="hidden" name="_csrf" value="{{csrf_token}}">
 <p class="muted">{{t('az_help')}}</p>
 <label><input type="checkbox" name="on" value="1" {% if cur['on'] %}checked{% endif %}> {{t('az_enable')}}</label>
-<button class="big" style="margin-top:18px">{{t('easter_save')}}</button>
-</form></div>""")
-
-# MT2009_PLUS_TELEPORT_MAP_V1 (Autor: Mur4s): the teleport map's page, the Arezzo page's shape.
-TPL_TELEPORT_MAP = BASE.replace("__BODY__", """
-<p><a href="{{url_for('dash')}}">{{t('back_players')}}</a></p>
-<div class="card">
-<h3>{{t('tpm_nav')}}</h3>
-<p class="muted">{{t('tpm_intro')}}</p>
-<p><span class="badge">🧭 {{t('tpm_nav')}}: {{t('easter_on') if cur['on'] else t('easter_off')}}</span></p>
-</div>
-
-<div class="card">
-<form method="post">
-<input type="hidden" name="_csrf" value="{{csrf_token}}">
-<p class="muted">{{t('tpm_help')}}</p>
-<label><input type="checkbox" name="on" value="1" {% if cur['on'] %}checked{% endif %}> {{t('tpm_enable')}}</label>
-<button class="big" style="margin-top:18px">{{t('easter_save')}}</button>
-</form></div>""")
-
-# MT2009_PLUS_SHOP_QOL_V2: the bigger offline shops' switch, the Arezzo page's shape.
-TPL_SHOPBIG = BASE.replace("__BODY__", """
-<p><a href="{{url_for('dash')}}">{{t('back_players')}}</a></p>
-<div class="card">
-<h3>{{t('shopbig_nav')}}</h3>
-<p class="muted">{{t('shopbig_intro')}}</p>
-<p><span class="badge">🏪 {{t('shopbig_nav')}}: {{t('easter_on') if cur['on'] else t('easter_off')}}</span></p>
-</div>
-
-<div class="card">
-<form method="post">
-<input type="hidden" name="_csrf" value="{{csrf_token}}">
-<label><input type="checkbox" name="on" value="1" {% if cur['on'] %}checked{% endif %}> {{t('shopbig_enable')}}</label>
 <button class="big" style="margin-top:18px">{{t('easter_save')}}</button>
 </form></div>""")
 
@@ -8096,7 +7818,7 @@ TPL_EVENTS = BASE.replace("__BODY__", """
 <input type="hidden" name="action" value="now">
 <input type="hidden" name="kind" value="{{k}}">
 {{t('ev_now_minutes')}}
-<select name="minutes">{% for m in minutes %}<option value="{{m}}" {% if m == 60 %}selected{% endif %}>{{minutes_label(m)}}</option>{% endfor %}</select>
+<select name="minutes">{% for m in minutes %}<option value="{{m}}" {% if m == 60 %}selected{% endif %}>{{m}}</option>{% endfor %}</select>
 {% if k in world_kinds %}{{t('ev_now_' + k)}} <input type="number" name="value" min="1" max="{{world_max[k]}}" value="{{world_default[k]}}" style="width:60px">
 <select name="map">{% for m in maps %}<option value="{{m[0]}}">{{map_name(m[0])}}</option>{% endfor %}</select>
 {% elif k not in ('chest', 'bossloot', 'metinloot', 'goblin', 'catchking', 'rumi', 'yutnori', 'flower', 'easter') %}{{t('ev_now_value')}} <input type="number" name="value" min="1" max="1000" value="50" style="width:70px">{% endif %}
@@ -8296,10 +8018,10 @@ TPL_AI = BASE.replace("__BODY__", """
       </select></label>
     <label>{{t('ai_war_hours')}}
       <select name="WAR_HOURS">
-        {% for h in (1, 2, 3, 4) %}<option value="{{h}}" {% if cur.get('WAR_HOURS', 1) == h %}selected{% endif %}>{{h}} {{t('ai_war_hour_unit')}}</option>{% endfor %}
+        {% for h in (1, 2, 3, 4) %}<option value="{{h}}" {% if cur.get('WAR_HOURS', 2) == h %}selected{% endif %}>{{h}} {{t('ai_war_hour_unit')}}</option>{% endfor %}
       </select></label>
     {% if engine_mt2009 %}<label>{{t('ai_war_kills')}}
-      <input type="number" name="WAR_KILLS" min="0" max="1000" step="10" style="width:80px" value="{{cur.get('WAR_KILLS', 200)}}"> {{t('ai_war_kills_unit')}}</label>{% endif %}
+      <input type="number" name="WAR_KILLS" min="0" max="1000" step="10" style="width:80px" value="{{cur.get('WAR_KILLS', 100)}}"> {{t('ai_war_kills_unit')}}</label>{% endif %}
   </div>
   <p class="muted" style="margin:6px 0 0">{{t('ai_war_len_help')}}</p>
 </div>
@@ -8325,11 +8047,6 @@ TPL_AI = BASE.replace("__BODY__", """
   <h3 style="margin:0 0 2px">🤝 {{t('ai_haggle')}}</h3>
   <p class="muted" style="margin:0 0 6px">{{t('ai_haggle_help')}}</p>
   <label><input type="checkbox" name="HAGGLE" value="1" {% if cur.get('HAGGLE', 1) %}checked{% endif %}> {{t('ai_haggle_on')}}</label>
-</div>
-<div style="margin-bottom:18px">
-  <h3 style="margin:0 0 2px">🧱 {{t('ai_material_market')}}</h3>
-  <p class="muted" style="margin:0 0 6px">{{t('ai_material_market_help')}}</p>
-  <label><input type="checkbox" name="MATERIAL_MARKET" value="1" {% if cur.get('MATERIAL_MARKET', 0) %}checked{% endif %}> {{t('ai_haggle_on')}}</label>
 </div>
 {# Not a slider: 0 is off and 1-30 the days the core keeps its explanations;
    an absent key is the core's own seven, and saving the page untouched keeps
@@ -8399,27 +8116,6 @@ TPL_AI = BASE.replace("__BODY__", """
   <div class="muted" style="display:flex;justify-content:space-between;font-size:12px">
     <span>0 — {{t('ai_kpvp_off')}}</span><span>100 — {{t('ai_kpvp_all')}}</span>
   </div>
-</div>
-<div style="margin-bottom:18px">{# MT2009_PLUS_BOT_CHAT_V2 #}
-  <input type="hidden" name="BOTCHAT_FORM" value="1">
-  <h3 style="margin:0 0 2px">💬 {{t('ai_botchat')}}</h3>
-  <p class="muted" style="margin:0 0 6px">{{t('ai_botchat_help')}}</p>
-  <label><input type="checkbox" name="SPOT" value="1" {% if cur.get('SPOT', 1) %}checked{% endif %}> {{t('ai_spot_on')}}</label>
-  <h4 style="margin:10px 0 2px">{{t('ai_tradechat')}}
-      <span class="badge" id="v_TRADECHAT">{% if cur.get('TRADECHAT', 75) %}{{cur.get('TRADECHAT', 75)}} s{% else %}{{t('ai_tradechat_off')}}{% endif %}</span></h4>
-  <input type="range" name="TRADECHAT" id="s_TRADECHAT" min="0" max="600" step="15" value="{{cur.get('TRADECHAT', 75)}}" style="width:100%"
-         oninput="document.getElementById('v_TRADECHAT').textContent=(this.value>0?this.value+' s':'{{t('ai_tradechat_off')}}')">
-  <div class="muted" style="display:flex;justify-content:space-between;font-size:12px">
-    <span>0 — {{t('ai_tradechat_off')}}</span><span>600 s</span>
-  </div>
-  <h4 style="margin:10px 0 2px">{{t('ai_tradechat_bot')}}
-      <span class="badge" id="v_TRADECHAT_BOT">{{cur.get('TRADECHAT_BOT', 20)}} min</span></h4>
-  <input type="range" name="TRADECHAT_BOT" id="s_TRADECHAT_BOT" min="1" max="120" step="1" value="{{cur.get('TRADECHAT_BOT', 20)}}" style="width:100%"
-         oninput="document.getElementById('v_TRADECHAT_BOT').textContent=this.value+' min'">
-  <h4 style="margin:10px 0 2px">{{t('ai_shout_answer')}}
-      <span class="badge" id="v_SHOUT_ANSWER">{{cur.get('SHOUT_ANSWER', 100)}}%</span></h4>
-  <input type="range" name="SHOUT_ANSWER" id="s_SHOUT_ANSWER" min="0" max="100" step="5" value="{{cur.get('SHOUT_ANSWER', 100)}}" style="width:100%"
-         oninput="document.getElementById('v_SHOUT_ANSWER').textContent=this.value+'%'">
 </div>
 <div style="margin-bottom:18px">
   <h3 style="margin:0 0 2px">📜 {{t('ai_scroll')}}
@@ -8946,12 +8642,10 @@ def map_i18n(language=None):
     return MAP_I18N.get(language, MAP_I18N["en"])
 
 JOB_NAMES_MAP = {
-# Race numbers as the engine has them: 1 is the female Ninja, 5 the male one,
-# 3 the female Shaman, 7 the male one (Warrior and Sura: 0-3 male, 4-7 female).
- "pl": {0:"Wojownik (M)",4:"Wojowniczka (K)",5:"Ninja (M)",1:"Ninja (K)",
-        2:"Sura (M)",6:"Sura (K)",7:"Szaman (M)",3:"Szamanka (K)"},
- "en": {0:"Warrior (M)",4:"Warrior (F)",5:"Ninja (M)",1:"Ninja (F)",
-        2:"Sura (M)",6:"Sura (F)",7:"Shaman (M)",3:"Shaman (F)"},
+ "pl": {0:"Wojownik (M)",4:"Wojowniczka (K)",1:"Ninja (M)",5:"Ninja (K)",
+        2:"Sura (M)",6:"Sura (K)",3:"Szaman (M)",7:"Szamanka (K)"},
+ "en": {0:"Warrior (M)",4:"Warrior (F)",1:"Ninja (M)",5:"Ninja (F)",
+        2:"Sura (M)",6:"Sura (F)",3:"Shaman (M)",7:"Shaman (F)"},
 }
 BIOLOGIST_NAMES_EN = {
  "make_herb_lv4":"Peach Blossom","make_herb_lv7":"Bellflower",
@@ -11821,11 +11515,9 @@ def bot_sql(query):
 # engine reads to hand out the commands, and the one the player page's rank
 # card writes. That is what keeps Admin, AdminNinja, AdminSura and AdminSzaman
 # (gm_characters.sql: level 90, 500 000 000 yang and a full +9 set each) off
-# the first four places of every table. While an account has such a game
-# master, all its characters are out (MT2009_PLUS_RANKING_GM_ACCOUNT_CURRENT_V2,
-# the owner, 6 October: "cale konta GM, ale musza miec aktualnie GM na
-# koncie"); a row of a deleted or renamed GM character hides nobody.
-# Not the names: the r40250 package calls its GM [SA]Admin, and a rank
+# the first four places of every table. Not the admin account: the operator's
+# own character often lives on it ("tylko moja Tieru"), and it is a player's.
+# Not the names either: the r40250 package calls its GM [SA]Admin, and a rank
 # given in the panel goes to whatever character it is given to. A PLAYER row
 # is no rank (gm_rank_of); a GM whose rank is taken away is ranked again.
 #
@@ -11862,22 +11554,8 @@ def rankings_count_people():
 
 def _not_game_master(alias):
     ref = (alias + ".") if alias else ""
-    # MT2009_PLUS_RANKING_GM_ACCOUNT_CURRENT_V2: every character of an account
-    # that has a game master NOW - a common.gmlist row with a rank (not PLAYER)
-    # on that account whose name is a character that still exists on it (the
-    # row the engine gives the commands by, gm_new_get_level). The owner,
-    # 6 October: "cale konta GM, ale musza miec aktualnie GM na koncie; jak
-    # mieli w przeszlosci, to nadal moga wyswietlac sie w rankingu". A row left
-    # by a deleted or renamed GM character hides nobody (the 2.24.0 account-wide
-    # rule, MT2009_PLUS_RANKING_NO_GM_ACCOUNT_V1, hid such an account for good;
-    # MT2009_PLUS_RANKING_CURRENT_GM_V1 hid only the GM character itself).
-    # account_id is left unqualified for alias "": neither gmlist nor
-    # account.account has that column, so it is the ranked row's.
     return ("NOT EXISTS (SELECT 1 FROM common.gmlist rg"
-            " JOIN account.account gacc ON gacc.login = rg.mAccount"
-            " WHERE gacc.id = " + ref + "account_id AND rg.mAuthority <> 'PLAYER'"
-            " AND EXISTS (SELECT 1 FROM player.player rgp"
-            " WHERE rgp.account_id = gacc.id AND rgp.name = rg.mName))")
+            " WHERE rg.mName = " + ref + "name AND rg.mAuthority <> 'PLAYER')")
 
 
 def _ranked(alias, pct, people_only):
@@ -12201,34 +11879,6 @@ DECISION_OFF = {
        "en": "a Cor Draconis or a sash unsold through the whole markdown — for the merchant",
        "de": "ein Cor Draconis oder eine Schärpe blieb trotz vollem Preisnachlass unverkauft — für den Händler",
        "tr": "tam indirime rağmen satılmayan Cor Draconis ya da kuşak — satıcıya"},
- 205: {"pl": "przedmiot z bonusami nie sprzedał się przez dobę — do handlarza",
-       "en": "bonus gear unsold for a day — for the merchant",
-       "de": "Ausrüstung mit Boni blieb einen Tag unverkauft — für den Händler",
-       "tr": "bonuslu ekipman bir gün satılmadı — satıcıya"},
- 206: {"pl": "jeden słaby bonus — złom, do handlarza",
-       "en": "one weak bonus — scrap, for the merchant",
-       "de": "ein schwacher Bonus — Schrott, für den Händler",
-       "tr": "tek zayıf bonus — hurda, satıcıya"},
- 207: {"pl": "sklep ponad docelowe zapełnienie — najmniej warta linia, do handlarza",
-       "en": "the shop over its fill target — the least worth line, for the merchant",
-       "de": "Laden über dem Füllziel — die am wenigsten werte Zeile, für den Händler",
-       "tr": "dükkan doluluk hedefinin üstünde — en değersiz satır, satıcıya"},
- 208: {"pl": "tani towar nie sprzedał się w czasie — do handlarza",
-       "en": "cheap goods unsold in time — for the merchant",
-       "de": "billige Ware blieb unverkauft — für den Händler",
-       "tr": "ucuz mal zamanında satılmadı — satıcıya"},
- 209: {"pl": "zwykły sprzęt nie sprzedał się w czasie — do handlarza",
-       "en": "plain gear unsold in time — for the merchant",
-       "de": "einfache Ausrüstung blieb unverkauft — für den Händler",
-       "tr": "sade ekipman zamanında satılmadı — satıcıya"},
- 210: {"pl": "przestarzały sprzęt (dużo poniżej poziomu bota) — do handlarza",
-       "en": "obsolete gear (far under the bot's level) — for the merchant",
-       "de": "veraltete Ausrüstung (weit unter der Stufe des Bots) — für den Händler",
-       "tr": "eskimiş ekipman (botun seviyesinin çok altında) — satıcıya"},
- 211: {"pl": "zdjęte, by wystawić jednym stosem",
-       "en": "taken home to go up again as one stack",
-       "de": "abgenommen, um als ein Stapel neu eingestellt zu werden",
-       "tr": "tek yığın olarak yeniden koymak için alındı"},
 }
 
 # The small vocabularies a parameter can be one of ("enum:NAME").
@@ -12861,7 +12511,7 @@ DECISION_CODE_NAMES = {
   6: "OFF_JUNK_WEAPON", 7: "OFF_POTION_PACK", 8: "OFF_LOW_ARMOUR", 9: "OFF_LOW_JEWEL", 10: "OFF_HAIR_DYE",
   11: "OFF_LEVEL30_ANVIL", 12: "OFF_CHEST_PACK", 13: "OFF_GM_STONE", 14: "OFF_SCROLL_PACK", 15: "OFF_MEDAL_PACK",
   16: "OFF_HEAP_PACK", 17: "OFF_MATERIAL_PACK", 18: "OFF_LOW_GEAR", 19: "OFF_TACKLE", 20: "OFF_RECLAIM_TO_WEAR",
-  200: "OFF_BUFF_POTION", 201: "OFF_DS_LOW_GRADE", 202: "OFF_SASH_KEEPER", 203: "OFF_CRAFT_EXCHANGE", 204: "OFF_RARE_UNSOLD", 205: "OFF_UNSOLD_BONUS_GOODS", 206: "OFF_WEAK_BONUS_SCRAP", 207: "OFF_MGMT_OVER_TARGET", 208: "OFF_MGMT_CHEAP_UNSOLD", 209: "OFF_MGMT_GEAR_UNSOLD", 210: "OFF_MGMT_GEAR_OBSOLETE", 211: "OFF_MGMT_RESTACK",
+  200: "OFF_BUFF_POTION", 201: "OFF_DS_LOW_GRADE", 202: "OFF_SASH_KEEPER", 203: "OFF_CRAFT_EXCHANGE", 204: "OFF_RARE_UNSOLD",
  },
  "STEP": {
   1: "STEP_CONTEXT", 2: "STEP_BONUS_LINE", 3: "STEP_BONUS_MAX_LINES", 4: "STEP_BONUS_PERCENT", 5: "STEP_INVESTMENT",
@@ -13930,18 +13580,6 @@ def api_bot_logs(bot_name):
             "/opt/metin2/var/channel2/game1/syslog",
             "/opt/metin2/var/channel2/first/syslog",
             "/opt/metin2/var/channel2/game2/syslog",
-            # MT2009_PLUS_CH34_V1
-            "/opt/metin2/var/channel3/game1/syslog",
-            "/opt/metin2/var/channel3/first/syslog",
-            "/opt/metin2/var/channel3/game2/syslog",
-            "/opt/metin2/var/channel4/game1/syslog",
-            "/opt/metin2/var/channel4/first/syslog",
-            "/opt/metin2/var/channel4/game2/syslog",
-            # MT2009_PLUS_237_NEWCORE_V1: the map cores
-            "/opt/metin2/var/channel1/game3/syslog",
-            "/opt/metin2/var/channel2/game3/syslog",
-            "/opt/metin2/var/channel3/game3/syslog",
-            "/opt/metin2/var/channel4/game3/syslog",
         ]
         matched_lines = []
         # The whole name and not a prefix of one: "botgrom" used to match
@@ -19217,49 +18855,6 @@ def flower_event():
     return render_template_string(TPL_FLOWER, cur=cur)
 
 # MT2009_PLUS_AREZZO_MODULE_V1: the Arezzo module on or off. Live immediately, no restart.
-# MT2009_PLUS_SHOP_QOL_V2: the bigger offline shops, live through web_admin.quest
-# (SHOPBIG -> event flag m2_shop_big_on), kept in player.quest for the next start.
-@app.route("/offline_shops", methods=["GET", "POST"])
-@login_required
-def shop_big():
-    if request.method == "POST":
-        on = 1 if request.form.get("on") else 0
-        try:
-            with db() as c, c.cursor() as cur:
-                cur.execute("REPLACE INTO player.quest (dwPID, szName, szState, lValue) "
-                            "VALUES (0, 'm2_shop_big_on', '', %s)", (on,))
-        except Exception:
-            flash(t("db_down"), "error")
-            return redirect(url_for("shop_big"))
-        try:
-            status, qid = queue_and_wait("", "SHOPBIG", str(on), "", wait=RARE_LIVE_WAIT)
-        except Exception:
-            status, qid = "failed", 0
-        if status == "done":
-            flash(t("shopbig_saved_live"))
-        else:
-            if status == "timeout":
-                try:
-                    with db() as c, c.cursor() as cur:
-                        cur.execute("UPDATE player.web_admin_queue SET status='cancelled' "
-                                    "WHERE id=%s AND status='pending'", (qid,))
-                except Exception:
-                    pass
-            flash(t("easter_saved_persisted"))
-        return redirect(url_for("shop_big"))
-
-    cur_sb = {"on": 0}
-    try:
-        with db() as c, c.cursor() as cur:
-            cur.execute("SELECT lValue FROM player.quest WHERE dwPID=0 AND szState='' "
-                        "AND szName='m2_shop_big_on' LIMIT 1")
-            row = cur.fetchone()
-        if row:
-            cur_sb["on"] = 1 if int(row["lValue"] or 0) == 1 else 0
-    except Exception:
-        flash(t("db_down"), "error")
-    return render_template_string(TPL_SHOPBIG, cur=cur_sb)
-
 @app.route("/arezzo", methods=["GET", "POST"])
 @login_required
 def arezzo():
@@ -19360,45 +18955,6 @@ def seonhae():
         flash(t("db_down"), "error")
     return render_template_string(TPL_SEONHAE, cur=cur_se, drops=read_seonhae_drops())
 
-# MT2009_PLUS_TELEPORT_MAP_V1 (Autor: Mur4s): the teleport map under TAB on or off. Live immediately, no restart.
-@app.route("/teleport-map", methods=["GET", "POST"])
-@login_required
-def teleport_map():
-    if not ENGINE_MT2009:
-        flash(t("rates_no_script"), "error")
-        return redirect(url_for("dash"))
-    if request.method == "POST":
-        on = 1 if request.form.get("on") else 0
-        try:
-            with db() as c, c.cursor() as cur:
-                persist_teleport_map(cur, on)
-        except Exception:
-            flash(t("db_down"), "error")
-            return redirect(url_for("teleport_map"))
-        try:
-            status, qid = queue_and_wait("", "TPMAP", str(on), "", wait=RARE_LIVE_WAIT)
-        except Exception:
-            status, qid = "failed", 0
-        if status == "done":
-            flash(t("az_saved_live"))
-        else:
-            if status == "timeout":
-                try:
-                    with db() as c, c.cursor() as cur:
-                        cur.execute("UPDATE player.web_admin_queue SET status='cancelled' "
-                                    "WHERE id=%s AND status='pending'", (qid,))
-                except Exception:
-                    pass
-            flash(t("easter_saved_persisted"))
-        return redirect(url_for("teleport_map"))
-
-    cur_tp = {"on": 0}
-    try:
-        cur_tp = read_teleport_map()
-    except Exception:
-        flash(t("db_down"), "error")
-    return render_template_string(TPL_TELEPORT_MAP, cur=cur_tp)
-
 @app.route("/rates", methods=["GET", "POST"])
 @login_required
 def rates():
@@ -19493,7 +19049,6 @@ def rates():
     autohunt = None
     starter_chest = None
     mob_hp = None
-    drop_bonus = None
     if ENGINE_MT2009:
         try:
             regen = read_regen_mt2009()
@@ -19519,10 +19074,6 @@ def rates():
             mob_hp = read_mob_hp_mt2009()
         except Exception:
             mob_hp = None
-        try:
-            drop_bonus = read_drop_bonus_mt2009()
-        except Exception:
-            drop_bonus = None
     channels = None
     if ENGINE_MT2009:
         try:
@@ -19534,8 +19085,6 @@ def rates():
                                   difficulty=difficulty, difficulty_levels=DIFFICULTY_LEVELS,
                                   difficulty_max=DIFFICULTY_MAX_HOURS, autohunt=autohunt,
                                   starter_chest=starter_chest, mob_hp=mob_hp, channels=channels,
-                                  drop_bonus=drop_bonus, drop_bonus_min=DROP_BONUS_MIN_PERCENT,
-                                  drop_bonus_max=DROP_BONUS_MAX_PERCENT,
                                   intro_key="rates_intro_mt2009" if ENGINE_MT2009 else "rates_intro",
                                   state_msg=t("rates_st_" + st) if st in RATE_STATES else "")
 
@@ -19560,7 +19109,7 @@ def rates_bot_reprice_now():
 @app.post("/rates/regen")
 @login_required
 def rates_regen():
-    """Metin stones, bosses and ordinary monsters, respawning in a share of their
+    """Stones and bosses, and ordinary monsters, respawning in a share of their
     normal time. mt2009 only: the engine's regen_event reads the flags."""
     if not ENGINE_MT2009:
         return redirect(url_for("rates"))
@@ -19578,9 +19127,8 @@ def rates_regen():
         flash(t("db_down"), "error")
         return redirect(url_for("rates"))
     try:
-        # "metin,boss,mob" (web_admin.quest's REGEN, MT2009_PLUS_REGEN_METIN_SPLIT_V1).
-        status, qid = queue_and_wait("", "REGEN", ",".join("%d" % (0 if vals[k] >= 100 else vals[k])
-                                                           for k in ("regen_metin", "regen_boss", "regen_mob")), "",
+        status, qid = queue_and_wait("", "REGEN", "%d,%d" % (0 if vals["regen_boss"] >= 100 else vals["regen_boss"],
+                                                            0 if vals["regen_mob"] >= 100 else vals["regen_mob"]), "",
                                      wait=RATES_LIVE_WAIT)
     except Exception:
         status, qid = "failed", 0
@@ -19602,8 +19150,8 @@ def rates_regen():
 @app.post("/rates/regen_count")
 @login_required
 def rates_regen_count():
-    """How many monsters each respawn line keeps standing, Metin stones, bosses
-    and the rest each apart. mt2009 only: the engine's regen_spawn reads the flags."""
+    """How many monsters each respawn line keeps standing, stones and bosses
+    apart from the rest. mt2009 only: the engine's regen_spawn reads the flags."""
     if not ENGINE_MT2009:
         return redirect(url_for("rates"))
     vals = {}
@@ -19620,8 +19168,7 @@ def rates_regen_count():
         flash(t("db_down"), "error")
         return redirect(url_for("rates"))
     try:
-        status, qid = queue_and_wait("", "REGEN_COUNT", "%d,%d,%d" % (vals["count_metin"], vals["count_boss"],
-                                                                     vals["count_mob"]), "",
+        status, qid = queue_and_wait("", "REGEN_COUNT", "%d,%d" % (vals["count_boss"], vals["count_mob"]), "",
                                      wait=RATES_LIVE_WAIT)
     except Exception:
         status, qid = "failed", 0
@@ -19798,45 +19345,6 @@ def rates_mob_hp():
     return redirect(url_for("rates"))
 
 
-@app.post("/rates/drop_bonus")
-@login_required
-def rates_drop_bonus():
-    """MT2009_PLUS_DROP_BONUS_PCT_V1: the chance of bonus lines on a dropped
-    weapon or piece of armour. mt2009 only: every core reads the event flag at
-    its next drop. The row is what a restart keeps; web_admin.quest's
-    DROP_BONUS makes it live."""
-    if not ENGINE_MT2009:
-        return redirect(url_for("rates"))
-    raw = (request.form.get("pct", "") or "").strip()
-    if not raw.isdigit() or not DROP_BONUS_MIN_PERCENT <= int(raw) <= DROP_BONUS_MAX_PERCENT:
-        flash(t("dbonus_range"), "error")
-        return redirect(url_for("rates"))
-    value = int(raw)
-    try:
-        with db() as c, c.cursor() as cur:
-            cur.execute("REPLACE INTO player.quest (dwPID, szName, szState, lValue) "
-                        "VALUES (0, %s, '', %s)", (MT2009_DROP_BONUS_FLAG, value))
-    except Exception:
-        flash(t("db_down"), "error")
-        return redirect(url_for("rates"))
-    try:
-        status, qid = queue_and_wait("", "DROP_BONUS", str(value), "", wait=RATES_LIVE_WAIT)
-    except Exception:
-        status, qid = "failed", 0
-    if status == "done":
-        flash(t("dbonus_saved_live"))
-    else:
-        if status == "timeout":
-            try:
-                with db() as c, c.cursor() as cur:
-                    cur.execute("UPDATE player.web_admin_queue SET status='cancelled' "
-                                "WHERE id=%s AND status='pending'", (qid,))
-            except Exception:
-                pass
-        flash(t("dbonus_saved_restart"))
-    return redirect(url_for("rates"))
-
-
 # The second channel (M2_PLAYERBOT_CH2). The game container decides it at every
 # start from .env (the launcher's) or from this panel's wish in the spool,
 # whichever was made later, and writes what it runs with beside the status
@@ -19874,21 +19382,11 @@ def read_channels_state():
         base = re.match(r"\s*(\d+)", eff.get("PORTS", ""))
         base = base.group(1) if base else "13000"
     base = int(base)
-    ports = eff.get("PORTS", "%d-%d" % (base, base + 3))  # MT2009_PLUS_237_NEWCORE_V1: + the map core (game3)
+    ports = eff.get("PORTS", "%d-%d" % (base, base + 2))
     last = re.search(r"(\d+)\s*$", ports)
     ports_open = bool(last) and int(last.group(1)) >= base + 12
-    # MT2009_PLUS_CH34_V1: CH3 (BASE+20..22) and CH4 (BASE+30..32), in a row
-    # after CH2; a server from before them writes no CH3/CH4 lines (off).
-    ch3 = on and eff.get("CH3") == "1"
-    ch4 = ch3 and eff.get("CH4") == "1"
     state = {"on": on, "share": share, "ports_open": ports_open,
              "ch2_ports": "%d-%d" % (base + 10, base + 12),
-             "ch3": ch3, "ch4": ch4,
-             "ch3_ports": "%d-%d" % (base + 20, base + 22),
-             "ch4_ports": "%d-%d" % (base + 30, base + 32),
-             "ch3_ports_open": bool(last) and int(last.group(1)) >= base + 22,
-             "ch4_ports_open": bool(last) and int(last.group(1)) >= base + 32,
-             "want_ch3": ch3, "want_ch4": ch4,
              "want_on": on, "want_share": share, "pending": "", "choices": CH2_SHARE_CHOICES}
     # The wish, unless the server already runs a later choice (the launcher's,
     # written into .env after the panel's): the entrypoint notes the moment of
@@ -19898,19 +19396,11 @@ def read_channels_state():
     if wish.get("CH2") in ("0", "1") and not overtaken:
         w_on = wish.get("CH2") == "1"
         w_share = int(wish.get("SHARE", "40")) if wish.get("SHARE", "").isdigit() else 40
-        # A wish from before CH3/CH4 leaves them as the server runs them.
-        w_ch3 = w_on and (wish.get("CH3") == "1" if wish.get("CH3") in ("0", "1") else ch3)
-        w_ch4 = w_ch3 and (wish.get("CH4") == "1" if wish.get("CH4") in ("0", "1") else ch4)
         state["want_on"], state["want_share"] = w_on, w_share
-        state["want_ch3"], state["want_ch4"] = w_ch3, w_ch4
         # A wish the running server does not match yet.
-        if w_on != on or (w_on and w_share != share) or w_ch3 != ch3 or w_ch4 != ch4:
-            what = (t("ch2_on_word").replace("{share}", str(w_share)) if w_on
-                    else t("ch2_off_word"))
-            if w_on:
-                what += ", CH3 %s, CH4 %s" % (t("ch34_on") if w_ch3 else t("ch34_off"),
-                                              t("ch34_on") if w_ch4 else t("ch34_off"))
-            state["pending"] = what
+        if w_on != on or (w_on and w_share != share):
+            state["pending"] = (t("ch2_on_word").replace("{share}", str(w_share)) if w_on
+                                else t("ch2_off_word"))
     if state["want_share"] not in CH2_SHARE_CHOICES:
         state["want_share"] = 40
     return state
@@ -19927,11 +19417,7 @@ def rates_channels():
     if not raw.isdigit() or int(raw) not in CH2_SHARE_CHOICES:
         flash(t("ch2_bad"), "error")
         return redirect(url_for("rates"))
-    # MT2009_PLUS_CH34_V1: CH3 only with CH2, CH4 only with CH3.
-    ch3 = on and request.form.get("ch3", "") == "1"
-    ch4 = ch3 and request.form.get("ch4", "") == "1"
-    body = "CH2=%d\nSHARE=%d\nCH3=%d\nCH4=%d\nSET_AT=%d\n" % (
-        1 if on else 0, int(raw), 1 if ch3 else 0, 1 if ch4 else 0, int(time.time()))
+    body = "CH2=%d\nSHARE=%d\nSET_AT=%d\n" % (1 if on else 0, int(raw), int(time.time()))
     tmp = CHANNELS_WISH + ".tmp"
     try:
         with open(tmp, "w", encoding="ascii") as fh:
@@ -19940,8 +19426,7 @@ def rates_channels():
     except OSError:
         flash(t("ch2_failed"), "error")
         return redirect(url_for("rates"))
-    app.logger.info("channels: CH2=%s CH3=%s CH4=%s share=%s written for the next start",
-                    int(on), int(ch3), int(ch4), raw)
+    app.logger.info("channels: CH2=%s share=%s written for the next start", int(on), raw)
     flash(t("ch2_saved"))
     return redirect(url_for("rates"))
 
@@ -20527,7 +20012,7 @@ def events_page():
             return redirect(url_for("events_page"))
         if action == "now":
             try:
-                minutes = max(5, min(10080, int(request.form.get("minutes") or 60)))
+                minutes = max(5, min(1440, int(request.form.get("minutes") or 60)))
                 value = max(1, min(1000, int(request.form.get("value") or 50)))
             except ValueError:
                 minutes, value = 60, 50
@@ -20625,13 +20110,11 @@ def ai_weights():
             vals["CATACOMB"] = 1 if request.form.get("CATACOMB") else 0
             vals["ISHOP"] = 1 if request.form.get("ISHOP") else 0
             vals["HAGGLE"] = 1 if request.form.get("HAGGLE") else 0
-            vals["MATERIAL_MARKET"] = 1 if request.form.get("MATERIAL_MARKET") else 0
         else:
             vals["TOWER"] = old.get("TOWER", 1)
             vals["CATACOMB"] = old.get("CATACOMB", 1)
             vals["ISHOP"] = old.get("ISHOP", 1)
             vals["HAGGLE"] = old.get("HAGGLE", 1)
-            vals["MATERIAL_MARKET"] = old.get("MATERIAL_MARKET", 0)
         vals["SHOP_M2"] = 1 if request.form.get("SHOP_M2") else 0
         vals["PERSONA"] = 1 if request.form.get("PERSONA") else 0
         vals["SHOUTERS"] = 1 if request.form.get("SHOUTERS") else 0
@@ -20654,20 +20137,6 @@ def ai_weights():
             vals["KINGDOMPVP"] = max(0, min(100, int(request.form.get("KINGDOMPVP", 0))))
         except (TypeError, ValueError):
             vals["KINGDOMPVP"] = 0
-        # MT2009_PLUS_BOT_CHAT_V2: a form without the chat's fields (a tab
-        # opened before they existed) keeps the file's.
-        if "BOTCHAT_FORM" in request.form:
-            vals["SPOT"] = 1 if request.form.get("SPOT") else 0
-        else:
-            vals["SPOT"] = old.get("SPOT", 1)
-        for key, lo, hi, dflt in (("TRADECHAT", 0, 3600, 75), ("TRADECHAT_BOT", 1, 240, 20), ("SHOUT_ANSWER", 0, 100, 100)):
-            try:
-                v = int(request.form.get(key, old.get(key, dflt)))
-                if key == "TRADECHAT" and 0 < v < 15:
-                    v = 15
-                vals[key] = max(lo, min(hi, v))
-            except (TypeError, ValueError):
-                vals[key] = old.get(key, dflt)
         # The three wills are on the mt2009 page alone; a form without them
         # (r40250, or a tab opened before they existed) keeps the file's.
         for key in ("BATTLEPASS", "SASH", "ALCHEMY"):
@@ -20684,18 +20153,18 @@ def ai_weights():
         except (TypeError, ValueError):
             vals["WAR_MINUTES"] = 30
         try:
-            vals["WAR_HOURS"] = max(1, min(4, int(request.form.get("WAR_HOURS", 1))))
+            vals["WAR_HOURS"] = max(1, min(4, int(request.form.get("WAR_HOURS", 2))))
         except (TypeError, ValueError):
-            vals["WAR_HOURS"] = 1
+            vals["WAR_HOURS"] = 2
         # The kills that win a war: on the mt2009 page alone; elsewhere the
         # file's value stays.
         if ENGINE_MT2009:
             try:
-                vals["WAR_KILLS"] = max(0, min(1000, int(request.form.get("WAR_KILLS", 200))))
+                vals["WAR_KILLS"] = max(0, min(1000, int(request.form.get("WAR_KILLS", 100))))
             except (TypeError, ValueError):
-                vals["WAR_KILLS"] = 200
+                vals["WAR_KILLS"] = 100
         else:
-            vals["WAR_KILLS"] = old.get("WAR_KILLS", 200)
+            vals["WAR_KILLS"] = old.get("WAR_KILLS", 100)
         for key in ("CHEST", "CHEST_STONE"):
             try:
                 vals[key] = max(0, min(1000, int(request.form.get(key))))
@@ -22294,19 +21763,7 @@ def player(pid):
             legend["colour"] = LEGEND_TIER_COLOURS.get(int(legend["tier"] or 0), "#aaa")
     except Exception:
         legend = None
-    # MT2009_PLUS_SHOP_SLOTS_PANEL_V1: the offline shop's unlocked rows, 0-4
-    shop_slots = 0
-    try:
-        with db() as c, c.cursor() as cur:
-            cur.execute("SELECT value FROM player.player_special_flag "
-                        "WHERE pid=%s AND flag='shop_unlock_slot' LIMIT 1", (pid,))
-            srow = cur.fetchone()
-        if srow:
-            shop_slots = max(0, min(4, int(srow["value"] or 0)))
-    except Exception:
-        shop_slots = 0
     return render_template_string(TPL_PLAYER, p=p, inv=inv, sessions=sessions, legend=legend,
-                                  shop_slots=shop_slots,
                                   emoji=lambda j: JOB_EMOJI.get(j, "🧑"),
                                   WINDOW_KEYS=ITEM_WINDOW_KEYS,
                                   cats=CATS,
@@ -22398,20 +21855,9 @@ def offline_apply(cur, pid, cmd, arg1, arg2, reason="timeout", name=""):
        Only ITEM / GOLD / LEVEL can be done this way. The caller must have claimed the
        queue row first, otherwise the quest could apply the same thing a second time."""
     if cmd == "GOLD":
-        # MT2009_PLUS_YANG_LIMITS_V1: a purse holds up to 100 bn (length.h GOLD_MAX).
-        cur.execute("UPDATE player.player SET gold=LEAST(100000000000,GREATEST(0,gold+%s)) WHERE id=%s", (int(arg1), pid))
+        cur.execute("UPDATE player.player SET gold=GREATEST(0,gold+%s) WHERE id=%s", (int(arg1), pid))
     elif cmd == "LEVEL":
         cur.execute("UPDATE player.player SET level=%s WHERE id=%s", (int(arg1), pid))
-    elif cmd == "SHOP_SLOTS":
-        # MT2009_PLUS_SHOP_SLOTS_PANEL_V1: the row the game core's
-        # QUERY_SPECIAL_FLAG_SAVE writes (a player's flag: aid 0; 0 = no row),
-        # read at the next login.
-        rows_open = max(0, min(4, int(arg1)))
-        if rows_open == 0:
-            cur.execute("DELETE FROM player.player_special_flag WHERE pid=%s AND flag='shop_unlock_slot'", (pid,))
-        else:
-            cur.execute("REPLACE INTO player.player_special_flag (pid, aid, flag, value) "
-                        "VALUES (%s, 0, 'shop_unlock_slot', %s)", (pid, rows_open))
     elif cmd == "ITEM":
         qty = item_qty(arg2)
         if qty is None:
@@ -22482,16 +21928,6 @@ def action():
             flash(t("level_range").format(max=MAX_LEVEL), "error")
             return redirect(url_for("player", pid=pid))
         arg1 = str(_lv)
-    elif cmd == "SHOP_SLOTS":
-        # MT2009_PLUS_SHOP_SLOTS_PANEL_V1: 0-4 rows (shop_unlock_slots.quest's MAX_UNLOCK_LEVEL)
-        try:
-            _rows = int(str(arg1).strip())
-        except (TypeError, ValueError):
-            _rows = None
-        if _rows is None or not (0 <= _rows <= 4):
-            flash(t("shop_slots_range"), "error")
-            return redirect(url_for("player", pid=pid))
-        arg1 = str(_rows)
 
     if not arg1:
         flash(t("act_novalue"), "error")

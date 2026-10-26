@@ -19,9 +19,9 @@ Group	MT2009_chest_30921
 	7	s950926	1	60 -- perly i malze glebin
 	8	s950927	1	60 -- cenny przedmiot
 	9	s951110	1	5 -- nowa bizuteria 75/90 (Rubin, Szmaragd, Szafir, Granat +0; wlasciciel 8.10, zamiast Kamienia Duszy +5)
-	10	50513	5	8 -- Kamien Duchowy x5
-	11	71284	10	8 -- Zaczarowanie Przedmiotu x10 (handlowe)
-	12	71285	4	8 -- Wzmocnienie Przedmiotu x4 (handlowe)
+	10	50513	1	8 -- Kamien Duchowy x1
+	11	71284	3	8 -- Zaczarowanie Przedmiotu x3 (handlowe)
+	12	71285	1	8 -- Wzmocnienie Przedmiotu x1 (handlowe)
 	13	s950929	1	4 -- Talizman +0 (losowy zywiol)
 }
 Group	MT2009_chest_30921_gear
@@ -71,11 +71,11 @@ Group	MT2009_chest_30921_gear
 Group	MT2009_chest_30921_misc
 {
 	Vnum	950922
-	1	27003	100	50 -- Czerwona Mikstura(D)
-	2	27006	100	50 -- Niebieska Mikstura(D)
+	1	70038	20	30 -- Peleryna Mestwa
+	2	70102	1	30 -- Fasolka Zen
 	3	50300	1	40 -- Ksiega Umiejetnosci
 	4	70037	1	15 -- Ksiega Zapomnienia
-	5	25040	5	12 -- Zwoj Blogoslawienstwa
+	5	25040	1	20 -- Zwoj Blogoslawienstwa
 	6	70014	1	10 -- Pigulka Krwi
 	7	39002	1	10 -- Pierscien Doswiadczenia
 	8	70058	1	15 -- Pierscien Teleportacji

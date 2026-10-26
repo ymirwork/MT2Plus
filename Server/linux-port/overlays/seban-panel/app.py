@@ -9689,6 +9689,337 @@ def api_items():
     return {"ok": True, "html": translated_fragment(render_template("partials/items_catalog.html", items=records)), "count_label": count_label}
 
 
+
+# =============================================================================
+# MT2009_PLUS_PLAYERBOT_CUSTOM_PRICES_V1: Ceny bazowe botów (/economy/bot-prices)
+# =============================================================================
+def ensure_playerbot_custom_price_table():
+    with db() as conn, conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS player.playerbot_custom_price (
+                price_type VARCHAR(16) NOT NULL,
+                target_id INT UNSIGNED NOT NULL,
+                price INT UNSIGNED NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (price_type, target_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        """)
+        conn.commit()
+
+
+def parse_yang_amount(val_str):
+    if not val_str:
+        return 0
+    s = str(val_str).strip().lower().replace(" ", "").replace(",", ".")
+    try:
+        if s.endswith("kkk"):
+            return int(float(s[:-3]) * 1_000_000_000)
+        elif s.endswith("kk") or s.endswith("m"):
+            unit = s[:-2] if s.endswith("kk") else s[:-1]
+            return int(float(unit) * 1_000_000)
+        elif s.endswith("k"):
+            return int(float(s[:-1]) * 1_000)
+        return int(float(s))
+    except (ValueError, TypeError):
+        return 0
+
+
+@app.route("/economy/bot-prices")
+@login_required
+def economy_bot_prices():
+    from market_preview import sheet as mp_sheet, rules as mp_rules
+    ensure_playerbot_custom_price_table()
+    rates_data = read_rates()
+    yang_rate = int(rates_data.get("yang", 100))
+    yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
+
+    # 1. Load active custom overrides from database
+    custom_rows = rows("SELECT price_type, target_id, price, updated_at FROM player.playerbot_custom_price")
+    custom_map = {(r["price_type"], int(r["target_id"])): int(r["price"]) for r in custom_rows}
+
+    # 2. Collect all needed VNUMs for names
+    needed_vnums = set(mp_sheet.MATERIALS.keys())
+    for vnum in range(28030, 28444):
+        needed_vnums.add(vnum)
+    for (ptype, tid) in custom_map.keys():
+        if ptype == "item":
+            needed_vnums.add(tid)
+
+    # Query item_proto in chunks
+    vnum_list = list(needed_vnums)
+    item_names = {}
+    item_types = {}
+    chunk_size = 500
+    for i in range(0, len(vnum_list), chunk_size):
+        chunk = vnum_list[i:i + chunk_size]
+        placeholders = ",".join(["%s"] * len(chunk))
+        q = f"SELECT vnum, locale_name, name, type FROM player.item_proto WHERE vnum IN ({placeholders})"
+        for r in rows(q, chunk):
+            vn = int(r["vnum"])
+            item_names[vn] = game_text(r.get("locale_name") or r.get("name"))
+            item_types[vn] = int(r.get("type", 0))
+
+    items = []
+    seen_keys = set()
+
+    # A. Materials from sheet
+    for vnum, def_price in mp_sheet.MATERIALS.items():
+        vnum = int(vnum)
+        key = f"item_{vnum}"
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        name = item_names.get(vnum, f"Przedmiot {vnum}")
+        has_custom = ("item", vnum) in custom_map
+        cust_price = custom_map.get(("item", vnum))
+        base_price = cust_price if has_custom else def_price
+        eff_price = int(base_price * yang_multiplier / 100)
+
+        if vnum in mp_sheet.REFINE_MATERIALS:
+            cat = "refine"
+            cat_lbl = "Ulepszacz"
+        elif (50721 <= vnum <= 50728) or (14001 <= vnum <= 14220) or "Ruda" in name or "Przetop" in name:
+            cat = "ores"
+            cat_lbl = "Ruda / Przetop"
+        else:
+            cat = "other"
+            cat_lbl = "Materiał / Inne"
+
+        items.append({
+            "key": key,
+            "price_type": "item",
+            "target_id": vnum,
+            "name": name,
+            "category": cat,
+            "category_label": cat_lbl,
+            "icon": item_icon_url(vnum),
+            "default_price": def_price,
+            "custom_price": cust_price,
+            "effective_price": eff_price,
+            "has_custom": has_custom,
+        })
+
+    # B. Soul Stones (KD)
+    for vnum in range(28030, 28444):
+        key = f"item_{vnum}"
+        if key in seen_keys:
+            continue
+        name = item_names.get(vnum)
+        if not name:
+            continue
+        seen_keys.add(key)
+        grade = mp_rules.soul_stone_grade(vnum)
+        named = mp_sheet.SOUL_STONES.get((vnum % 100, grade))
+        if named:
+            def_price = named
+        elif 0 <= grade < len(mp_sheet.SOUL_STONE_GRADES):
+            def_price = mp_sheet.SOUL_STONE_GRADES[grade]
+        else:
+            def_price = 0
+
+        has_custom = ("item", vnum) in custom_map
+        cust_price = custom_map.get(("item", vnum))
+        base_price = cust_price if has_custom else def_price
+        eff_price = int(base_price * yang_multiplier / 100)
+
+        items.append({
+            "key": key,
+            "price_type": "item",
+            "target_id": vnum,
+            "name": name,
+            "category": "kd",
+            "category_label": f"Kamień Duszy +{grade}",
+            "icon": item_icon_url(vnum),
+            "default_price": def_price,
+            "custom_price": cust_price,
+            "effective_price": eff_price,
+            "has_custom": has_custom,
+        })
+
+    # C. Skill Books (KU)
+    all_skills = {}
+    for group_skills in SKILLS.values():
+        for skill_id, skill_name in group_skills:
+            all_skills[skill_id] = skill_name
+
+    for skill_id, skill_name in all_skills.items():
+        key = f"skill_{skill_id}"
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        def_price = mp_sheet.BOOKS.get(skill_id, 100000)
+        has_custom = ("skill", skill_id) in custom_map
+        cust_price = custom_map.get(("skill", skill_id))
+        base_price = cust_price if has_custom else def_price
+        eff_price = int(base_price * yang_multiplier / 100)
+
+        items.append({
+            "key": key,
+            "price_type": "skill",
+            "target_id": skill_id,
+            "name": f"KU: {skill_name}",
+            "category": "ku",
+            "category_label": "Księga Umiejętności",
+            "icon": item_icon_url(50300),
+            "default_price": def_price,
+            "custom_price": cust_price,
+            "effective_price": eff_price,
+            "has_custom": has_custom,
+        })
+
+    # D. Any custom overrides not yet in list
+    for (ptype, tid), cust_price in custom_map.items():
+        key = f"{ptype}_{tid}"
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        if ptype == "item":
+            name = item_names.get(tid, f"Przedmiot {tid}")
+            icon = item_icon_url(tid)
+        else:
+            name = f"Umiejętność {tid}"
+            icon = item_icon_url(50300)
+        eff_price = int(cust_price * yang_multiplier / 100)
+        items.append({
+            "key": key,
+            "price_type": ptype,
+            "target_id": tid,
+            "name": name,
+            "category": "other",
+            "category_label": "Własna modyfikacja",
+            "icon": icon,
+            "default_price": 0,
+            "custom_price": cust_price,
+            "effective_price": eff_price,
+            "has_custom": True,
+        })
+
+    # Sort items: custom first, then by category, then by name
+    items.sort(key=lambda x: (not x["has_custom"], x["category"], x["name"]))
+
+    custom_count = len(custom_map)
+    count_refine = sum(1 for x in items if x["category"] == "refine")
+    count_kd = sum(1 for x in items if x["category"] == "kd")
+    count_ku = sum(1 for x in items if x["category"] == "ku")
+    count_ores = sum(1 for x in items if x["category"] == "ores")
+    count_other = sum(1 for x in items if x["category"] == "other")
+
+    return render_template(
+        "economy_bot_prices.html",
+        items=items,
+        custom_count=custom_count,
+        count_refine=count_refine,
+        count_kd=count_kd,
+        count_ku=count_ku,
+        count_ores=count_ores,
+        count_other=count_other,
+        yang_rate=yang_rate,
+        yang_multiplier=yang_multiplier
+    )
+
+
+@app.post("/economy/bot-prices/update")
+@login_required
+def economy_bot_prices_update():
+    from market_preview import rules as mp_rules
+    data = request.get_json(silent=True) or request.form
+    ptype = str(data.get("type", "item")).strip()
+    try:
+        target_id = int(data.get("target_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Nieprawidłowe ID celu."}), 400
+
+    raw_price = data.get("price", "")
+    price = parse_yang_amount(raw_price)
+
+    ensure_playerbot_custom_price_table()
+    with db() as conn, conn.cursor() as cur:
+        if price <= 0:
+            cur.execute("DELETE FROM player.playerbot_custom_price WHERE price_type = %s AND target_id = %s", (ptype, target_id))
+            conn.commit()
+            queue_bot_reprice_now()
+            rates_data = read_rates()
+            yang_rate = int(rates_data.get("yang", 100))
+            yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
+            from market_preview import sheet as mp_sheet
+            if ptype == "item":
+                def_price = mp_sheet.MATERIALS.get(target_id, 0)
+            else:
+                def_price = mp_sheet.BOOKS.get(target_id, 100000)
+            eff_price = int(def_price * yang_multiplier / 100)
+            return jsonify({
+                "ok": True,
+                "is_custom": False,
+                "price": def_price,
+                "effective_price": eff_price,
+                "message": f"Przywrócono cenę domyślną ({def_price:,} Yang) i wysłano sygnał reprice do botów."
+            })
+        else:
+            cur.execute("""
+                INSERT INTO player.playerbot_custom_price (price_type, target_id, price)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE price = VALUES(price)
+            """, (ptype, target_id, price))
+            conn.commit()
+            queue_bot_reprice_now()
+            rates_data = read_rates()
+            yang_rate = int(rates_data.get("yang", 100))
+            yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
+            eff_price = int(price * yang_multiplier / 100)
+            return jsonify({
+                "ok": True,
+                "is_custom": True,
+                "price": price,
+                "effective_price": eff_price,
+                "message": f"Zapisano cenę bazową ({price:,} Yang). Wysłano sygnał reprice do botów."
+            })
+
+
+@app.post("/economy/bot-prices/reset")
+@login_required
+def economy_bot_prices_reset():
+    from market_preview import sheet as mp_sheet, rules as mp_rules
+    data = request.get_json(silent=True) or request.form
+    ptype = str(data.get("type", "item")).strip()
+    try:
+        target_id = int(data.get("target_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Nieprawidłowe ID celu."}), 400
+
+    ensure_playerbot_custom_price_table()
+    with db() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM player.playerbot_custom_price WHERE price_type = %s AND target_id = %s", (ptype, target_id))
+        conn.commit()
+
+    queue_bot_reprice_now()
+    rates_data = read_rates()
+    yang_rate = int(rates_data.get("yang", 100))
+    yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
+    if ptype == "item":
+        def_price = mp_sheet.MATERIALS.get(target_id, 0)
+    else:
+        def_price = mp_sheet.BOOKS.get(target_id, 100000)
+    eff_price = int(def_price * yang_multiplier / 100)
+
+    return jsonify({
+        "ok": True,
+        "is_custom": False,
+        "price": def_price,
+        "effective_price": eff_price,
+        "message": f"Przywrócono cenę domyślną ({def_price:,} Yang) i wysłano sygnał reprice do botów."
+    })
+
+
+@app.post("/economy/bot-prices/reprice-all")
+@login_required
+def economy_bot_prices_reprice_all():
+    queue_bot_reprice_now()
+    return jsonify({
+        "ok": True,
+        "message": "Wysłano sygnał natychmiastowego przeliczenia cen (playerbot_reprice_now) do wszystkich rdzeni gry."
+    })
+
+
 CHAT_FEED_TYPES = ("SHOUT", "TRADE", "NOTICE")
 # Player-originated public messages reach log.chat_log directly.  Playerbots
 # broadcast without a client descriptor, so their own public output is

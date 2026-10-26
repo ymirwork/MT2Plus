@@ -128,7 +128,7 @@
       <tr id="row-{{ item.key }}" data-category="{{ item.category }}" data-has-custom="{{ '1' if item.has_custom else '0' }}" data-search="{{ item.name|lower }} {{ item.target_id }}">
         <td>
           <div class="bp-item-cell">
-            <img class="bp-item-icon" src="{{ item.icon or url_for('static', filename='icons/unknown.png') }}" alt="" loading="lazy" onerror="this.src='/static/icons/unknown.png'">
+            <img class="bp-item-icon" src="{{ item.icon or url_for('static', filename='icons/unknown.png') }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='/static/icons/unknown.png';">
             <div class="bp-item-info">
               <span class="bp-item-name">{{ item.name }}</span>
               <span class="bp-item-cat">{{ item.category_label }}</span>

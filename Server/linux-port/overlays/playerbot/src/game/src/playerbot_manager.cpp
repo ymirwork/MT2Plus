@@ -4621,6 +4621,7 @@ void RefreshPlayerBotRetireControl(DWORD dwNow)
 	s_bPlayerBotRetireBatchDone = false;
 	s_uPlayerBotRetireBatchQueued = 0;
 	s_uPlayerBotRetireRequeue = 0;
+	s_setPlayerBotRetireBatchPIDs.clear(); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 	s_dwPlayerBotRetireBatchWindowStart = dwNow;
 	s_dwPlayerBotRetireNextPickTime = 0;
 	sys_log(0, "PLAYERBOT_RETIRE: panel batch=%u count=%u window_minutes=%u shop_minutes=%u",
@@ -4660,6 +4661,7 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 		s_bPlayerBotRetireBatchResolved = true;
 		s_dwPlayerBotRetireBatchWindowStart = dwNow;
 		s_uPlayerBotRetireRequeue = 0;
+		s_setPlayerBotRetireBatchPIDs.clear(); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 
 		AccountDB::instance().DirectQuery(
 				"CREATE TABLE IF NOT EXISTS common.playerbot_retire_batch ("
@@ -4667,6 +4669,27 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 				"queued_count INT UNSIGNED NOT NULL DEFAULT 0, "
 				"started_at INT UNSIGNED NOT NULL)");
 		EnsurePlayerBotRetirePickTable();
+
+		// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: load already picked bots for this batch
+		{
+			char queryBatchPicks[256];
+			snprintf(queryBatchPicks, sizeof(queryBatchPicks),
+					"SELECT pid FROM common.playerbot_retire_pick WHERE batch_id=%u",
+					s_dwPlayerBotRetireBatchId);
+			std::unique_ptr<SQLMsg> batchPicksMsg(AccountDB::instance().DirectQuery(queryBatchPicks));
+			if (batchPicksMsg.get() && batchPicksMsg->uiSQLErrno == 0 && batchPicksMsg->Get() && batchPicksMsg->Get()->pSQLResult)
+			{
+				MYSQL_ROW bpRow;
+				while (NULL != (bpRow = mysql_fetch_row(batchPicksMsg->Get()->pSQLResult)))
+				{
+					DWORD bpPid = 0;
+					if (bpRow[0])
+						str_to_number(bpPid, bpRow[0]);
+					if (bpPid != 0)
+						s_setPlayerBotRetireBatchPIDs.insert(bpPid);
+				}
+			}
+		}
 
 		char query[160];
 		snprintf(query, sizeof(query),
@@ -4724,26 +4747,40 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 	if (s_bPlayerBotRetireBatchDone || dwNow < s_dwPlayerBotRetireNextPickTime)
 		return;
 
-	// The level table, all active bots on both channels, by level. "The middle"
+	// The level table, all active bots on this core, by level. "The middle"
 	// is the 35th to the 65th percentile of it: not the best, not the worst.
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V2:
+	// - Exclude bots already picked in this batch.
+	// - Exclude bots below s_bPlayerBotRetireMinLevel (default 25) so newly spawned/reset bots
+	//   do not pollute the percentile pool.
+	// - Query real-time in-game level from LPCHARACTER and sync m_mapBotAccounts.
 	std::vector<std::pair<BYTE, DWORD> > live;
 	for (TPlayerBotAccountMap::const_iterator it = m_mapBotAccounts.begin();
 			it != m_mapBotAccounts.end(); ++it)
 	{
-		// "Active" = in this core's world: since 2.0.84 (upstream's second channel) the account map
-		// has no bActive, and only this channel's scheduled bots can be picked anyway.
 		if (it->second.bChannel != g_bChannel || m_setScheduledBots.find(it->first) == m_setScheduledBots.end() ||
-				IsPlayerBotRetiring(it->first))
+				IsPlayerBotRetiring(it->first) ||
+				s_setPlayerBotRetireBatchPIDs.find(it->first) != s_setPlayerBotRetireBatchPIDs.end())
 			continue;
-		live.push_back(std::make_pair(it->second.bLevel, it->first));
+		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(it->first);
+		const BYTE level = ch ? (BYTE)ch->GetLevel() : it->second.bLevel;
+		if (level < s_bPlayerBotRetireMinLevel)
+			continue;
+		if (ch && it->second.bLevel != level)
+		{
+			TPlayerBotAccountMap::iterator accIt = m_mapBotAccounts.find(it->first);
+			if (accIt != m_mapBotAccounts.end())
+				accIt->second.bLevel = level;
+		}
+		live.push_back(std::make_pair(level, it->first));
 	}
 	// Too small a world for "the middle" to mean anything.
 	if (live.size() < 10)
 	{
 		s_dwPlayerBotRetireNextPickTime = dwNow + 60000;
 		PlayerBotLogThrottled("retire_small_world", dwNow,
-				"PLAYERBOT_RETIRE: only %u bots on this core, at least 10 are needed to pick",
-				(unsigned int)live.size());
+				"PLAYERBOT_RETIRE: only %u bots of level >= %u on this core, at least 10 are needed to pick",
+				(unsigned int)live.size(), (unsigned int)s_bPlayerBotRetireMinLevel);
 		return;
 	}
 	std::sort(live.begin(), live.end());
@@ -4795,10 +4832,14 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 		for (size_t i = 0; i < live.size(); ++i)
 		{
 			const DWORD pid = live[i].second;
-			if (m_mapBots.find(pid) == m_mapBots.end())
+			// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: never pick a bot already in this batch
+			if (m_mapBots.find(pid) == m_mapBots.end() ||
+					s_setPlayerBotRetireBatchPIDs.find(pid) != s_setPlayerBotRetireBatchPIDs.end())
 				continue;
 			LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
 			if (!ch || !ch->IsItemLoaded())
+				continue;
+			if (ch->GetLevel() < s_bPlayerBotRetireMinLevel)
 				continue;
 			if (IsPlayerBotShouterPID(pid) || IsPlayerBotMedalShouterPID(pid) ||
 					IsPlayerBotLegendTier(GetPlayerBotLegendTier(pid)) || GetPlayerBotLegendNameSlot(ch->GetName()) >= 0 ||
@@ -4868,6 +4909,7 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 		return;
 	}
 
+	s_setPlayerBotRetireBatchPIDs.insert(dwPID); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 	TPlayerBotRetireEntry entry;
 	entry.dwBatchId = s_dwPlayerBotRetireBatchId;
 	entry.dwPickedAt = dwNow;

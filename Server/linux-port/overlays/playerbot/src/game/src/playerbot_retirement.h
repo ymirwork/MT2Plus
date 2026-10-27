@@ -71,7 +71,12 @@ DWORD s_dwPlayerBotRetireCount = 0;
 DWORD s_dwPlayerBotRetireBatchId = 0;
 DWORD s_dwPlayerBotRetireWindowMs = 24u * 3600000u;
 DWORD s_dwPlayerBotRetireShopMs = 3600000u;
+BYTE  s_bPlayerBotRetireMinLevel = 10; // MT2009_PLUS_BOT_RETIREMENT_FIX_V2: minimum level to be eligible for retirement
 bool  s_bPlayerBotRetireConfigLoaded = false;
+
+// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: track bots already picked in the active batch
+// so a bot can never be picked more than once in the same batch.
+std::set<DWORD> s_setPlayerBotRetireBatchPIDs;
 
 // A pick that could not be carried out (no stall in 30 minutes, or the bot
 // never logged in) is called off; the scheduler gives its place to another bot.
@@ -125,10 +130,18 @@ void LoadPlayerBotRetireConfig()
 		if (h > 0)
 			s_dwPlayerBotRetireShopMs = (DWORD)h * 3600000u;
 	}
-	sys_log(0, "PLAYERBOT_RETIRE: count=%u batch_id=%u window_minutes=%u shop_minutes=%u",
+	const char* minLevel = std::getenv("PLAYERBOT_RETIRE_MIN_LEVEL");
+	if (minLevel && *minLevel)
+	{
+		int ml = std::atoi(minLevel);
+		if (ml >= 1 && ml <= 120)
+			s_bPlayerBotRetireMinLevel = (BYTE)ml;
+	}
+	sys_log(0, "PLAYERBOT_RETIRE: count=%u batch_id=%u window_minutes=%u shop_minutes=%u min_level=%u",
 			(unsigned int)s_dwPlayerBotRetireCount, (unsigned int)s_dwPlayerBotRetireBatchId,
 			(unsigned int)(s_dwPlayerBotRetireWindowMs / 60000u),
-			(unsigned int)(s_dwPlayerBotRetireShopMs / 60000u));
+			(unsigned int)(s_dwPlayerBotRetireShopMs / 60000u),
+			(unsigned int)s_bPlayerBotRetireMinLevel);
 }
 
 // SHOPPING   picked; getting to a market pitch, or waiting for shop creation
@@ -444,14 +457,19 @@ bool RecordPlayerBotRetirePick(DWORD dwPlayerID, DWORD dwBatchId, const char* ps
 	}
 	escapedName[o] = '\0';
 
-	char query[512];
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: if already picked in this batch, never overwrite with a lower level
+	char query[640];
 	snprintf(query, sizeof(query),
 			"INSERT INTO common.playerbot_retire_pick (pid, batch_id, name, level, picked_at, stage) "
 			"VALUES (%u, %u, '%s', %u, UNIX_TIMESTAMP(), 'shopping') "
 			"ON DUPLICATE KEY UPDATE batch_id=VALUES(batch_id), name=VALUES(name), "
-			"level=VALUES(level), picked_at=VALUES(picked_at), stage='shopping', reset_at=NULL",
+			"level=IF(batch_id=VALUES(batch_id), GREATEST(level, VALUES(level)), VALUES(level)), "
+			"picked_at=VALUES(picked_at), stage='shopping', reset_at=NULL",
 			dwPlayerID, dwBatchId, escapedName, (unsigned int)bLevel);
-	return PlayerBotRetireQuery(query);
+	if (!PlayerBotRetireQuery(query))
+		return false;
+	s_setPlayerBotRetireBatchPIDs.insert(dwPlayerID);
+	return true;
 }
 
 // Called once, on the first tick, whatever the current .env says: a restart in
@@ -510,6 +528,7 @@ void RecoverPlayerBotRetirements(DWORD dwNow)
 			entry.dwPurgeAt = dwNow + PLAYERBOT_RETIRE_PURGE_DELAY_MS;
 		}
 		s_mapPlayerBotRetiring[pid] = entry;
+		s_setPlayerBotRetireBatchPIDs.insert(pid); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 		++recovered;
 	}
 	if (recovered)
@@ -1115,7 +1134,10 @@ bool IsPlayerBotRetirementCandidateInner(LPCHARACTER ch, BYTE bLevelLo, BYTE bLe
 {
 	if (!ch || ch->IsDead() || ch->IsStun() || !ch->IsItemLoaded())
 		return false;
-	if (ch->GetLevel() < bLevelLo || ch->GetLevel() > bLevelHi)
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: minimum level guard and single-pick-per-batch guard
+	if (ch->GetLevel() < s_bPlayerBotRetireMinLevel || ch->GetLevel() < bLevelLo || ch->GetLevel() > bLevelHi)
+		return false;
+	if (s_setPlayerBotRetireBatchPIDs.find(ch->GetPlayerID()) != s_setPlayerBotRetireBatchPIDs.end())
 		return false;
 	// MT2009_PLUS_MEDAL_SHOUTERS_V1: a krzykacz keeps its name and its life -
 	// apka2009's three and Tieru's.

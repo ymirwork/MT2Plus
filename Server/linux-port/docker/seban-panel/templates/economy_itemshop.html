@@ -1,12 +1,808 @@
-{% extends 'base.html' %}{% block title %}ItemShop · {{panel_brand}}{% endblock %}{% block content %}
-<p class="eyebrow">GOSPODARKA · ITEMSHOP</p><h1>🪙 Smocze Monety i ItemShop</h1><p class="muted">Stan walut kont oraz historia zakupów z natywnego ItemShopu.</p>
-<section class="cards compact"><article><span>Smocze Monety w obiegu</span><strong>{{'{:,}'.format(totals.cash or 0).replace(',',' ')}}</strong><small>{{totals.cash_accounts or 0}} kont z saldem</small></article><article><span>Smocze Znaki w obiegu</span><strong>{{'{:,}'.format(totals.mileage or 0).replace(',',' ')}}</strong><small>{{totals.mileage_accounts or 0}} kont z saldem</small></article><article><span>Zakupy ItemShop</span><strong>{{purchases|length}}</strong><small>ostatnie zarejestrowane transakcje</small></article><article><span>Popularne pozycje</span><strong>{{popular|length}}</strong><small>różnych kupowanych przedmiotów</small></article></section>
-<section class="grid two"><article class="panel"><h2>Najwięcej Smoczych Monet</h2><canvas id="cashChart"></canvas></article><article class="panel"><h2>Zakupy w ostatnich 14 dniach</h2><canvas id="dailyChart"></canvas></article></section>
-<section class="grid two"><article class="panel"><h2>Top konta — Smocze Monety</h2><table><thead><tr><th>#</th><th>Konto</th><th>Monety</th><th>Znaki</th></tr></thead><tbody>{% for row in top_cash %}<tr><td>{{loop.index}}</td><td>{% if not (row.login or '').startswith('playerbot_') %}<span title="Konto gracza">👤</span> {% endif %}{{row.login}}</td><td><b>{{'{:,}'.format(row.cash).replace(',',' ')}}</b></td><td>{{'{:,}'.format(row.mileage).replace(',',' ')}}</td></tr>{% else %}<tr><td colspan="4" class="muted">Brak kont z monetami.</td></tr>{% endfor %}</tbody></table></article>
-<article class="panel"><h2>Najwięcej Smoczych Znaków</h2><table><thead><tr><th>#</th><th>Konto</th><th>Znaki</th></tr></thead><tbody>{% for row in top_mileage %}<tr><td>{{loop.index}}</td><td>{% if not (row.login or '').startswith('playerbot_') %}<span title="Konto gracza">👤</span> {% endif %}{{row.login}}</td><td><b>{{'{:,}'.format(row.mileage).replace(',',' ')}}</b></td></tr>{% else %}<tr><td colspan="3" class="muted">Brak kont ze znakami.</td></tr>{% endfor %}</tbody></table></article></section>
-<section class="panel"><h2>Ostatnie zakupy w ItemShopie</h2><table><thead><tr><th>Kiedy</th><th>Kupujący</th><th>Przedmiot</th></tr></thead><tbody>{% for row in purchases %}<tr><td>{{row.date_of_buy}}</td><td>{{row.buyer_name}}</td><td>{{row.item_name}}</td></tr>{% else %}<tr><td colspan="3" class="muted">Nie ma jeszcze zapisanych zakupów w ItemShopie.</td></tr>{% endfor %}</tbody></table></section>
+{% extends 'base.html' %}
+{# MT2009_PLUS_ITEMSHOP_UPGRADE_V1: "ItemShop i Smocze Monety" overhaul #}
+{% block title %}ItemShop i Smocze Monety · {{ panel_brand }}{% endblock %}
+{% block content %}
+<style>
+.is-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.is-actions-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.is-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.is-filter-btn { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: var(--muted, #8a94a6); padding: 7px 16px; border-radius: 20px; font-size: 13px; text-decoration: none; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 6px; }
+.is-filter-btn:hover { border-color: var(--blue2, #4979ff); color: #fff; }
+.is-filter-btn.active { background: color-mix(in srgb, var(--blue2, #4979ff) 25%, transparent); border-color: var(--blue2, #4979ff); color: #fff; font-weight: 600; }
+
+.is-stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.is-stat-card { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 14px 18px; transition: transform 0.15s ease, border-color 0.15s ease; }
+.is-stat-card:hover { transform: translateY(-2px); }
+.is-stat-card .lbl { font-size: 11px; color: var(--muted, #8a94a6); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.is-stat-card .val { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
+.is-stat-card .sub { font-size: 11px; color: var(--muted, #8a94a6); margin-top: 4px; }
+
+.is-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.is-badge-sm { background: rgba(245, 184, 61, 0.15); color: #f5b83d; border: 1px solid rgba(245, 184, 61, 0.4); }
+.is-badge-sz { background: rgba(73, 121, 255, 0.15); color: #588cff; border: 1px solid rgba(73, 121, 255, 0.4); }
+.is-badge-bot { background: rgba(255, 87, 87, 0.12); color: #ff7575; border: 1px solid rgba(255, 87, 87, 0.3); font-size: 10px; }
+.is-badge-player { background: rgba(57, 232, 144, 0.12); color: #39e890; border: 1px solid rgba(57, 232, 144, 0.3); font-size: 10px; }
+
+.is-flash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 12px; }
+.is-flash-card { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; position: relative; transition: border-color 0.15s ease, transform 0.15s ease; }
+.is-flash-card:hover { border-color: var(--blue2, #4979ff); transform: translateY(-2px); }
+.is-flash-card-top { display: flex; align-items: center; gap: 10px; }
+.is-flash-icon-box { position: relative; width: 40px; height: 40px; flex-shrink: 0; background: rgba(0,0,0,0.35); border-radius: 6px; padding: 4px; display: flex; align-items: center; justify-content: center; }
+.is-flash-icon { width: 32px; height: 32px; image-rendering: pixelated; object-fit: contain; }
+.is-flash-count { position: absolute; bottom: -2px; right: -2px; background: #111; border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 10px; font-weight: 700; padding: 0 4px; border-radius: 4px; line-height: 14px; }
+.is-flash-title { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.3; }
+.is-flash-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted, #8a94a6); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 6px; margin-top: 2px; }
+
+.is-grant-box { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 18px; }
+.is-form-group { margin-bottom: 12px; }
+.is-form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted, #8a94a6); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.is-input { width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border, #2a3246); border-radius: 6px; color: #fff; font-size: 13px; box-sizing: border-box; }
+.is-input:focus { border-color: var(--blue2, #4979ff); outline: none; }
+.is-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.is-preset-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border, #2a3246); color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; transition: all 0.15s ease; }
+.is-preset-btn:hover { background: color-mix(in srgb, var(--blue2, #4979ff) 30%, transparent); border-color: var(--blue2, #4979ff); }
+
+.is-btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.is-btn-primary { background: var(--blue2, #4979ff); color: #fff; }
+.is-btn-primary:hover { opacity: 0.9; }
+.is-btn-secondary { background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border, #2a3246); color: #fff; }
+.is-btn-secondary:hover { background: rgba(255, 255, 255, 0.14); }
+.is-btn-gold { background: #f5b83d; color: #111; }
+.is-btn-gold:hover { background: #dfa42f; }
+.is-btn-small { padding: 3px 8px; font-size: 11px; border-radius: 4px; }
+
+.is-table-wrap { overflow-x: auto; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; }
+.is-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.is-table th { padding: 10px 14px; background: rgba(0, 0, 0, 0.25); color: var(--muted, #8a94a6); font-weight: 600; border-bottom: 1px solid var(--border, #2a3246); white-space: nowrap; }
+.is-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
+.is-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+.is-item-cell { display: flex; align-items: center; gap: 10px; }
+.is-item-icon { width: 28px; height: 28px; image-rendering: pixelated; object-fit: contain; background: rgba(0,0,0,0.3); border-radius: 4px; padding: 2px; flex-shrink: 0; }
+
+.is-search-box { position: relative; min-width: 260px; }
+.is-search-box input { width: 100%; padding: 7px 14px 7px 32px; border-radius: 20px; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: #fff; font-size: 13px; box-sizing: border-box; }
+.is-search-box input:focus { border-color: var(--blue2, #4979ff); outline: none; }
+.is-search-box .icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted, #8a94a6); pointer-events: none; }
+
+.is-toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; background: #1a1e29; border: 1px solid #39e890; color: #fff; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-size: 13px; font-weight: 500; display: none; z-index: 9999; max-width: 450px; line-height: 1.4; }
+
+/* ========================================================
+   CESARSTWO (EMPIRE) THEME SPECIFIC OVERRIDES & HARMONY
+   ======================================================== */
+body[data-theme="empire"] .is-header h1 {
+  font-family: 'Cinzel', Georgia, serif;
+  color: #f6dfa0;
+  text-shadow: 0 0 14px rgba(232, 185, 63, 0.25);
+}
+body[data-theme="empire"] .eyebrow {
+  color: var(--gold, #e8b93f);
+  letter-spacing: 2px;
+  font-family: 'Cinzel', serif;
+}
+
+body[data-theme="empire"] .is-filter-btn {
+  background: #1c140d;
+  border-color: var(--edge, #4a3520);
+  color: #c9b699;
+}
+body[data-theme="empire"] .is-filter-btn:hover {
+  border-color: var(--gold, #e8b93f);
+  color: #fff;
+  background: color-mix(in srgb, var(--gold, #e8b93f) 18%, transparent);
+}
+body[data-theme="empire"] .is-filter-btn.active {
+  background: var(--gold, #e8b93f);
+  color: #201705;
+  border-color: var(--gold, #e8b93f);
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(232, 185, 63, 0.4);
+}
+
+body[data-theme="empire"] .is-stat-card {
+  background: linear-gradient(160deg, #241a12, #18110a);
+  border: 1px solid var(--edge, #4a3520);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.1), 0 4px 14px rgba(0,0,0,0.4);
+}
+body[data-theme="empire"] .is-stat-card:hover {
+  border-color: var(--gold, #e8b93f);
+  box-shadow: 0 0 12px rgba(232, 185, 63, 0.2);
+}
+body[data-theme="empire"] .is-stat-card .val {
+  color: #f6dfa0;
+  text-shadow: 0 0 10px rgba(232, 185, 63, 0.25);
+  font-family: 'Cinzel', Georgia, serif;
+}
+body[data-theme="empire"] .is-stat-card .lbl {
+  color: #a89478;
+}
+
+body[data-theme="empire"] .is-flash-card {
+  background: linear-gradient(160deg, #241a12, #18110a);
+  border: 1px solid var(--edge, #4a3520);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.08), 0 4px 12px rgba(0,0,0,0.3);
+}
+body[data-theme="empire"] .is-flash-card:hover {
+  border-color: var(--gold, #e8b93f);
+  box-shadow: 0 0 14px rgba(232, 185, 63, 0.22);
+}
+body[data-theme="empire"] .is-flash-icon-box {
+  background: #100d0a;
+  border: 1px solid var(--edge, #4a3520);
+}
+body[data-theme="empire"] .is-flash-title {
+  color: #f6dfa0;
+}
+body[data-theme="empire"] .is-flash-meta {
+  border-top-color: rgba(74, 53, 32, 0.6);
+  color: #a89478;
+}
+
+body[data-theme="empire"] .is-grant-box {
+  background: linear-gradient(160deg, #241a12, #18110a);
+  border: 1px solid var(--edge, #4a3520);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.1), 0 8px 20px rgba(0,0,0,0.4);
+}
+body[data-theme="empire"] .is-grant-box h2 {
+  font-family: 'Cinzel', Georgia, serif;
+  color: #f6dfa0;
+  text-shadow: 0 0 10px rgba(232, 185, 63, 0.2);
+}
+body[data-theme="empire"] .is-form-label {
+  color: var(--gold, #e8b93f);
+  letter-spacing: 0.5px;
+}
+body[data-theme="empire"] .is-input,
+body[data-theme="empire"] .is-search-box input {
+  background: #100d0a;
+  border: 1px solid var(--edge, #4a3520);
+  color: #f3e9d8;
+}
+body[data-theme="empire"] .is-input:focus,
+body[data-theme="empire"] .is-search-box input:focus {
+  border-color: var(--gold, #e8b93f);
+  box-shadow: 0 0 8px rgba(232, 185, 63, 0.3);
+}
+
+body[data-theme="empire"] .is-preset-btn {
+  background: #1c140d;
+  border-color: var(--edge, #4a3520);
+  color: #d9c8a8;
+}
+body[data-theme="empire"] .is-preset-btn:hover {
+  background: var(--gold, #e8b93f);
+  color: #201705;
+  border-color: var(--gold, #e8b93f);
+}
+
+body[data-theme="empire"] .is-btn-gold {
+  background: linear-gradient(135deg, #e8b93f, #c49626);
+  color: #1f1406;
+  border: 1px solid #ffd56b;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(232, 185, 63, 0.35);
+}
+body[data-theme="empire"] .is-btn-gold:hover {
+  background: linear-gradient(135deg, #f5cb5c, #d9a835);
+  box-shadow: 0 0 16px rgba(232, 185, 63, 0.5);
+}
+body[data-theme="empire"] .is-btn-primary {
+  background: linear-gradient(135deg, #c94a2a, #8a2a14);
+  border: 1px solid #e2613e;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(201, 74, 42, 0.35);
+}
+body[data-theme="empire"] .is-btn-primary:hover {
+  background: linear-gradient(135deg, #db5533, #9e3218);
+}
+body[data-theme="empire"] .is-btn-secondary {
+  background: #1c140d;
+  border-color: var(--edge, #4a3520);
+  color: #e0cfae;
+}
+body[data-theme="empire"] .is-btn-secondary:hover {
+  background: #291d13;
+  border-color: var(--gold, #e8b93f);
+  color: #fff;
+}
+
+body[data-theme="empire"] .is-table-wrap {
+  background: linear-gradient(160deg, #241a12, #18110a);
+  border: 1px solid var(--edge, #4a3520);
+  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.08);
+}
+body[data-theme="empire"] .is-table th {
+  background: rgba(18, 12, 8, 0.8);
+  color: var(--gold, #e8b93f);
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--edge, #4a3520);
+}
+body[data-theme="empire"] .is-table td {
+  border-bottom: 1px solid rgba(74, 53, 32, 0.4);
+}
+body[data-theme="empire"] .is-table tr:hover td {
+  background: color-mix(in srgb, var(--gold, #e8b93f) 8%, transparent);
+}
+body[data-theme="empire"] .is-item-icon {
+  background: #100d0a;
+  border: 1px solid var(--edge, #4a3520);
+}
+
+body[data-theme="empire"] .is-badge-sm {
+  background: rgba(232, 185, 63, 0.18);
+  color: #f6dfa0;
+  border-color: rgba(232, 185, 63, 0.45);
+}
+body[data-theme="empire"] .is-badge-sz {
+  background: rgba(77, 145, 255, 0.18);
+  color: #7cb2ff;
+  border-color: rgba(77, 145, 255, 0.45);
+}
+
+body[data-theme="empire"] .is-toast {
+  background: #1c140d;
+  border-color: var(--gold, #e8b93f);
+  color: #f6dfa0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 14px rgba(232,185,63,0.3);
+}
+</style>
+
+<div class="is-header">
+  <div>
+    <p class="eyebrow" style="margin:0 0 4px 0;">GOSPODARKA · ITEMSHOP</p>
+    <h1 style="margin:0 0 6px 0;">🪙 Smocze Monety i ItemShop</h1>
+    <p class="muted" style="margin:0;">Stan walut kont, aktywny sklep, błyskawiczne aukcje oraz rejestr zakupów w grze.</p>
+  </div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <button type="button" class="is-btn is-btn-secondary" onclick="reloadItemshopInGame(this)">
+      <span>🔄</span> Przeładuj sklep w grze
+    </button>
+    <a href="{{ url_for('dbeditor.itemshop') }}" class="is-btn is-btn-primary">
+      <span>⚙️</span> Edytor ofert i kategorii
+    </a>
+  </div>
+</div>
+
+<div class="is-actions-bar">
+  <div class="is-filters">
+    <a href="{{ url_for('economy_itemshop', view='all') }}" class="is-filter-btn {% if view == 'all' %}active{% endif %}">
+      <span>🌐</span> Wszyscy ({{ totals.cash_accounts or 0 }} kont)
+    </a>
+    <a href="{{ url_for('economy_itemshop', view='players') }}" class="is-filter-btn {% if view == 'players' %}active{% endif %}">
+      <span>👤</span> Tylko gracze
+    </a>
+    <a href="{{ url_for('economy_itemshop', view='bots') }}" class="is-filter-btn {% if view == 'bots' %}active{% endif %}">
+      <span>🤖</span> Tylko boty
+    </a>
+  </div>
+  {% if view != 'all' %}
+  <span class="muted" style="font-size:12px;">Aktywny filtr: <b>{% if view == 'players' %}Gracze (bez botów){% else %}Tylko konta botów{% endif %}</b></span>
+  {% endif %}
+</div>
+
+<div class="is-stat-cards">
+  <div class="is-stat-card">
+    <div class="lbl"><span>🪙</span> SM w obiegu</div>
+    <div class="val" style="color:#f5b83d;">{{ '{:,}'.format(totals.cash or 0).replace(',', ' ') }}</div>
+    <div class="sub">{{ totals.cash_accounts or 0 }} kont z saldem &gt; 0</div>
+  </div>
+  <div class="is-stat-card">
+    <div class="lbl"><span>🔷</span> SZ w obiegu</div>
+    <div class="val" style="color:#588cff;">{{ '{:,}'.format(totals.mileage or 0).replace(',', ' ') }}</div>
+    <div class="sub">{{ totals.mileage_accounts or 0 }} kont ze znakami</div>
+  </div>
+  <div class="is-stat-card">
+    <div class="lbl"><span>💰</span> Wydane SM w sklepie</div>
+    <div class="val">{{ '{:,}'.format(totals.total_sm_spent or 0).replace(',', ' ') }}</div>
+    <div class="sub">Łączny obrót Smoczych Monet</div>
+  </div>
+  <div class="is-stat-card">
+    <div class="lbl"><span>💎</span> Wydane SZ w sklepie</div>
+    <div class="val">{{ '{:,}'.format(totals.total_sz_spent or 0).replace(',', ' ') }}</div>
+    <div class="sub">Łączny obrót Smoczych Znaków</div>
+  </div>
+  <div class="is-stat-card">
+    <div class="lbl"><span>🛒</span> Łącznie zakupów</div>
+    <div class="val">{{ totals.total_purchases or 0 }}</div>
+    <div class="sub">Transakcji w historii ItemShopu</div>
+  </div>
+</div>
+
+{% if auctions %}
+<div class="panel" style="margin-bottom:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div>
+      <h2 style="margin:0 0 4px 0;">⚡ Aukcje Błyskawiczne i Oferty Specjalne</h2>
+      <p class="muted" style="margin:0; font-size:13px;">Aktywne oferty czasowe i limitowane z <code>common.itemshop_time_auctions</code>.</p>
+    </div>
+    <span class="is-badge is-badge-sm">{{ auctions|length }} aktywnych pozycji</span>
+  </div>
+  <div class="is-flash-grid">
+    {% for a in auctions %}
+    <div class="is-flash-card">
+      <div class="is-flash-card-top">
+        <div class="is-flash-icon-box">
+          <img class="is-flash-icon" src="{{ a.icon or url_for('static', filename='icons/unknown.png') }}" onerror="this.src='{{ url_for('static', filename='icons/unknown.png') }}'" alt="">
+          {% if a.count and a.count > 1 %}
+          <span class="is-flash-count">{{ a.count }}x</span>
+          {% endif %}
+        </div>
+        <div style="overflow:hidden;">
+          <div class="is-flash-title" title="{{ a.item_name }}">{{ a.item_name }}</div>
+          <span class="is-badge {% if a.currency_label == 'SM' %}is-badge-sm{% else %}is-badge-sz{% endif %}" style="margin-top:3px;">
+            {{ a.price }} {{ a.currency_label }}
+          </span>
+        </div>
+      </div>
+      <div class="is-flash-meta">
+        <span>Sztuk w puli: <b>{{ a.max_amount or '∞' }}</b></span>
+        <span>Limit: <b>{{ a.account_limit or 1 }}/konto</b></span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="grid two" style="margin-bottom:20px;">
+  <div class="is-grant-box">
+    <h2 style="margin:0 0 6px 0;">⚡ Szybkie doładowanie / Korekta SM i SZ</h2>
+    <p class="muted" style="margin:0 0 16px 0; font-size:13px;">Dodaj lub odejmij Smocze Monety (SM) lub Smocze Znaki (SZ) dla wskazanego konta lub postaci.</p>
+    
+    <form id="grant-form" onsubmit="submitGrant(event)">
+      <div class="is-form-group">
+        <label class="is-form-label" for="grant-target">Konto (login) lub postać (nick)</label>
+        <input type="text" id="grant-target" class="is-input" placeholder="Wpisz login konta lub nick gracza..." required>
+      </div>
+      
+      <div class="grid two" style="gap:12px; margin-bottom:12px;">
+        <div>
+          <label class="is-form-label" for="grant-currency">Waluta</label>
+          <select id="grant-currency" class="is-input">
+            <option value="cash" selected>Smocze Monety (SM / cash)</option>
+            <option value="cash_mark">Smocze Znaki (SZ / mileage)</option>
+          </select>
+        </div>
+        <div>
+          <label class="is-form-label" for="grant-amount">Kwota (+ dodaj / - odejmij)</label>
+          <input type="number" id="grant-amount" class="is-input" value="100" min="-1000000" max="1000000" required>
+        </div>
+      </div>
+
+      <div class="is-form-group">
+        <div class="is-presets">
+          <span class="muted" style="font-size:11px; align-self:center; margin-right:4px;">Szybkie kwoty:</span>
+          <button type="button" class="is-preset-btn" onclick="setGrantAmount(100)">+100</button>
+          <button type="button" class="is-preset-btn" onclick="setGrantAmount(500)">+500</button>
+          <button type="button" class="is-preset-btn" onclick="setGrantAmount(1000)">+1 000</button>
+          <button type="button" class="is-preset-btn" onclick="setGrantAmount(5000)">+5 000</button>
+          <button type="button" class="is-preset-btn" onclick="setGrantAmount(-100)">-100</button>
+          <button type="button" class="is-preset-btn" onclick="setGrantAmount(-500)">-500</button>
+        </div>
+      </div>
+
+      <div class="is-form-group">
+        <label class="is-form-label" for="grant-reason">Powód / Notatka (widoczna w logach audytu)</label>
+        <input type="text" id="grant-reason" class="is-input" placeholder="np. Doładowanie testowe, rekompensata, nagroda w evencie">
+      </div>
+
+      <button type="submit" id="grant-submit-btn" class="is-btn is-btn-gold" style="width:100%; justify-content:center; padding:10px;">
+        <span>⚡</span> Zastosuj zmianę salda
+      </button>
+    </form>
+  </div>
+
+  <div class="panel" style="margin:0;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h2 style="margin:0;">📈 Obrót ItemShop (Ostatnie 14 dni)</h2>
+      <span class="muted" style="font-size:12px;">Wydane SM i liczba zakupów</span>
+    </div>
+    <div style="position:relative; height:260px;">
+      <canvas id="dailyVolumeChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="grid two" style="margin-bottom:20px;">
+  <div class="panel" style="margin:0;">
+    <h2 style="margin:0 0 12px 0;">🏆 Top konta — Smocze Monety (SM)</h2>
+    <div class="is-table-wrap">
+      <table class="is-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Konto</th>
+            <th>SM (Monety)</th>
+            <th>SZ (Znaki)</th>
+            <th>Akcja</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_cash %}
+          <tr>
+            <td style="color:var(--muted);">{{ loop.index }}</td>
+            <td>
+              {% if (row.login or '').startswith('playerbot_') %}
+              <span class="is-badge is-badge-bot">🤖 Bot</span>
+              {% else %}
+              <span class="is-badge is-badge-player">👤 Gracz</span>
+              {% endif %}
+              <a href="{{ url_for('account_detail', aid=row.id) }}" style="color:#fff; font-weight:600; margin-left:4px;">{{ row.login }}</a>
+            </td>
+            <td><b style="color:#f5b83d;">{{ '{:,}'.format(row.cash).replace(',', ' ') }}</b></td>
+            <td style="color:var(--muted);">{{ '{:,}'.format(row.mileage).replace(',', ' ') }}</td>
+            <td>
+              <button type="button" class="is-btn is-btn-secondary is-btn-small" onclick="quickFillTarget('{{ row.login }}')" title="Doładuj to konto">
+                ⚡
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="muted" style="text-align:center; padding:18px;">Brak kont ze Smoczymi Monetami w tym widoku.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin:0;">
+    <h2 style="margin:0 0 12px 0;">🔷 Top konta — Smocze Znaki (SZ)</h2>
+    <div class="is-table-wrap">
+      <table class="is-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Konto</th>
+            <th>SZ (Znaki)</th>
+            <th>SM (Monety)</th>
+            <th>Akcja</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_mileage %}
+          <tr>
+            <td style="color:var(--muted);">{{ loop.index }}</td>
+            <td>
+              {% if (row.login or '').startswith('playerbot_') %}
+              <span class="is-badge is-badge-bot">🤖 Bot</span>
+              {% else %}
+              <span class="is-badge is-badge-player">👤 Gracz</span>
+              {% endif %}
+              <a href="{{ url_for('account_detail', aid=row.id) }}" style="color:#fff; font-weight:600; margin-left:4px;">{{ row.login }}</a>
+            </td>
+            <td><b style="color:#588cff;">{{ '{:,}'.format(row.mileage).replace(',', ' ') }}</b></td>
+            <td style="color:var(--muted);">{{ '{:,}'.format(row.cash).replace(',', ' ') }}</td>
+            <td>
+              <button type="button" class="is-btn is-btn-secondary is-btn-small" onclick="quickFillTarget('{{ row.login }}')" title="Doładuj to konto">
+                ⚡
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="muted" style="text-align:center; padding:18px;">Brak kont ze Smoczymi Znakami w tym widoku.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-bottom:20px;">
+  <h2 style="margin:0 0 6px 0;">🔥 Najbardziej dochodowe przedmioty (Top 10)</h2>
+  <p class="muted" style="margin:0 0 14px 0; font-size:13px;">Przedmioty generujące największy obrót w wybranym widoku.</p>
+  <div class="is-table-wrap">
+    <table class="is-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Przedmiot</th>
+          <th>Transakcji</th>
+          <th>Sprzedanych sztuk</th>
+          <th>Przychód SM</th>
+          <th>Przychód SZ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in popular %}
+        <tr>
+          <td style="color:var(--muted);">{{ loop.index }}</td>
+          <td>
+            <div class="is-item-cell">
+              <img class="is-item-icon" src="{{ row.icon or url_for('static', filename='icons/unknown.png') }}" onerror="this.src='{{ url_for('static', filename='icons/unknown.png') }}'" alt="">
+              <div>
+                <a href="{{ url_for('economy_item', vnum=row.vnum) }}" style="color:#fff; font-weight:600;">{{ row.item_name }}</a>
+                <div class="muted" style="font-size:11px;">VNUM: {{ row.vnum }}</div>
+              </div>
+            </div>
+          </td>
+          <td><b>{{ row.total_orders }}</b></td>
+          <td>{{ row.total_quantity }}</td>
+          <td><span style="color:#f5b83d; font-weight:600;">{{ '{:,}'.format(row.sm_revenue or 0).replace(',', ' ') }} SM</span></td>
+          <td><span style="color:#588cff; font-weight:600;">{{ '{:,}'.format(row.sz_revenue or 0).replace(',', ' ') }} SZ</span></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center; padding:18px;">Brak danych o zakupach.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+    <div>
+      <h2 style="margin:0 0 4px 0;">📜 Ostatnie zakupy w ItemShopie</h2>
+      <p class="muted" style="margin:0; font-size:13px;">Rejestr ostatnich transakcji z tabeli <code>log.itemshop</code>.</p>
+    </div>
+    <div class="is-search-box">
+      <span class="icon">🔍</span>
+      <input type="text" id="purchases-filter" placeholder="Szukaj kupującego, przedmiotu lub VNUM..." oninput="filterPurchasesTable()">
+    </div>
+  </div>
+
+  <div class="is-table-wrap">
+    <table class="is-table" id="purchases-table">
+      <thead>
+        <tr>
+          <th>Kiedy</th>
+          <th>Kupujący</th>
+          <th>Przedmiot</th>
+          <th>Ilość</th>
+          <th>Cena</th>
+          <th>Saldo przed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in purchases %}
+        <tr class="purchase-row" data-search="{{ (row.buyer_name ~ ' ' ~ row.account_login ~ ' ' ~ row.item_name ~ ' ' ~ row.vnum)|lower }}">
+          <td style="color:var(--muted); font-size:12px; white-space:nowrap;">{{ row.date_of_buy }}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:6px;">
+              {% if row.is_bot %}
+              <span class="is-badge is-badge-bot">🤖 Bot</span>
+              {% else %}
+              <span class="is-badge is-badge-player">👤 Gracz</span>
+              {% endif %}
+              {% if row.pid %}
+              <a href="{{ url_for('player', pid=row.pid) }}" style="color:#fff; font-weight:600;">{{ row.buyer_name }}</a>
+              {% else %}
+              <span style="color:#fff; font-weight:600;">{{ row.buyer_name }}</span>
+              {% endif %}
+              {% if row.account_login %}
+              <span class="muted" style="font-size:11px;">({{ row.account_login }})</span>
+              <button type="button" class="is-btn is-btn-secondary is-btn-small" style="padding:1px 5px; font-size:10px;" onclick="quickFillTarget('{{ row.account_login }}')" title="Doładuj to konto">⚡</button>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            <div class="is-item-cell">
+              <img class="is-item-icon" src="{{ row.icon or url_for('static', filename='icons/unknown.png') }}" onerror="this.src='{{ url_for('static', filename='icons/unknown.png') }}'" alt="">
+              <div>
+                <a href="{{ url_for('economy_item', vnum=row.vnum) }}" style="color:#fff; font-weight:500;">{{ row.item_name }}</a>
+                <span class="muted" style="font-size:11px; margin-left:4px;">#{{ row.vnum }}</span>
+              </div>
+            </div>
+          </td>
+          <td><b>{{ row.quantity }}</b></td>
+          <td>
+            <span class="is-badge {% if row.currency_label == 'SM' %}is-badge-sm{% else %}is-badge-sz{% endif %}">
+              {{ row.price }} {{ row.currency_label }}
+            </span>
+          </td>
+          <td style="color:var(--muted); font-family:monospace; font-size:12px;">
+            {% if row.money_before is not none %}{{ row.money_before }} {{ row.currency_label }}{% else %}-{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center; padding:20px;">Brak transakcji w ItemShopie.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="is-toast" class="is-toast"></div>
+
 <script>
-const accent=getComputedStyle(document.body).getPropertyValue('--blue2').trim();
-new Chart(document.getElementById('cashChart'),{type:'bar',data:{labels:{{top_cash|map(attribute='login')|list|tojson}},datasets:[{label:'Smocze Monety',data:{{top_cash|map(attribute='cash')|list|tojson}},backgroundColor:accent,borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{color:'#91a8c5'}},x:{ticks:{color:'#91a8c5'}}}}});
-new Chart(document.getElementById('dailyChart'),{type:'line',data:{labels:{{daily|map(attribute='label')|list|tojson}},datasets:[{label:'Zakupy',data:{{daily|map(attribute='total')|list|tojson}},borderColor:accent,backgroundColor:accent+'33',fill:true,tension:.35}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0,color:'#91a8c5'}},x:{ticks:{color:'#91a8c5'}}}}});
-</script>{% endblock %}
+function showToast(text, isError=false) {
+  const toast = document.getElementById('is-toast');
+  toast.innerText = text;
+  toast.style.borderColor = isError ? '#ff5757' : (document.body.getAttribute('data-theme') === 'empire' ? '#e8b93f' : '#39e890');
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
+function setGrantAmount(amt) {
+  document.getElementById('grant-amount').value = amt;
+}
+
+function quickFillTarget(target) {
+  const input = document.getElementById('grant-target');
+  input.value = target;
+  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  input.focus();
+}
+
+async function submitGrant(e) {
+  e.preventDefault();
+  const btn = document.getElementById('grant-submit-btn');
+  const target = document.getElementById('grant-target').value.trim();
+  const currency = document.getElementById('grant-currency').value;
+  const amount = parseInt(document.getElementById('grant-amount').value, 10);
+  const reason = document.getElementById('grant-reason').value.trim();
+
+  if (!target) {
+    showToast('Wpisz login konta lub nick postaci.', true);
+    return;
+  }
+  if (isNaN(amount) || amount === 0) {
+    showToast('Podaj prawidłową kwotę różną od zera.', true);
+    return;
+  }
+
+  btn.disabled = true;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span>⏳</span> Zapisywanie...';
+
+  try {
+    const res = await fetch('{{ url_for("economy_itemshop_grant") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: target, currency: currency, amount: amount, reason: reason })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message);
+      setTimeout(() => { window.location.reload(); }, 1200);
+    } else {
+      showToast(data.error || 'Wystąpił błąd podczas doładowania.', true);
+    }
+  } catch (err) {
+    showToast('Błąd połączenia z serwerem.', true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origText;
+  }
+}
+
+async function reloadItemshopInGame(btn) {
+  btn.disabled = true;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span>⏳</span> Odświeżanie w grze...';
+
+  try {
+    const res = await fetch('{{ url_for("economy_itemshop_reload") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message, data.warning ? true : false);
+    } else {
+      showToast(data.error || 'Nie udało się przeładować ItemShopu.', true);
+    }
+  } catch (err) {
+    showToast('Błąd połączenia z panelem.', true);
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    }, 1500);
+  }
+}
+
+function filterPurchasesTable() {
+  const query = document.getElementById('purchases-filter').value.toLowerCase().trim();
+  const rows = document.querySelectorAll('.purchase-row');
+  rows.forEach(row => {
+    const text = row.getAttribute('data-search') || '';
+    if (!query || text.includes(query)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+// Chart.js initialization - adapts dynamically to theme
+const isEmpire = document.body.getAttribute('data-theme') === 'empire';
+const dailyLabels = {{ daily|map(attribute='label')|list|tojson }};
+const dailySmVolume = {{ daily|map(attribute='sm_volume')|list|tojson }};
+const dailyOrders = {{ daily|map(attribute='total_orders')|list|tojson }};
+
+const smLineColor = isEmpire ? '#e8b93f' : '#f5b83d';
+const smAreaColor = isEmpire ? 'rgba(232, 185, 63, 0.22)' : 'rgba(245, 184, 61, 0.15)';
+const barColor = isEmpire ? '#c94a2a' : '#4979ff';
+const barFill = isEmpire ? 'rgba(201, 74, 42, 0.5)' : 'rgba(73, 121, 255, 0.4)';
+const gridColor = isEmpire ? 'rgba(74, 53, 32, 0.35)' : 'rgba(255, 255, 255, 0.05)';
+const axisTextColor = isEmpire ? '#c9b699' : '#91a8c5';
+
+const ctx = document.getElementById('dailyVolumeChart');
+if (ctx && dailyLabels.length > 0) {
+  new Chart(ctx, {
+    data: {
+      labels: dailyLabels,
+      datasets: [
+        {
+          type: 'line',
+          label: 'Obrót SM',
+          data: dailySmVolume,
+          borderColor: smLineColor,
+          backgroundColor: smAreaColor,
+          fill: true,
+          tension: 0.35,
+          yAxisID: 'ySm',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: smLineColor
+        },
+        {
+          type: 'bar',
+          label: 'Liczba zakupów',
+          data: dailyOrders,
+          backgroundColor: barFill,
+          borderColor: barColor,
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: 'yOrders'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { color: axisTextColor, boxWidth: 12, font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              if (context.dataset.yAxisID === 'ySm') {
+                return ` Obrót: ${context.raw.toLocaleString()} SM`;
+              } else {
+                return ` Zakupów: ${context.raw} transakcji`;
+              }
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: axisTextColor, font: { size: 11 } },
+          grid: { color: gridColor }
+        },
+        ySm: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: true,
+          ticks: { color: smLineColor, font: { size: 11 } },
+          grid: { color: gridColor }
+        },
+        yOrders: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: { color: barColor, precision: 0, font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -11213,35 +11213,216 @@ def season():
 
 
 
+# MT2009_PLUS_ITEMSHOP_UPGRADE_V1: "ItemShop i Smocze Monety" overhaul
 @app.route("/economy/itemshop")
 @login_required
 def economy_itemshop():
-    totals = one("""SELECT COALESCE(SUM(cash),0) cash,COALESCE(SUM(cash_mark),0) mileage,
-                       SUM(cash>0) cash_accounts,SUM(cash_mark>0) mileage_accounts
-                    FROM account.account WHERE status IN ('OK','BLOCK')""") or {}
-    top_cash = rows("""SELECT id,login,cash,cash_mark AS mileage FROM account.account
-                       WHERE status IN ('OK','BLOCK') AND cash>0 ORDER BY cash DESC,id ASC LIMIT 15""")
-    top_mileage = rows("""SELECT id,login,cash,cash_mark AS mileage FROM account.account
-                          WHERE status IN ('OK','BLOCK') AND cash_mark>0 ORDER BY cash_mark DESC,id ASC LIMIT 10""")
-    purchases = rows("""SELECT COALESCE(p.name,CONCAT('PID ',l.pid)) buyer_name,
-                        COALESCE(ip.locale_name,CONCAT('VNUM ',l.vnum)) item_name,
-                        l.time date_of_buy,l.vnum vnum_icon
-                        FROM log.itemshop l
-                        LEFT JOIN player.player p ON p.id=l.pid
-                        LEFT JOIN player.item_proto ip ON ip.vnum=l.vnum
-                        ORDER BY l.time DESC LIMIT 80""")
-    popular = rows("""SELECT l.vnum,COALESCE(ip.locale_name,CONCAT('VNUM ',l.vnum)) item_name,
-                      COUNT(*) total FROM log.itemshop l
-                      LEFT JOIN player.item_proto ip ON ip.vnum=l.vnum
-                      GROUP BY l.vnum,ip.locale_name ORDER BY total DESC,item_name LIMIT 10""")
-    daily = rows("""SELECT DATE_FORMAT(time,'%%d.%%m') label,COUNT(*) total
-                    FROM log.itemshop WHERE time>=NOW()-INTERVAL 14 DAY
-                    GROUP BY DATE(time) ORDER BY DATE(time)""")
-    for row in purchases + popular:
+    view = request.args.get("view", "all").strip().lower()
+    if view not in ("all", "players", "bots"):
+        view = "all"
+
+    if view == "players":
+        acc_filter = "AND login NOT LIKE 'playerbot_%%'"
+        log_filter = "AND (a.login IS NULL OR a.login NOT LIKE 'playerbot_%%')"
+    elif view == "bots":
+        acc_filter = "AND login LIKE 'playerbot_%%'"
+        log_filter = "AND a.login LIKE 'playerbot_%%'"
+    else:
+        acc_filter = ""
+        log_filter = ""
+
+    totals = one(f"""SELECT COALESCE(SUM(cash),0) cash, COALESCE(SUM(cash_mark),0) mileage,
+                            SUM(cash>0) cash_accounts, SUM(cash_mark>0) mileage_accounts
+                     FROM account.account WHERE status IN ('OK','BLOCK') {acc_filter}""") or {}
+
+    spent_totals = one(f"""SELECT COALESCE(SUM(CASE WHEN l.currency=1 THEN l.price ELSE 0 END), 0) AS total_sm_spent,
+                                  COALESCE(SUM(CASE WHEN l.currency=2 THEN l.price ELSE 0 END), 0) AS total_sz_spent,
+                                  COUNT(*) AS total_purchases
+                           FROM log.itemshop l
+                           LEFT JOIN account.account a ON a.id = l.aid
+                           WHERE 1=1 {log_filter}""") or {}
+    totals.update(spent_totals)
+
+    top_cash = rows(f"""SELECT id, login, cash, cash_mark AS mileage FROM account.account
+                        WHERE status IN ('OK','BLOCK') AND cash>0 {acc_filter}
+                        ORDER BY cash DESC, id ASC LIMIT 15""")
+
+    top_mileage = rows(f"""SELECT id, login, cash, cash_mark AS mileage FROM account.account
+                           WHERE status IN ('OK','BLOCK') AND cash_mark>0 {acc_filter}
+                           ORDER BY cash_mark DESC, id ASC LIMIT 10""")
+
+    purchases = rows(f"""SELECT l.pid, l.aid, l.quantity, l.price, l.currency, l.money_before,
+                                l.time AS date_of_buy, l.vnum,
+                                COALESCE(p.name, CONCAT('PID ', l.pid)) AS buyer_name,
+                                a.login AS account_login,
+                                COALESCE(ip.locale_name, CONCAT('VNUM ', l.vnum)) AS item_name
+                         FROM log.itemshop l
+                         LEFT JOIN player.player p ON p.id = l.pid
+                         LEFT JOIN account.account a ON a.id = l.aid
+                         LEFT JOIN player.item_proto ip ON ip.vnum = l.vnum
+                         WHERE 1=1 {log_filter}
+                         ORDER BY l.time DESC LIMIT 150""")
+
+    for row in purchases:
         row["item_name"] = game_text(row.get("item_name"))
+        row["is_bot"] = (row.get("account_login") or "").startswith("playerbot_")
+        row["icon"] = item_icon_url(row.get("vnum"))
+        row["currency_label"] = "SM" if row.get("currency") == 1 else "SZ"
+
+    popular = rows(f"""SELECT l.vnum, COALESCE(ip.locale_name, CONCAT('VNUM ', l.vnum)) item_name,
+                              COUNT(*) total_orders,
+                              SUM(l.quantity) AS total_quantity,
+                              SUM(CASE WHEN l.currency=1 THEN l.price ELSE 0 END) AS sm_revenue,
+                              SUM(CASE WHEN l.currency=2 THEN l.price ELSE 0 END) AS sz_revenue
+                       FROM log.itemshop l
+                       LEFT JOIN account.account a ON a.id = l.aid
+                       LEFT JOIN player.item_proto ip ON ip.vnum = l.vnum
+                       WHERE 1=1 {log_filter}
+                       GROUP BY l.vnum, ip.locale_name
+                       ORDER BY sm_revenue DESC, total_orders DESC
+                       LIMIT 10""")
+
+    for row in popular:
+        row["item_name"] = game_text(row.get("item_name"))
+        row["icon"] = item_icon_url(row.get("vnum"))
+
+    daily = rows(f"""SELECT DATE_FORMAT(l.time,'%%d.%%m') label,
+                            COUNT(*) total_orders,
+                            COALESCE(SUM(CASE WHEN l.currency=1 THEN l.price ELSE 0 END), 0) AS sm_volume,
+                            COALESCE(SUM(CASE WHEN l.currency=2 THEN l.price ELSE 0 END), 0) AS sz_volume
+                     FROM log.itemshop l
+                     LEFT JOIN account.account a ON a.id = l.aid
+                     WHERE l.time >= NOW() - INTERVAL 14 DAY {log_filter}
+                     GROUP BY DATE(l.time)
+                     ORDER BY DATE(l.time)""")
+
+    auctions = rows("""SELECT a.item_index, a.max_amount, a.account_limit, a.start_time, a.end_time,
+                              i.vnum, i.count, i.price, i.currency,
+                              COALESCE(ip.locale_name, CONCAT('VNUM ', i.vnum)) AS item_name
+                       FROM common.itemshop_time_auctions a
+                       JOIN common.itemshop_items i ON i.index = a.item_index
+                       LEFT JOIN player.item_proto ip ON ip.vnum = i.vnum
+                       WHERE a.start_time <= NOW() AND a.end_time > NOW()
+                       ORDER BY a.item_index ASC
+                       LIMIT 12""")
+    for row in auctions:
+        row["item_name"] = game_text(row.get("item_name"))
+        row["icon"] = item_icon_url(row.get("vnum"))
+        row["currency_label"] = "SZ" if str(row.get("currency") or "").upper() == "DRAGON_MARK" else "SM"
+
     return render_template("economy_itemshop.html", totals=totals, top_cash=top_cash,
                            top_mileage=top_mileage, purchases=purchases, popular=popular,
-                           daily=daily)
+                           daily=daily, auctions=auctions, view=view)
+
+
+@app.route("/economy/itemshop/grant", methods=["POST"])
+@login_required
+def economy_itemshop_grant():
+    is_json = request.is_json
+    payload = request.get_json(silent=True) or request.form
+    target = (payload.get("target") or "").strip()
+    currency = (payload.get("currency") or "cash").strip().lower()
+    reason = (payload.get("reason") or "Doładowanie przez panel").strip()
+
+    if currency not in ("cash", "cash_mark"):
+        msg = "Nieprawidłowa waluta. Wybierz SM (cash) lub SZ (cash_mark)."
+        if is_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("economy_itemshop"))
+
+    try:
+        amount = int(payload.get("amount", 0))
+    except (ValueError, TypeError):
+        msg = "Kwota musi być liczbą całkowitą."
+        if is_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("economy_itemshop"))
+
+    if amount == 0 or not (-1_000_000 <= amount <= 1_000_000):
+        msg = "Kwota musi być w zakresie od -1 000 000 do 1 000 000 (różna od zera)."
+        if is_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("economy_itemshop"))
+
+    account = one("SELECT id, login, cash, cash_mark FROM account.account WHERE login = %s LIMIT 1", (target,))
+    if not account:
+        matched_player = one("""SELECT p.id, p.name, a.id AS account_id, a.login, a.cash, a.cash_mark
+                                FROM player.player p
+                                JOIN account.account a ON a.id = p.account_id
+                                WHERE p.name = %s LIMIT 1""", (target,))
+        if matched_player:
+            account = {
+                "id": matched_player["account_id"],
+                "login": matched_player["login"],
+                "cash": matched_player["cash"],
+                "cash_mark": matched_player["cash_mark"],
+            }
+
+    if not account:
+        msg = f"Nie znaleziono konta ani postaci o nazwie '{target}'."
+        if is_json:
+            return jsonify({"ok": False, "error": msg}), 404
+        flash(msg, "error")
+        return redirect(url_for("economy_itemshop"))
+
+    acc_id = account["id"]
+    login = account["login"]
+    old_val = account[currency]
+    new_val = max(0, old_val + amount)
+
+    rows(f"UPDATE account.account SET {currency} = GREATEST(0, {currency} + %s) WHERE id = %s", (amount, acc_id))
+
+    curr_label = "Smoczych Monet (SM)" if currency == "cash" else "Smoczych Znaków (SZ)"
+    hint = f"{currency}: {amount:+d} (przed: {old_val}, po: {new_val}) - {reason}"
+    rows("INSERT INTO log.log (type, time, who, how, hint) VALUES ('ACCOUNT', NOW(), %s, 'PANEL_ITEMSHOP_GRANT', %s)",
+         (acc_id, hint))
+
+    success_msg = f"Pomyślnie zaktualizowano {curr_label} dla konta {login}: {old_val:,} → {new_val:,} ({amount:+d}).".replace(",", " ")
+    if is_json:
+        return jsonify({
+            "ok": True,
+            "message": success_msg,
+            "account_id": acc_id,
+            "login": login,
+            "currency": currency,
+            "old_value": old_val,
+            "new_value": new_val,
+            "amount": amount
+        })
+
+    flash(success_msg, "success")
+    return redirect(url_for("economy_itemshop"))
+
+
+@app.route("/economy/itemshop/reload", methods=["POST"])
+@login_required
+def economy_itemshop_reload():
+    is_json = request.is_json
+    done = False
+    try:
+        done = queue_gm_command("ISHOP_RELOAD")
+    except Exception as exc:
+        msg = f"Błąd podczas kolejkowania odświeżenia ItemShopu: {exc}"
+        if is_json:
+            return jsonify({"ok": False, "error": msg}), 500
+        flash(msg, "error")
+        return redirect(url_for("economy_itemshop"))
+
+    if done:
+        msg = "ItemShop został natychmiastowo przeładowany w grze (/reload i) przez GM IMPLEMENTOR."
+        if is_json:
+            return jsonify({"ok": True, "message": msg, "live": True})
+        flash(msg, "success")
+    else:
+        msg = "Polecenie ISHOP_RELOAD zostało zakolejkowane. Zmiany wejdą po wejściu GM IMPLEMENTOR lub restarcie gry."
+        if is_json:
+            return jsonify({"ok": True, "warning": True, "message": msg, "live": False})
+        flash(msg, "warning")
+
+    return redirect(url_for("economy_itemshop"))
 
 def read_panel_log_files(max_lines=500):
     """Newest lines first across the active log plus any rotated backups

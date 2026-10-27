@@ -9724,10 +9724,153 @@ def parse_yang_amount(val_str):
         return 0
 
 
+_BOT_PRICES_CATALOG_CACHE = {
+    "ts": 0.0,
+    "items": [],
+    "by_id": {},
+    "counts": {}
+}
+
+
+def get_bot_prices_catalog(force_reload=False):
+    global _BOT_PRICES_CATALOG_CACHE
+    now = time.time()
+    if not force_reload and _BOT_PRICES_CATALOG_CACHE["items"] and (now - _BOT_PRICES_CATALOG_CACHE["ts"]) < 3600.0:
+        return _BOT_PRICES_CATALOG_CACHE
+
+    from market_preview import sheet as mp_sheet, rules as mp_rules
+
+    with db() as conn, conn.cursor() as cur:
+        cur.execute("""
+            SELECT vnum, COALESCE(locale_name, name) AS n, type, subtype, shop_buy_price, gold
+            FROM player.item_proto
+            WHERE type != 29
+            ORDER BY vnum ASC
+        """)
+        rows_data = cur.fetchall()
+
+    items = []
+    by_id = {}
+    counts = {
+        "refine": 0, "kd": 0, "ku": 0, "books": 0, "ores": 0, "potions": 0,
+        "chests": 0, "weapons": 0, "armors": 0, "jewelry": 0, "costumes": 0,
+        "special": 0, "other": 0
+    }
+
+    for r in rows_data:
+        vn = int(r["vnum"])
+        name = game_text(r.get("n")).strip()
+        if not name or name.startswith("Noname") or name == "???":
+            continue
+        t = int(r.get("type") or 0)
+        st = int(r.get("subtype") or 0)
+
+        # Categorization
+        if vn in mp_sheet.REFINE_MATERIALS:
+            cat, cat_lbl = "refine", "Ulepszacz"
+        elif (28030 <= vn <= 28643) or t == 10:
+            g = mp_rules.soul_stone_grade(vn)
+            cat, cat_lbl = "kd", (f"Kamień Duszy +{g}" if g >= 0 else "Kamień Duszy")
+        elif (50721 <= vn <= 50728) or (14001 <= vn <= 14220) or "Ruda" in name or "Przetop" in name:
+            cat, cat_lbl = "ores", "Ruda / Przetop"
+        elif t == 1:
+            plus = vn % 10 if vn >= 10 else 0
+            cat, cat_lbl = "weapons", (f"Broń +{plus}" if (10 <= vn <= 3219) else "Broń")
+        elif t == 2 and st in (0, 1, 2):
+            lbl = "Zbroja" if st == 0 else ("Hełm" if st == 1 else "Tarcza")
+            plus = vn % 10 if vn >= 10 else 0
+            cat, cat_lbl = "armors", f"{lbl} +{plus}"
+        elif (t == 2 and st in (3, 4, 5, 6)) or t == 34:
+            sub_map = {3: "Bransoleta", 4: "Buty", 5: "Naszyjnik", 6: "Kolczyki"}
+            lbl = sub_map.get(st, "Pas" if t == 34 else "Biżuteria")
+            plus = vn % 10 if vn >= 10 else 0
+            cat, cat_lbl = "jewelry", f"{lbl} +{plus}"
+        elif t == 28 or (85001 <= vn <= 85010):
+            cat, cat_lbl = "costumes", "Kostium / Szarfa"
+        elif t in (12, 27) or (27001 <= vn <= 27320) or (27800 <= vn <= 27885) or any(w in name for w in ("Mikstura", "Ryba", "Rosy", "Rosa", "Woda ", "Eliksir")):
+            cat, cat_lbl = "potions", "Mikstura / Ryba"
+        elif t in (20, 23) or any(w in name for w in ("Skrzynia", "Szkatułka", "Pudełko", "Kuferek", "Kosz ")):
+            cat, cat_lbl = "chests", "Skrzynia / Szkatułka"
+        elif t in (17, 22) or (50301 <= vn <= 50514 and vn != 50300) or any(w in name for w in ("Instrukcja", "Zwój", "Księga")):
+            cat, cat_lbl = "books", "Księga / Zwój"
+        elif vn in mp_sheet.MATERIALS:
+            cat, cat_lbl = "refine", "Materiał"
+        elif t in (6, 16, 33, 35) or any(w in name for w in ("Pierścień", "Pieczęć", "Amulet", "Przepustka", "Dłoń ", "Rękawica")):
+            cat, cat_lbl = "special", "Specjalny / IS"
+        else:
+            cat, cat_lbl = "other", "Inne / Drop"
+
+        # Default price calculation
+        if vn in mp_sheet.MATERIALS:
+            def_price = mp_sheet.MATERIALS[vn]
+        elif (28030 <= vn <= 28643) or (28000 <= vn < 29000):
+            grade = mp_rules.soul_stone_grade(vn)
+            named = mp_sheet.SOUL_STONES.get((vn % 100, grade))
+            if named:
+                def_price = named
+            elif 0 <= grade < len(mp_sheet.SOUL_STONE_GRADES):
+                def_price = mp_sheet.SOUL_STONE_GRADES[grade]
+            else:
+                def_price = 0
+        else:
+            base = vn - (vn % 10)
+            plus = vn % 10
+            if base in mp_sheet.GEAR and 0 <= plus <= 9:
+                def_price = mp_sheet.GEAR[base][1][plus]
+            else:
+                sb = int(r.get("shop_buy_price") or 0)
+                if sb > 0:
+                    def_price = sb
+                else:
+                    def_price = int(r.get("gold") or 0)
+
+        entry = {
+            "key": f"item_{vn}",
+            "price_type": "item",
+            "target_id": vn,
+            "name": name,
+            "category": cat,
+            "category_label": cat_lbl,
+            "default_price": def_price
+        }
+        items.append(entry)
+        by_id[("item", vn)] = entry
+        counts[cat] = counts.get(cat, 0) + 1
+
+    # KU Skill Books
+    all_skills = {}
+    for group_skills in SKILLS.values():
+        for skill_id, skill_name in group_skills:
+            all_skills[skill_id] = skill_name
+
+    for skill_id, skill_name in all_skills.items():
+        def_price = mp_sheet.BOOKS.get(skill_id, 100000)
+        entry = {
+            "key": f"skill_{skill_id}",
+            "price_type": "skill",
+            "target_id": skill_id,
+            "name": f"KU: {skill_name}",
+            "category": "ku",
+            "category_label": "Księga Umiejętności",
+            "default_price": def_price
+        }
+        items.append(entry)
+        by_id[("skill", skill_id)] = entry
+        counts["ku"] = counts.get("ku", 0) + 1
+
+    _BOT_PRICES_CATALOG_CACHE = {
+        "ts": now,
+        "items": items,
+        "by_id": by_id,
+        "counts": counts
+    }
+    return _BOT_PRICES_CATALOG_CACHE
+
+
 @app.route("/economy/bot-prices")
 @login_required
 def economy_bot_prices():
-    from market_preview import sheet as mp_sheet, rules as mp_rules
+    from market_preview import rules as mp_rules
     ensure_playerbot_custom_price_table()
     rates_data = read_rates()
     yang_rate = int(rates_data.get("yang", 100))
@@ -9737,182 +9880,92 @@ def economy_bot_prices():
     custom_rows = rows("SELECT price_type, target_id, price, updated_at FROM player.playerbot_custom_price")
     custom_map = {(r["price_type"], int(r["target_id"])): int(r["price"]) for r in custom_rows}
 
-    # 2. Collect all needed VNUMs for names
-    needed_vnums = set(mp_sheet.MATERIALS.keys())
-    for vnum in range(28030, 28444):
-        needed_vnums.add(vnum)
-    for (ptype, tid) in custom_map.keys():
-        if ptype == "item":
-            needed_vnums.add(tid)
+    # 2. Get base catalog (cached in memory)
+    catalog = get_bot_prices_catalog()
+    raw_items = catalog["items"]
+    counts = dict(catalog["counts"])
+    counts["custom"] = len(custom_map)
+    counts["all"] = len(raw_items)
 
-    # Query item_proto in chunks
-    vnum_list = list(needed_vnums)
-    item_names = {}
-    item_types = {}
-    chunk_size = 500
-    for i in range(0, len(vnum_list), chunk_size):
-        chunk = vnum_list[i:i + chunk_size]
-        placeholders = ",".join(["%s"] * len(chunk))
-        q = f"SELECT vnum, locale_name, name, type FROM player.item_proto WHERE vnum IN ({placeholders})"
-        for r in rows(q, chunk):
-            vn = int(r["vnum"])
-            item_names[vn] = game_text(r.get("locale_name") or r.get("name"))
-            item_types[vn] = int(r.get("type", 0))
+    # 3. Read query filters
+    active_cat = str(request.args.get("cat", "")).strip().lower()
+    search_q = str(request.args.get("q", "")).strip()
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (ValueError, TypeError):
+        page = 1
 
-    items = []
-    seen_keys = set()
+    if not active_cat and not search_q:
+        active_cat = "refine"
 
-    # A. Materials from sheet
-    for vnum, def_price in mp_sheet.MATERIALS.items():
-        vnum = int(vnum)
-        key = f"item_{vnum}"
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-        name = item_names.get(vnum, f"Przedmiot {vnum}")
-        has_custom = ("item", vnum) in custom_map
-        cust_price = custom_map.get(("item", vnum))
-        base_price = cust_price if has_custom else def_price
+    # 4. Filter items
+    search_lower = search_q.lower()
+    filtered = []
+    for base_item in raw_items:
+        ptype = base_item["price_type"]
+        tid = base_item["target_id"]
+        has_custom = (ptype, tid) in custom_map
+        cust_price = custom_map.get((ptype, tid))
+        base_price = cust_price if has_custom else base_item["default_price"]
         eff_price = int(base_price * yang_multiplier / 100)
 
-        if vnum in mp_sheet.REFINE_MATERIALS:
-            cat = "refine"
-            cat_lbl = "Ulepszacz"
-        elif (50721 <= vnum <= 50728) or (14001 <= vnum <= 14220) or "Ruda" in name or "Przetop" in name:
-            cat = "ores"
-            cat_lbl = "Ruda / Przetop"
+        # Category match
+        if search_q:
+            if active_cat == "custom" and not has_custom:
+                continue
+            elif active_cat and active_cat not in ("all", "custom") and base_item["category"] != active_cat:
+                continue
+
+            # Search text match (name or id)
+            if search_lower not in base_item["name"].lower() and search_lower not in str(tid):
+                continue
         else:
-            cat = "other"
-            cat_lbl = "Materiał / Inne"
+            if active_cat == "custom":
+                if not has_custom:
+                    continue
+            elif active_cat and active_cat != "all":
+                if base_item["category"] != active_cat:
+                    continue
 
-        items.append({
-            "key": key,
-            "price_type": "item",
-            "target_id": vnum,
-            "name": name,
-            "category": cat,
-            "category_label": cat_lbl,
-            "icon": item_icon_url(vnum),
-            "default_price": def_price,
-            "custom_price": cust_price,
-            "effective_price": eff_price,
-            "has_custom": has_custom,
-        })
-
-    # B. Soul Stones (KD)
-    for vnum in range(28030, 28444):
-        key = f"item_{vnum}"
-        if key in seen_keys:
-            continue
-        name = item_names.get(vnum)
-        if not name:
-            continue
-        seen_keys.add(key)
-        grade = mp_rules.soul_stone_grade(vnum)
-        named = mp_sheet.SOUL_STONES.get((vnum % 100, grade))
-        if named:
-            def_price = named
-        elif 0 <= grade < len(mp_sheet.SOUL_STONE_GRADES):
-            def_price = mp_sheet.SOUL_STONE_GRADES[grade]
-        else:
-            def_price = 0
-
-        has_custom = ("item", vnum) in custom_map
-        cust_price = custom_map.get(("item", vnum))
-        base_price = cust_price if has_custom else def_price
-        eff_price = int(base_price * yang_multiplier / 100)
-
-        items.append({
-            "key": key,
-            "price_type": "item",
-            "target_id": vnum,
-            "name": name,
-            "category": "kd",
-            "category_label": f"Kamień Duszy +{grade}",
-            "icon": item_icon_url(vnum),
-            "default_price": def_price,
-            "custom_price": cust_price,
-            "effective_price": eff_price,
-            "has_custom": has_custom,
-        })
-
-    # C. Skill Books (KU)
-    all_skills = {}
-    for group_skills in SKILLS.values():
-        for skill_id, skill_name in group_skills:
-            all_skills[skill_id] = skill_name
-
-    for skill_id, skill_name in all_skills.items():
-        key = f"skill_{skill_id}"
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-        def_price = mp_sheet.BOOKS.get(skill_id, 100000)
-        has_custom = ("skill", skill_id) in custom_map
-        cust_price = custom_map.get(("skill", skill_id))
-        base_price = cust_price if has_custom else def_price
-        eff_price = int(base_price * yang_multiplier / 100)
-
-        items.append({
-            "key": key,
-            "price_type": "skill",
-            "target_id": skill_id,
-            "name": f"KU: {skill_name}",
-            "category": "ku",
-            "category_label": "Księga Umiejętności",
-            "icon": item_icon_url(50300),
-            "default_price": def_price,
-            "custom_price": cust_price,
-            "effective_price": eff_price,
-            "has_custom": has_custom,
-        })
-
-    # D. Any custom overrides not yet in list
-    for (ptype, tid), cust_price in custom_map.items():
-        key = f"{ptype}_{tid}"
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-        if ptype == "item":
-            name = item_names.get(tid, f"Przedmiot {tid}")
-            icon = item_icon_url(tid)
-        else:
-            name = f"Umiejętność {tid}"
-            icon = item_icon_url(50300)
-        eff_price = int(cust_price * yang_multiplier / 100)
-        items.append({
-            "key": key,
+        icon = item_icon_url(tid) if ptype == "item" else item_icon_url(50300)
+        filtered.append({
+            "key": base_item["key"],
             "price_type": ptype,
             "target_id": tid,
-            "name": name,
-            "category": "other",
-            "category_label": "Własna modyfikacja",
+            "name": base_item["name"],
+            "category": base_item["category"],
+            "category_label": base_item["category_label"],
             "icon": icon,
-            "default_price": 0,
+            "default_price": base_item["default_price"],
             "custom_price": cust_price,
             "effective_price": eff_price,
-            "has_custom": True,
+            "has_custom": has_custom,
         })
 
-    # Sort items: custom first, then by category, then by name
-    items.sort(key=lambda x: (not x["has_custom"], x["category"], x["name"]))
+    # Sort: custom overrides pinned to top, then by category and name
+    filtered.sort(key=lambda x: (not x["has_custom"], x["category"], x["name"]))
 
-    custom_count = len(custom_map)
-    count_refine = sum(1 for x in items if x["category"] == "refine")
-    count_kd = sum(1 for x in items if x["category"] == "kd")
-    count_ku = sum(1 for x in items if x["category"] == "ku")
-    count_ores = sum(1 for x in items if x["category"] == "ores")
-    count_other = sum(1 for x in items if x["category"] == "other")
+    # 5. Pagination (250 items per page)
+    per_page = 250
+    total_matches = len(filtered)
+    total_pages = max(1, (total_matches + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_items = filtered[start_idx:end_idx]
 
     return render_template(
         "economy_bot_prices.html",
-        items=items,
-        custom_count=custom_count,
-        count_refine=count_refine,
-        count_kd=count_kd,
-        count_ku=count_ku,
-        count_ores=count_ores,
-        count_other=count_other,
+        items=page_items,
+        total_matches=total_matches,
+        custom_count=len(custom_map),
+        counts=counts,
+        active_cat=active_cat,
+        search_q=search_q,
+        page=page,
+        total_pages=total_pages,
         yang_rate=yang_rate,
         yang_multiplier=yang_multiplier
     )
@@ -9933,19 +9986,19 @@ def economy_bot_prices_update():
     price = parse_yang_amount(raw_price)
 
     ensure_playerbot_custom_price_table()
+    catalog = get_bot_prices_catalog()
+    cat_entry = catalog["by_id"].get((ptype, target_id))
+    def_price = cat_entry["default_price"] if cat_entry else 0
+
+    rates_data = read_rates()
+    yang_rate = int(rates_data.get("yang", 100))
+    yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
+
     with db() as conn, conn.cursor() as cur:
         if price <= 0:
             cur.execute("DELETE FROM player.playerbot_custom_price WHERE price_type = %s AND target_id = %s", (ptype, target_id))
             conn.commit()
             queue_bot_reprice_now()
-            rates_data = read_rates()
-            yang_rate = int(rates_data.get("yang", 100))
-            yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
-            from market_preview import sheet as mp_sheet
-            if ptype == "item":
-                def_price = mp_sheet.MATERIALS.get(target_id, 0)
-            else:
-                def_price = mp_sheet.BOOKS.get(target_id, 100000)
             eff_price = int(def_price * yang_multiplier / 100)
             return jsonify({
                 "ok": True,
@@ -9962,9 +10015,6 @@ def economy_bot_prices_update():
             """, (ptype, target_id, price))
             conn.commit()
             queue_bot_reprice_now()
-            rates_data = read_rates()
-            yang_rate = int(rates_data.get("yang", 100))
-            yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
             eff_price = int(price * yang_multiplier / 100)
             return jsonify({
                 "ok": True,
@@ -9978,7 +10028,7 @@ def economy_bot_prices_update():
 @app.post("/economy/bot-prices/reset")
 @login_required
 def economy_bot_prices_reset():
-    from market_preview import sheet as mp_sheet, rules as mp_rules
+    from market_preview import rules as mp_rules
     data = request.get_json(silent=True) or request.form
     ptype = str(data.get("type", "item")).strip()
     try:
@@ -9992,13 +10042,13 @@ def economy_bot_prices_reset():
         conn.commit()
 
     queue_bot_reprice_now()
+    catalog = get_bot_prices_catalog()
+    cat_entry = catalog["by_id"].get((ptype, target_id))
+    def_price = cat_entry["default_price"] if cat_entry else 0
+
     rates_data = read_rates()
     yang_rate = int(rates_data.get("yang", 100))
     yang_multiplier = mp_rules.yang_rate_price_pct(yang_rate)
-    if ptype == "item":
-        def_price = mp_sheet.MATERIALS.get(target_id, 0)
-    else:
-        def_price = mp_sheet.BOOKS.get(target_id, 100000)
     eff_price = int(def_price * yang_multiplier / 100)
 
     return jsonify({

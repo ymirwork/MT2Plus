@@ -2929,7 +2929,7 @@ namespace
 
 		// The Archer's one stone weapon (playerbot_gear.h) is kept.
 		if (IsPlayerBotArcherBuild(ch) && IsPlayerBotStoneMeleeWeapon(ch, item) &&
-				FindPlayerBotStoneWeapon(ch, false) == item)
+				(FindPlayerBotStoneWeapon(ch, false) == item || IsPlayerBotArcherFightingDagger(ch, item)))
 			return false;
 		// So is the weapon kept for the day the one in the hand burns
 		// (FindPlayerBotBackupWeapon), and the armour kept for the day the one

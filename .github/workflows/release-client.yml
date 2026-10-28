@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag to upload asset to'
         required: true
-        default: 'v2.38.0-mod59'
+        default: 'v2.39.0-mod60'
 
 jobs:
   build-and-upload:
@@ -17,33 +17,52 @@ jobs:
       - name: Download Upstream Base Client
         run: |
           echo "Downloading upstream client zip..."
-          curl -sSL -o base_client.zip https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.38.0/metin2-client-update-2.0.69.zip
+          curl -sSL -o base_client.zip https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.39.0/metin2-client-update-2.0.70.zip
           unzip -q base_client.zip -d client_extracted
           rm base_client.zip
 
       - name: Inject MT2Plus Files from gh-pages
         run: |
-          echo "Injecting MT2Plus modified pack files..."
-          curl -sSL -o client_extracted/pack/root.data https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/af145249dbf1157bc5b9a6d7dc5b8b0f
-          curl -sSL -o client_extracted/pack/root.index https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/c2eabc05650320619a54967f5bf0eba8
-          curl -sSL -o client_extracted/pack/gamedata.data https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/0f8b66e7b2522c86d64bfa531da5c043
-          curl -sSL -o client_extracted/pack/gamedata.index https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/7af41bfe1ae8a91b36031c656ab26765
-          curl -sSL -o client_extracted/CLIENT_VERSION https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/39de72739eeb2ac10b00da966876a389
-          curl -sSL -o client_extracted/MT2009-Patcher.exe.config https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/b6afee8ebceda34439c773c9ab0461cb
+          echo "Injecting MT2Plus modified files from gh-pages patchlist..."
+          python3 -c "
+          import urllib.request, json, os
+          url = 'https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/patchlist.json'
+          req = urllib.request.Request(url, headers={'User-Agent': 'curl'})
+          plist = json.loads(urllib.request.urlopen(req).read().decode('utf-8'))
+          uid_map = {item['name']: item['uid'] for item in plist if item.get('uid')}
+          
+          files_to_sync = [
+              'pack/root.data', 'pack/root.index',
+              'pack/gamedata.data', 'pack/gamedata.index',
+              'pack/halloween.data', 'pack/halloween.index',
+              'pack/Index', 'CLIENT_VERSION', 'MT2009-Patcher.exe.config'
+          ]
+          for rel in files_to_sync:
+              win_rel = rel.replace('/', '\\\\')
+              uid = uid_map.get(win_rel) or uid_map.get(rel)
+              if uid:
+                  furl = f'https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/files/{uid}'
+                  dst = os.path.join('client_extracted', rel)
+                  os.makedirs(os.path.dirname(dst), exist_ok=True)
+                  print(f'Fetching {rel} ({uid}) -> {dst}')
+                  urllib.request.urlretrieve(furl, dst)
+              else:
+                  print(f'Notice: {rel} not found in patchlist map')
+          "
 
       - name: Repack Client Archive
         run: |
           cd client_extracted
           find . -type f \( -name "*.bak" -o -name "syserr.txt" -o -name "syslog.txt" \) -delete
-          zip -q -r ../metin2-client-update-2.0.69.zip .
+          zip -q -r ../metin2-client-update-2.0.70.zip .
           cd ..
           rm -rf client_extracted
-          ls -lh metin2-client-update-2.0.69.zip
-          sha256sum metin2-client-update-2.0.69.zip
+          ls -lh metin2-client-update-2.0.70.zip
+          sha256sum metin2-client-update-2.0.70.zip
 
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.inputs.tag }}"
-          gh release upload "$TAG" metin2-client-update-2.0.69.zip --clobber --repo ymirwork/MT2Plus
+          gh release upload "$TAG" metin2-client-update-2.0.70.zip --clobber --repo ymirwork/MT2Plus

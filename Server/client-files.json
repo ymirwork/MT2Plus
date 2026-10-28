@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "2.0.69",
+  "version": "2.0.70",
   "files": [
     {
       "path": "Dolacz.bat",
@@ -24,8 +24,8 @@
     },
     {
       "path": "MT2009-Patcher.exe.config",
-      "size": 2150,
-      "sha256": "7D9638D69D7F28FEFEE922A4397724AA38B0E221F8FB1354F51644C81EB9DBD2"
+      "size": 2283,
+      "sha256": "37A60DC360AA35C8A17E3993D4E83D431AA0403DE374360C1E934DA23E679CCD"
     },
     {
       "path": "pack/at_maps.index",
@@ -184,8 +184,8 @@
     },
     {
       "path": "pack/gamedata.index",
-      "size": 4180,
-      "sha256": "68FD5B5EA740F08931CFC42B2B8E3CF29BB96A8BD3D44C21FF2438387AF36910"
+      "size": 4084,
+      "sha256": "3AE754EA5910F736575290BDFA1FCD4458A7C00732251EC6DA353A3057E4833E"
     },
     {
       "path": "pack/gautama_map.index",
@@ -228,14 +228,19 @@
       "sha256": "F863CA665F7141B654686538E79EACE8D4F26CA8512B13B63CEFD96FA7BF64A5"
     },
     {
+      "path": "pack/halloween.index",
+      "size": 588,
+      "sha256": "5DF4327CD0290621728E3EC1842A6922372D63B0E63E3042F42726A7C391E48C"
+    },
+    {
       "path": "pack/icon.index",
       "size": 78548,
       "sha256": "2D5B64DB0325B098B06937AF45D7CAAE895AC19D65D0C80DA6D46045E873C6F1"
     },
     {
       "path": "pack/Index",
-      "size": 1200,
-      "sha256": "607AB7795383C51DB7DC9AA202988EB3EA9CD84AE0D20254C883291BBDB94148"
+      "size": 1088,
+      "sha256": "CCBC59F6CBFD7FEEFC65F547F2C775DF7EDD8E115A38FC36826A708B7F6E0F62"
     },
     {
       "path": "pack/locale.index",
@@ -264,13 +269,13 @@
     },
     {
       "path": "pack/property.index",
-      "size": 59188,
-      "sha256": "F04BEDE48C5818B40BF4F532E39FD58E81E07B2F2524722F87F66DF977F021D5"
+      "size": 58692,
+      "sha256": "376E3FA4E71FF46A2648C30D7D07ADD0B0398B64747F818FA70BAA25BC770B00"
     },
     {
       "path": "pack/root.index",
-      "size": 33372,
-      "sha256": "BD62E00B88616564D87C7F055E73E14919432B68D40619222803FFE60532A72E"
+      "size": 31196,
+      "sha256": "F710BC7D08B9520294B50E8E155730400F8A73DF193817E7A2B23920B30BE677"
     },
     {
       "path": "pack/wiki_nowe.index",

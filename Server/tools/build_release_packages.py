@@ -31,13 +31,13 @@ def download_with_progress(url, dest_path):
 
 def build_server_package(repo_root, dist_dir):
     server_root = os.path.join(repo_root, 'Server')
-    base_zip = os.path.join(dist_dir, 'base_server_2.38.0.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.38.0/metin2-server-update-2.38.0.zip'
+    base_zip = os.path.join(dist_dir, 'base_server_2.39.0.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.39.0/metin2-server-update-2.39.0.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.38.0.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.39.0.zip')
     temp_dir = os.path.join(dist_dir, 'server_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -135,13 +135,13 @@ def build_server_package(repo_root, dist_dir):
 
 def build_client_package(repo_root, dist_dir):
     klient_root = os.path.join(repo_root, 'Klient')
-    base_zip = os.path.join(dist_dir, 'base_client_2.0.69.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.38.0/metin2-client-update-2.0.69.zip'
+    base_zip = os.path.join(dist_dir, 'base_client_2.0.70.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.39.0/metin2-client-update-2.0.70.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.69.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.70.zip')
     temp_dir = os.path.join(dist_dir, 'client_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -157,6 +157,12 @@ def build_client_package(repo_root, dist_dir):
     os.makedirs(pack_dst, exist_ok=True)
     shutil.copy2(os.path.join(klient_root, 'pack', 'root.data'), os.path.join(pack_dst, 'root.data'))
     shutil.copy2(os.path.join(klient_root, 'pack', 'root.index'), os.path.join(pack_dst, 'root.index'))
+    if os.path.exists(os.path.join(klient_root, 'pack', 'Index')):
+        shutil.copy2(os.path.join(klient_root, 'pack', 'Index'), os.path.join(pack_dst, 'Index'))
+    for hf in ['halloween.data', 'halloween.index']:
+        hp = os.path.join(klient_root, 'pack', hf)
+        if os.path.exists(hp):
+            shutil.copy2(hp, os.path.join(pack_dst, hf))
 
     # Inject CLIENT_VERSION
     shutil.copy2(os.path.join(klient_root, 'CLIENT_VERSION'), os.path.join(temp_dir, 'CLIENT_VERSION'))

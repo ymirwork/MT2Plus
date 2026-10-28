@@ -111,9 +111,9 @@ Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzglę
 
 ## 1. Wersjonowanie i Identyfikacja
 
-- **Wersja serwera (`Server/VERSION`):** `2.38.0`
-- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-59`
-- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.69`
+- **Wersja serwera (`Server/VERSION`):** `2.39.0`
+- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-60`
+- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.70`
 - **Baza kodu:** Fork projektu *Metin2 Playerbots Singleplayer* (`mt2009`) autorstwa Tieru, wywodzący się z bazy MartySama r41023 (oraz wczesnych serwerfiles AzzlackSyndicate).
 - **Główni autorzy rozszerzenia SP+:** ZAXEP / SIZOWSKI, Digi Rasta, Vekirion, seban latino, OskarPWA, Iwakura.
 

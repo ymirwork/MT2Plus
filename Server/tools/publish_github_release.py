@@ -187,8 +187,8 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     dist_dir = os.path.join(repo_root, 'dist')
     
-    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.38.0.zip')
-    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.69.zip')
+    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.39.0.zip')
+    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.70.zip')
 
     if not os.path.exists(srv_zip) or not os.path.exists(cli_zip):
         print(f"ERROR: Missing release zip files in {dist_dir}")
@@ -197,12 +197,12 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     token = get_github_token()
     print("GitHub token acquired successfully.")
 
-    tag = "v2.38.0-mod59"
-    release_name = "MT2009 PLUS v2.38.0-mod59 - Serwer 2.38.0 & Klient 2.0.69"
+    tag = "v2.39.0-mod60"
+    release_name = "MT2009 PLUS v2.39.0-mod60 - Serwer 2.39.0 & Klient 2.0.70"
 
-    body = f"""# 📦 MT2Plus Wydanie v2.38.0-mod59
+    body = f"""# 📦 MT2Plus Wydanie v2.39.0-mod60
 
-Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.38.0, mod-59 oraz Klient 2.0.69) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
+Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.39.0, mod-60 oraz Klient 2.0.70) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
 
 ---
 
@@ -210,31 +210,35 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 
 | Paczka | Nazwa Pliku | Rozmiar (bajty) | Suma kontrolna SHA-256 |
 | :--- | :--- | :--- | :--- |
-| **Serwer MT2Plus** | `metin2-server-update-2.38.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
-| **Klient MT2Plus** | `metin2-client-update-2.0.69.zip` | `{cli_size:,} B` | `{cli_hash}` |
+| **Serwer MT2Plus** | `metin2-server-update-2.39.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
+| **Klient MT2Plus** | `metin2-client-update-2.0.70.zip` | `{cli_size:,} B` | `{cli_hash}` |
 
 ---
 
 ### 🌟 Najważniejsze Zmiany i Autorskie Modyfikacje (MT2Plus):
 
-1. **Baza Upstream v2.38.0 (mod-59, Klient 2.0.69):**
-   - Dodano Wężowe Pole (`metin2_map_snakefield`, mapa 80) i Krainę Gigantów (`metin2_map_giantland`, mapa 70) na rdzeniu `ch1-game3` (port 13003). Usunięto Przełęcz (mapa 69).
-   - Nowe questy: wytwarzanie Zbroi z Czarnej Stali (`black_steel_crafting.quest`), Labirynt (`labirynth.quest`), zakładki teleportacji (`tp_bookmarks.quest`).
-   - 18 sequential engine fixes dla rotacji budynków gildii i pozycjonowania (`building.cpp`, `building.h`, `cmd_gm.cpp`).
-   - Aktualizacja logiki i nagłówków Playerbotów (zoptymalizowana nawigacja i obsługa walk).
+1. **Baza Upstream v2.39.0 (mod-60, Klient 2.0.70):**
+   - **Event Halloween:** NPC Jack Pumpkin, dynie, różdżki, maski dyniowe i latające miotły (`event_halloween_hair.quest`, dedykowany drop i paczka `halloween` w kliencie).
+   - **Poprawka Kamieni Przywołania:** Metiny przywołane ze specjalnych kamieni znikają automatycznie po 15 minutach (`MT2009_PLUS_SUMMON_STONE_V1` w `char_item.cpp`).
+   - **Playerbot Engine:** Nowe reguły doboru broni, zaktualizowane statystyki pancerzy botów i optymalizacje zachowań w walce.
+   - **Klient 2.0.70:** Aktualizacja modeli, tekstur i interfejsów eventowych.
 
-2. **Autorskie Rozszerzenia MT2Plus (W pełni zachowane i aktywne):**
-   - **Seban Panel & Collector GM Filter:** Nowy mechanizm wykluczenia postaci i kont GM/administratorów z agregacji ekonomicznej, statystyk bogactwa, rozkładu yang i wykresów rynkowych (`item_not_gm_scope_sql`).
+2. **Autorskie Rozszerzenia MT2Plus (Wszystkie 24 w pełni zachowane i aktywne):**
+   - **Ceny Bazowe Botów:** Nowy moduł konfiguracji i dynamicznego przeliczania cen skupu/sprzedaży botów w panelu (`/economy/bot-prices`).
+   - **Emerytura Botów V3:** Inteligentna i płynna rotacja emerytalna botów zapobiegająca zastojom na mapach.
+   - **ItemShop Panel:** Dedykowany moduł zarządzania ofertami i sklepem w panelu administracyjnym.
+   - **Brak Potionów w M2:** Usunięcie zbędnych mikstur z metinów i bossów na mapach drugich miast.
    - **Sklep Offline 160 Slotów:** Zachowano rozszerzoną strukturę `offlineshopmanage.py` i `offlineshopguest.py` z obsługą drewnianych kluczy (`item_unlock_slots`) oraz naprawioną obsługą `destPos`.
+   - **Filtr GM w Agregacji Ekonomii:** Wykluczenie postaci i kont GM ze statystyk bogactwa i rynków (`item_not_gm_scope_sql`).
    - **Ukrywanie Paska Życia Mobów/Bossów:** Zachowano celowe ukrycie wartości liczbowej i procentowej HP potworów w `uitarget.py`.
    - **System Szarf:** Zachowano ukrywanie szarf w podglądzie kostiumów oraz dedykowany tooltip szansy na ulepszenie.
    - **Ekonomia & Przedmioty:** Stackowanie kluczowych przedmiotów do 200, pierścienie i amulety z czasem 30 dni czasu noszenia (`limittype0=9`), 92 oferty błyskawiczne w ItemShopie.
-   - **Playerbot Engine:** Zachowano regułę `IsHumanTargetReachable` zapobiegającą blokowaniu botów przez ściany w DT.
+   - **Wstawanie 100% HP:** Pełne odrodzenie życia po śmierci postaci.
 
 ---
 
 📥 **Instrukcja Uruchomienia (Ready-to-Play):**
-1. Pobierz paczkę serwera `metin2-server-update-2.38.0.zip` oraz klienta `metin2-client-update-2.0.69.zip`.
+1. Pobierz paczkę serwera `metin2-server-update-2.39.0.zip` oraz klienta `metin2-client-update-2.0.70.zip`.
 2. Wypakuj serwer i uruchom `start.bat` (wymagany Docker Desktop).
 3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
@@ -246,10 +250,10 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Release {rel_id}: {html_url}")
 
-    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.38.0.zip", srv_size):
-        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.38.0.zip")
-    if delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.69.zip", cli_size):
-        upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.69.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.39.0.zip", srv_size):
+        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.39.0.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.70.zip", cli_size):
+        upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.70.zip")
 
     print(f"\nSUCCESS! Release updated at: {html_url}")
     return html_url
@@ -260,8 +264,8 @@ if __name__ == '__main__':
     else:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         dist_dir = os.path.join(repo_root, 'dist')
-        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.38.0.zip')
-        cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.69.zip')
+        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.39.0.zip')
+        cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.70.zip')
         import hashlib
         def h(p):
             x = hashlib.sha256()

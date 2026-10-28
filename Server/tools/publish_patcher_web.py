@@ -89,6 +89,11 @@ def main():
     if os.path.exists(gamedata_index):
         overrides['pack\\gamedata.index'] = gamedata_index
 
+    # pack\Index
+    pack_index_path = os.path.join(klient_dir, 'pack', 'Index')
+    if os.path.exists(pack_index_path):
+        overrides['pack\\Index'] = pack_index_path
+
     # CLIENT_VERSION
     client_version_path = os.path.join(klient_dir, 'CLIENT_VERSION')
     if os.path.exists(client_version_path):
@@ -155,19 +160,19 @@ def main():
     news_data = [
         {
             "newsType": 2,
-            "topic": "MT2Plus 2.35.0-mod56",
-            "creator": "16.10.2026",
+            "topic": "MT2Plus 2.39.0-mod60",
+            "creator": "28.10.2026",
             "threadUrl": "https://github.com/ymirwork/MT2Plus",
-            "date": "2026-10-16",
+            "date": "2026-10-28",
             "message": "Autorskie modyfikacje MT2Plus: szybkie zbieranie, sklep 160 slotów, balans gospodarki i optymalizacje.",
             "avatarLink": ""
         },
         {
             "newsType": 2,
-            "topic": "Klient 2.0.66",
-            "creator": "16.10.2026",
+            "topic": "Klient 2.0.70",
+            "creator": "28.10.2026",
             "threadUrl": "https://github.com/ymirwork/MT2Plus",
-            "date": "2026-10-16",
+            "date": "2026-10-28",
             "message": "Zintegrowane modyfikacje klienta z nowościami oficjalnego wydania.",
             "avatarLink": ""
         },

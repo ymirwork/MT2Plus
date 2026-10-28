@@ -471,16 +471,16 @@
  {
   "name": "pack\\dbdata.data",
   "size": 408832,
-  "md5": "A5F95894FC7CE9549D45EF22EB99D2B1",
-  "uid": "a5f95894fc7ce9549d45ef22eb99d2b1",
+  "md5": "766DF31C08CBCA2631F23E1DA60FE345",
+  "uid": "766df31c08cbca2631f23e1da60fe345",
   "delete": 0,
   "keep": 1
  },
  {
   "name": "pack\\dbdata.index",
   "size": 292,
-  "md5": "7EF845B164835C295034951BDF7F1A4D",
-  "uid": "7ef845b164835c295034951bdf7f1a4d",
+  "md5": "00B7853CF136FFB3A25A8EA8ED903488",
+  "uid": "00b7853cf136ffb3a25a8ea8ed903488",
   "delete": 0,
   "keep": 1
  },
@@ -611,6 +611,20 @@
   "delete": 0
  },
  {
+  "name": "pack\\halloween.data",
+  "size": 391168,
+  "md5": "1728150914E58F8F428211098C6EC401",
+  "uid": "1728150914e58f8f428211098c6ec401",
+  "delete": 0
+ },
+ {
+  "name": "pack\\halloween.index",
+  "size": 588,
+  "md5": "07F8F2CBEBA5A9ADA57308E9B02C0457",
+  "uid": "07f8f2cbeba5a9ada57308e9b02c0457",
+  "delete": 0
+ },
+ {
   "name": "pack\\icon.data",
   "size": 7179776,
   "md5": "0C39CE73725DD4769B734BFD1D1A5867",
@@ -626,9 +640,9 @@
  },
  {
   "name": "pack\\Index",
-  "size": 1200,
-  "md5": "2940A3F38D9F2BA7A09D3C1AAF80D42F",
-  "uid": "2940a3f38d9f2ba7a09d3c1aaf80d42f",
+  "size": 1088,
+  "md5": "BE2D6B2BB8B460C86C47F830FD1AFCEE",
+  "uid": "be2d6b2bb8b460c86c47f830fd1afcee",
   "delete": 0
  },
  {
@@ -717,16 +731,16 @@
  },
  {
   "name": "pack\\root.data",
-  "size": 15883008,
-  "md5": "40430A32FF1D6DE299C9EFC7A57E750E",
-  "uid": "40430a32ff1d6de299c9efc7a57e750e",
+  "size": 15883520,
+  "md5": "2FE8FFD0CC0C5F17B92BD3C528A61FC0",
+  "uid": "2fe8ffd0cc0c5f17b92bd3c528a61fc0",
   "delete": 0
  },
  {
   "name": "pack\\root.index",
   "size": 31196,
-  "md5": "732F198580D168590F817C10F0D1149F",
-  "uid": "732f198580d168590f817c10f0d1149f",
+  "md5": "BCE3C660C48AD13FCA59828DC4D21316",
+  "uid": "bce3c660c48ad13fca59828dc4d21316",
   "delete": 0
  },
  {
@@ -914,8 +928,8 @@
  {
   "name": "CLIENT_VERSION",
   "size": 7,
-  "md5": "39DE72739EEB2AC10B00DA966876A389",
-  "uid": "39de72739eeb2ac10b00da966876a389",
+  "md5": "89E709C24A0BC3581264A204EDED51E2",
+  "uid": "89e709c24a0bc3581264a204eded51e2",
   "delete": 0
  }
 ]

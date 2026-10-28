@@ -11,14 +11,10 @@ Group	MT2009_arezzo_9675
 	4	70014	1	15	-- Pigulka Krwi
 	5	39002	1	15	-- Pierscien Doswiadczenia
 	6	70058	1	15	-- Pierscien Teleportacji
-	7	27002	30	100	-- Czerwona Mikstura(S)
-	8	27005	30	100	-- Niebieska Mikstura(S)
-	9	s10755	1	400	-- MiniBoss_VeryHighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	10	s10753	1	100	-- MiniBoss_HighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	11	s10743	1	200	-- Boss_HighTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	12	s10987	1	60	-- Kamien Duszy +0..+3, 15% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	13	27003	50	400	-- Czerwona Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	14	27006	50	400	-- Niebieska Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	7	s10755	1	400	-- MiniBoss_VeryHighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	8	s10753	1	100	-- MiniBoss_HighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	9	s10743	1	200	-- Boss_HighTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	10	s10987	1	60	-- Kamien Duszy +0..+3, 15% (MT2009_PLUS_AREZZO_BALANCE_V1)
 }
 
 Group	MT2009_arezzo_9681
@@ -32,17 +28,13 @@ Group	MT2009_arezzo_9681
 	5	39002	1	25	-- Pierscien Doswiadczenia
 	6	70043	1	20	-- Rekawica Zlodzieja
 	7	70058	1	20	-- Pierscien Teleportacji
-	8	27003	30	100	-- Czerwona Mikstura(D)
-	9	27006	30	100	-- Niebieska Mikstura(D)
-	10	s10755	1	400	-- MiniBoss_VeryHighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	11	s10755	1	200	-- MiniBoss_VeryHighTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	12	s10743	1	400	-- Boss_HighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	13	s10743	1	100	-- Boss_HighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	14	50513	1	32	-- Kamien Duchowy, 8% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	15	s10987	1	100	-- Kamien Duszy +0..+3, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	16	s10988	1	40	-- Kamien Duszy +2..+4, 10% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	17	27003	100	400	-- Czerwona Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	18	27006	100	400	-- Niebieska Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	8	s10755	1	400	-- MiniBoss_VeryHighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	9	s10755	1	200	-- MiniBoss_VeryHighTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	10	s10743	1	400	-- Boss_HighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	11	s10743	1	100	-- Boss_HighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	12	50513	1	32	-- Kamien Duchowy, 8% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	13	s10987	1	100	-- Kamien Duszy +0..+3, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	14	s10988	1	40	-- Kamien Duszy +2..+4, 10% (MT2009_PLUS_AREZZO_BALANCE_V1)
 }
 
 // MT2009_PLUS_AREZZO_BALANCE_V1: the Arezzo dungeons' bosses drop on the ground besides the quest chests - the

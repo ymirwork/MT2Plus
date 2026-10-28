@@ -88,21 +88,19 @@ Group	MT2009_yzl_6407
 	Mob	6407	-- Wladca En-Tai
 	Type	drop
 	1	14220	1	5	-- Opaska Krysztalu Duszy
-	2	27003	10	40	-- Czerwona Mikstura(D) x10
-	3	27105	10	40	-- Fioletowa Mikstura(D) x10
-	4	27006	10	40	-- Niebieska Mikstura(D) x10
-	5	27102	10	40	-- Zielona Mikstura(D) x10
-	6	50725	8	20	-- Bez x8
-	7	50726	8	20	-- Grzyb Tue x8
-	8	50721	8	20	-- Kwiat Brzoskwini x8
-	9	50724	8	20	-- Korzen Gango x8
-	10	50728	8	20	-- Morwa x8
-	11	50722	1	20	-- Pokrzywa
-	12	39076	1	10	-- Czerwony Odlamek
-	13	39075	1	10	-- Fioletowy Odlamek
-	14	39077	1	5	-- Teczowy Odlamek
-	15	50513	1	15	-- Kamien Duchowy
-	16	50300	1	10	-- Ksiega Umiejetnosci
+	2	27105	10	40	-- Fioletowa Mikstura(D) x10
+	3	27102	10	40	-- Zielona Mikstura(D) x10
+	4	50725	8	20	-- Bez x8
+	5	50726	8	20	-- Grzyb Tue x8
+	6	50721	8	20	-- Kwiat Brzoskwini x8
+	7	50724	8	20	-- Korzen Gango x8
+	8	50728	8	20	-- Morwa x8
+	9	50722	1	20	-- Pokrzywa
+	10	39076	1	10	-- Czerwony Odlamek
+	11	39075	1	10	-- Fioletowy Odlamek
+	12	39077	1	5	-- Teczowy Odlamek
+	13	50513	1	15	-- Kamien Duchowy
+	14	50300	1	10	-- Ksiega Umiejetnosci
 }
 
 Group	MT2009_yzl_6408
@@ -130,17 +128,15 @@ Group	MT2009_yzl_6192
 	Mob	6192	-- Jotun Thrym
 	Type	drop
 	1	50266	9	100	-- Skrzynia Jotuna Thryma x9
-	2	27003	10	40	-- Czerwona Mikstura(D) x10
-	3	27006	10	40	-- Niebieska Mikstura(D) x10
-	4	27102	10	40	-- Zielona Mikstura(D) x10
-	5	30227	1	20	-- Kamien Liderow
-	6	50726	3	30	-- Grzyb Tue x3
-	7	50724	3	30	-- Korzen Gango x3
-	8	30192	2	30	-- Mleczny Sok x2
-	9	30610	2	30	-- Mithril x2
-	10	30617	1	20	-- Agat
-	11	39075	1	15	-- Fioletowy Odlamek
-	12	39077	1	10	-- Teczowy Odlamek
+	2	27102	10	40	-- Zielona Mikstura(D) x10
+	3	30227	1	20	-- Kamien Liderow
+	4	50726	3	30	-- Grzyb Tue x3
+	5	50724	3	30	-- Korzen Gango x3
+	6	30192	2	30	-- Mleczny Sok x2
+	7	30610	2	30	-- Mithril x2
+	8	30617	1	20	-- Agat
+	9	39075	1	15	-- Fioletowy Odlamek
+	10	39077	1	10	-- Teczowy Odlamek
 }
 
 Group	MT2009_yzl_8059
@@ -163,20 +159,16 @@ Group	MT2009_yzl_8061
 	5	11496	1	2	-- Ubranie Czarn. Wiatru+6
 	6	11295	1	2	-- Zbroja Z Czarnej Stali+5
 	7	11695	1	2	-- Zbr. Plyt. Czar. Magii+5
-	8	27003	30	20	-- Czerwona Mikstura(D) x30
-	9	27002	50	20	-- Czerwona Mikstura(S) x50
-	10	27006	20	20	-- Niebieska Mikstura(D) x20
-	11	27005	30	20	-- Niebieska Mikstura(S) x30
-	12	30516	1	5	-- Antyczny Naramiennik
-	13	30512	1	5	-- Czerwona Smocza Stal
-	14	30522	1	5	-- Ogniwa Lancucha
-	15	30506	1	5	-- Szafirowy Ozdobny Noz
-	16	50513	1	15	-- Kamien Duchowy
-	17	70037	1	3	-- Ksiega Zapomnienia
-	18	70012	1	3	-- Lza Bogini
-	19	70038	20	10	-- Peleryna Mestwa x20
-	20	39002	1	3	-- Pierscien Doswiadczenia (1 h)
-	21	70014	1	3	-- Pigulka Krwi
-	22	72006	1	3	-- Rekawica Zlodzieja (3 h)
-	23	25040	1	5	-- Zwoj Blogoslawienstwa
+	8	30516	1	5	-- Antyczny Naramiennik
+	9	30512	1	5	-- Czerwona Smocza Stal
+	10	30522	1	5	-- Ogniwa Lancucha
+	11	30506	1	5	-- Szafirowy Ozdobny Noz
+	12	50513	1	15	-- Kamien Duchowy
+	13	70037	1	3	-- Ksiega Zapomnienia
+	14	70012	1	3	-- Lza Bogini
+	15	70038	20	10	-- Peleryna Mestwa x20
+	16	39002	1	3	-- Pierscien Doswiadczenia (1 h)
+	17	70014	1	3	-- Pigulka Krwi
+	18	72006	1	3	-- Rekawica Zlodzieja (3 h)
+	19	25040	1	5	-- Zwoj Blogoslawienstwa
 }

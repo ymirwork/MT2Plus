@@ -71,6 +71,13 @@ def build_server_package(repo_root, dist_dir):
             if os.path.exists(src_f):
                 shutil.copy2(src_f, engine_dst)
 
+    # 3b. Serverfiles locale overrides (mob_drop_item.txt)
+    sf_src = os.path.join(server_root, 'linux-port', 'docker', 'game', 'src', 'serverfiles', 'share', 'locale', 'poland', 'mob_drop_item.txt')
+    sf_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'src', 'serverfiles', 'share', 'locale', 'poland', 'mob_drop_item.txt')
+    if os.path.exists(sf_src):
+        os.makedirs(os.path.dirname(sf_dst), exist_ok=True)
+        shutil.copy2(sf_src, sf_dst)
+
     # 4. Overlays (playerbot + seban-panel)
     pb_src = os.path.join(server_root, 'linux-port', 'overlays', 'playerbot', 'src', 'game', 'src')
     pb_dst = os.path.join(temp_dir, 'linux-port', 'overlays', 'playerbot', 'src', 'game', 'src')

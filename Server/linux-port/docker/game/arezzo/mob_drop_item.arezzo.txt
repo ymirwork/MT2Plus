@@ -68,14 +68,10 @@ Group	MT2009_arezzo_9606
 	2	70037	1	30	-- Ksiega Zapomnienia
 	3	25040	1	15	-- Zwoj Blogoslawienstwa
 	4	70058	1	10	-- Pierscien Teleportacji
-	5	27002	20	100	-- Czerwona Mikstura(S)
-	6	27005	20	100	-- Niebieska Mikstura(S)
-	7	s10753	1	400	-- MiniBoss_HighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	8	s10753	1	100	-- MiniBoss_HighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	9	s10742	1	200	-- Boss_MediumTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	10	s10987	1	40	-- Kamien Duszy +0..+3, 10% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	11	27003	50	400	-- Czerwona Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	12	27006	50	400	-- Niebieska Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	5	s10753	1	400	-- MiniBoss_HighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	6	s10753	1	100	-- MiniBoss_HighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	7	s10742	1	200	-- Boss_MediumTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	8	s10987	1	40	-- Kamien Duszy +0..+3, 10% (MT2009_PLUS_AREZZO_BALANCE_V1)
 }
 
 Group	MT2009_arezzo_9607
@@ -88,14 +84,10 @@ Group	MT2009_arezzo_9607
 	4	70014	1	20	-- Pigulka Krwi
 	5	39002	1	20	-- Pierscien Doswiadczenia
 	6	70058	1	20	-- Pierscien Teleportacji
-	7	27002	30	100	-- Czerwona Mikstura(S)
-	8	27005	30	100	-- Niebieska Mikstura(S)
-	9	s10755	1	400	-- MiniBoss_VeryHighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	10	s10755	1	100	-- MiniBoss_VeryHighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	11	s10743	1	200	-- Boss_HighTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	12	s10743	1	40	-- Boss_HighTier, 10% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	13	50513	1	20	-- Kamien Duchowy, 5% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	14	s10987	1	100	-- Kamien Duszy +0..+3, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	15	27003	100	400	-- Czerwona Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
-	16	27006	100	400	-- Niebieska Mikstura(D), 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	7	s10755	1	400	-- MiniBoss_VeryHighTier, 100% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	8	s10755	1	100	-- MiniBoss_VeryHighTier, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	9	s10743	1	200	-- Boss_HighTier, 50% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	10	s10743	1	40	-- Boss_HighTier, 10% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	11	50513	1	20	-- Kamien Duchowy, 5% (MT2009_PLUS_AREZZO_BALANCE_V1)
+	12	s10987	1	100	-- Kamien Duszy +0..+3, 25% (MT2009_PLUS_AREZZO_BALANCE_V1)
 }

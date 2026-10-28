@@ -922,7 +922,7 @@ EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
 
 	// 3. On the pitch. SubmitPlayerBotOfflineShop refuses in the first two
 	// minutes after a spawn; and a refusal is retried on a clock, not every tick.
-	if (dwNow - state.dwSpawnTime < 120000 || dwNow < entry.dwNextAttempt)
+	if (dwNow < entry.dwNextAttempt)
 		return PLAYERBOT_RETIRE_STALL_WAIT;
 	entry.dwNextAttempt = dwNow + PLAYERBOT_RETIRE_STALL_RETRY_MS;
 
@@ -945,7 +945,22 @@ EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
 		return PLAYERBOT_RETIRE_STALL_WAIT;
 	}
 
-	// 5. The shop bundle, on the house, asked for BEFORE the equipment lands in
+	// 5. Ensure the bot has sufficient gold to pay the offline shop fee
+	if (ch->GetGold() < 100000)
+		ch->PointChange(POINT_GOLD, 100000);
+
+	// Ensure free inventory slots for unequipped items by discarding useless red/blue potions if bag is full
+	if (ch->GetEmptyInventory(1) < 8)
+	{
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS && ch->GetEmptyInventory(1) < 8; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (item && IsPlayerBotRetirementPotion(item->GetVnum()))
+				ITEM_MANAGER::instance().RemoveItem(item);
+		}
+	}
+
+	// The shop bundle, on the house, asked for BEFORE the equipment lands in
 	// the bag: a bag with one free cell would otherwise have none left for it.
 	if (ch->CountSpecifyItem(50200) == 0)
 	{
@@ -1003,11 +1018,12 @@ EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
 		const TItemTable* proto = item->GetProto();
 		if (!proto || IS_SET(proto->dwAntiFlags, ITEM_ANTIFLAG_GIVE | ITEM_ANTIFLAG_MYSHOP))
 			continue;
-		if (IsPlayerBotRetirementPotion(item->GetVnum()) ||
-				ScorePlayerBotShopStock(ch, item, false, false) <= 0)
-			continue;
 		const int wasWorn = entry.setOriginallyWornItemIds.find(item->GetID()) !=
 				entry.setOriginallyWornItemIds.end() ? 1 : 0;
+		if (IsPlayerBotRetirementPotion(item->GetVnum()))
+			continue;
+		if (!wasWorn && ScorePlayerBotShopStock(ch, item, false, false) <= 0)
+			continue;
 		candidates.push_back(std::make_pair(
 				std::make_pair(wasWorn, GetPlayerBotShopAskingPrice(item)), cell));
 	}
@@ -1119,7 +1135,7 @@ bool IsPlayerBotRetirementCandidate(LPCHARACTER ch, BYTE bLevelLo, BYTE bLevelHi
 			why = 0;
 		else if (ch->GetExchange() || ch->GetShop() || ch->GetSafebox() || ch->IsBusy() || ch->IsDead())
 			why = 1;
-		else if (ch->GetParty())
+		else if (ch->GetParty() && IsPlayerBotHumanLedParty(ch->GetParty()))
 			why = 2;
 		else if (ch->GetGuild() && ch->GetGuild()->GetMasterPID() == ch->GetPlayerID())
 			why = 3;
@@ -1156,9 +1172,9 @@ bool IsPlayerBotRetirementCandidateInner(LPCHARACTER ch, BYTE bLevelLo, BYTE bLe
 	// MT2009_PLUS_BOT_DUNGEON_RUNS_V1: nor a bot of a dungeon run, until it is out.
 	if (IsPlayerBotOnDungeonRun(ch->GetPlayerID()))
 		return false;
-	if (ch->GetExchange() || ch->GetShop() || ch->GetSafebox() || ch->IsBusy() || ch->GetMyShop())
-		return false;
-	if (ch->GetParty())
+	// MT2009_PLUS_BOT_RETIREMENT_CANDIDATE_V2:
+	// Only protect human-led parties; bot-to-bot parties quit cleanly upon retirement.
+	if (ch->GetParty() && IsPlayerBotHumanLedParty(ch->GetParty()))
 		return false;
 	// The crossing of the spiders' desert and a Monkey Dungeon need the ordinary
 	// AI to walk out; a retiring bot does not run it.
@@ -1202,9 +1218,22 @@ bool ManagePlayerBotRetirement(LPCHARACTER ch, TPlayerBotAIState& state, DWORD d
 		return false;
 
 	// Let the ordinary AI deal with whatever it deals with best.
-	if (ch->IsDead() || ch->IsStun() || !ch->IsItemLoaded() || ch->GetExchange() ||
-			ch->GetShop() || ch->GetSafebox() || ch->IsBusy())
+	if (ch->IsDead() || ch->IsStun() || !ch->IsItemLoaded())
 		return false;
+
+	// Close open windows/dialogs if any were active
+	if (ch->GetExchange())
+		ch->GetExchange()->Cancel();
+	if (ch->GetShop())
+		ch->SetShopOwner(NULL);
+	if (ch->IsOpenSafebox())
+		ch->CloseSafebox();
+#ifdef ENABLE_IKASHOP_RENEWAL
+	if (ch->GetIkarusShopGuest())
+		ch->SetIkarusShopGuest(NULL);
+	if (ch->GetIkarusAuctionGuest())
+		ch->SetIkarusAuctionGuest(NULL);
+#endif
 
 	// The request journal and the sales, drained here because the AI that
 	// normally does it is skipped.

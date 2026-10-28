@@ -1,0 +1,68 @@
+-- MT2009_PLUS_CRAFTER_REVENUE_V1: Dialog rzemieslnikow gildyjnych z opcja wyplaty utargu dla Lidera
+quest guild_building_npc begin
+    state start begin
+	when 20044.click begin
+	    if npc.get_guild() == pc.get_guild() then
+		if pc.is_guild_master() then
+		    say_title(gameforge.guild_building_npc._10_sayTitle)
+		    say("Witaj Mistrzu! W czym moge dzisiaj pomoc?")
+		    local s = select("Odbierz utarg ze skarbca", "Informacje o ulepszaniu", "Zamknij")
+		    if s == 1 then
+			open_guild_payout_dialog("Kowal Broni")
+		    elseif s == 2 then
+			say_title(gameforge.guild_building_npc._10_sayTitle)
+			say(gameforge.guild_building_npc._20_say)
+		    end
+		else
+		    say_title(gameforge.guild_building_npc._10_sayTitle)
+		    say(gameforge.guild_building_npc._20_say)
+		end
+	    else
+		say_title(gameforge.guild_building_npc._10_sayTitle)
+		say(gameforge.guild_building_npc._30_say)
+	    end
+	end
+	when 20045.click begin
+	    if npc.get_guild() == pc.get_guild() then
+		if pc.is_guild_master() then
+		    say_title(gameforge.guild_building_npc._40_sayTitle)
+		    say("Witaj Mistrzu! W czym moge dzisiaj pomoc?")
+		    local s = select("Odbierz utarg ze skarbca", "Informacje o ulepszaniu", "Zamknij")
+		    if s == 1 then
+			open_guild_payout_dialog("Platnerz")
+		    elseif s == 2 then
+			say_title(gameforge.guild_building_npc._40_sayTitle)
+			say(gameforge.guild_building_npc._50_say)
+		    end
+		else
+		    say_title(gameforge.guild_building_npc._40_sayTitle)
+		    say(gameforge.guild_building_npc._50_say)
+		end
+	    else
+		say_title(gameforge.guild_building_npc._40_sayTitle)
+		say(gameforge.guild_building_npc._60_say)
+	    end
+	end
+	when 20046.click begin
+	    if npc.get_guild() == pc.get_guild() then
+		if pc.is_guild_master() then
+		    say_title(gameforge.guild_building_npc._70_sayTitle)
+		    say("Witaj Mistrzu! W czym moge dzisiaj pomoc?")
+		    local s = select("Odbierz utarg ze skarbca", "Informacje o ulepszaniu", "Zamknij")
+		    if s == 1 then
+			open_guild_payout_dialog("Jubiler")
+		    elseif s == 2 then
+			say_title(gameforge.guild_building_npc._70_sayTitle)
+			say(gameforge.guild_building_npc._80_say)
+		    end
+		else
+		    say_title(gameforge.guild_building_npc._70_sayTitle)
+		    say(gameforge.guild_building_npc._80_say)
+		end
+	    else
+		say_title(gameforge.guild_building_npc._70_sayTitle)
+		say(gameforge.guild_building_npc._90_say)
+	    end
+	end
+    end
+end

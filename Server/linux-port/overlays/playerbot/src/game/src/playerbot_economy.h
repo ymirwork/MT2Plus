@@ -4442,6 +4442,7 @@ namespace
 
 	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1 (playerbot_upstream_botlogic.h).
 	bool TryPickPlayerBotLottery30(LPCHARACTER ch, LPITEM item);
+	void OnPlayerBotLottery30Refined(LPCHARACTER ch, DWORD dwOldId, LPITEM pkItemAfter);
 
 	bool ManagePlayerBotRefining(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 	{
@@ -5027,6 +5028,11 @@ namespace
 				if (LPITEM made = ch->GetInventoryItem(cellBefore))
 					if (made->GetID() != idBefore)
 						NotePlayerBotExplainOrigin(made, per::ORIGIN_REFINED, idBefore);
+
+			// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1: track the lottery piece across upgrades
+			// so the bot continues refining the same weapon instead of abandoning it at +1.
+			if (attempted)
+				OnPlayerBotLottery30Refined(ch, idBefore, ch->GetInventoryItem(cellBefore));
 			if (attempted)
 			{
 				// The step's fee goes on the level-30 weapon's budget.

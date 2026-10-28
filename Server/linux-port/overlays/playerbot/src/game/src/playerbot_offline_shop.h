@@ -604,8 +604,9 @@ namespace {
         // has a shop for is an EXTEND (duration reset, lines added, 6000 yang
         // paid again), harmless to the goods but pointless - and this spreads
         // the reopenings after a restart instead of one a second.
-        if (now - state.dwSpawnTime < 120000) return false;
-        if (ch->GetGold() - aOfflineShopTime[duration].price < GetPlayerBotReservedGold(ch) ||
+        if (!IsPlayerBotRetiring(ch->GetPlayerID()) && now - state.dwSpawnTime < 120000) return false;
+        const long long reservedGold = IsPlayerBotRetiring(ch->GetPlayerID()) ? 0 : (long long)GetPlayerBotReservedGold(ch);
+        if (ch->GetGold() - aOfflineShopTime[duration].price < reservedGold ||
                 !BotOfflineBudget(now) || !Begin(ch->GetPlayerID(), Create, 0, now)) return false;
         // What goes up, read while the items are still in the bag: the create
         // takes them out of it.

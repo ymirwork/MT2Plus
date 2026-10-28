@@ -109,6 +109,27 @@ namespace
 		return true;
 	}
 
+	void OnPlayerBotLottery30Refined(LPCHARACTER ch, DWORD dwOldId, LPITEM pkItemAfter)
+	{
+		if (!ch || ch->GetQuestFlag(PLAYERBOT_LOTTERY30_DAY_FLAG) != GetPlayerBotLottery30Today() ||
+				(DWORD)ch->GetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG) != dwOldId)
+			return;
+
+		if (pkItemAfter && IsPlayerBotLottery30Surplus(ch, pkItemAfter))
+		{
+			ch->SetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG, (int)pkItemAfter->GetID());
+			sys_log(0, "PLAYERBOT_SURPLUS: lottery30 updated pid=%u name=%s old_item=%u new_item=%u vnum=%u plus=%u",
+					ch->GetPlayerID(), ch->GetName(), dwOldId, pkItemAfter->GetID(),
+					pkItemAfter->GetVnum(), (unsigned int)pkItemAfter->GetRefineLevel());
+		}
+		else
+		{
+			ch->SetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG, 0);
+			sys_log(0, "PLAYERBOT_SURPLUS: lottery30 finished pid=%u name=%s old_item=%u",
+					ch->GetPlayerID(), ch->GetName(), dwOldId);
+		}
+	}
+
 	// ---------------------------------------------------------------------
 	// MT2009_PLUS_UPSTREAM_BOTLOGIC_FUTURE_V1
 	// ---------------------------------------------------------------------

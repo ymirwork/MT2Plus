@@ -851,6 +851,17 @@ class GuildWindow(ui.ScriptWindow):
 		self.memberLinePos = 0
 
 		self.enemyGuildNameList = []
+		self.payoutAmount = 0
+
+	def SetGuildPayout(self, amount):
+		try:
+			self.payoutAmount = int(amount)
+		except:
+			self.payoutAmount = 0
+		if self.IsShow() and getattr(self, "isLoaded", 0) and hasattr(self, "pageWindow") and "GUILD_INFO" in self.pageWindow:
+			page = self.pageWindow["GUILD_INFO"]
+			if getattr(page, "guildPayoutSlot", None):
+				page.guildPayoutSlot.SetText(str(self.payoutAmount))
 
 	def Open(self):
 		self.Show()
@@ -1027,6 +1038,11 @@ class GuildWindow(ui.ScriptWindow):
 				page.guildMoneySlot = page.GetChild("GuildMoneyValue")
 			except KeyError:
 				page.guildMoneySlot = None
+
+			try:
+				page.guildPayoutSlot = page.GetChild("GuildPayoutValue")
+			except KeyError:
+				page.guildPayoutSlot = None
 
 			try:
 				page.GetChild("DepositButton").SetEvent(ui.__mem_func__(self.__OnClickDepositButton))
@@ -1461,6 +1477,7 @@ class GuildWindow(ui.ScriptWindow):
 		self.moneyDialog = None
 
 		self.enemyGuildNameList = []
+		self.payoutAmount = 0
 
 		self.ClearDictionary()
 
@@ -1520,6 +1537,9 @@ class GuildWindow(ui.ScriptWindow):
 		page.guildLevelSlot.SetText(str(guild.GetGuildLevel()))
 		if page.guildMoneySlot:
 			page.guildMoneySlot.SetText(str(guild.GetGuildMoney()))
+
+		if getattr(page, "guildPayoutSlot", None):
+			page.guildPayoutSlot.SetText(str(getattr(self, "payoutAmount", 0)))
 
 		curExp, lastExp = guild.GetGuildExperience()
 		curExp *= 100

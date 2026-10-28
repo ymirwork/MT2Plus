@@ -1,0 +1,35 @@
+-- MT2009_PLUS_CRAFTER_REVENUE_V1: Odbior utargu z ulepszen i przetopow u rzemieslnikow gildyjnych
+-- Umozliwia Liderowi gildii wyplate zebranych Yang ze skarbca z 15% podatkiem cesarskim.
+-- Dziala zarowno u Straznika Wsi (11000, 11002, 11004) jak i u rzemieslnikow gildyjnych.
+-- Autor: Krystian (MT2Plus)
+
+quest guild_crafter_revenue begin
+    state start begin
+        when 11000.chat."Odbierz utarg gildii" or
+             11002.chat."Odbierz utarg gildii" or
+             11004.chat."Odbierz utarg gildii"
+             with pc.has_guild() and pc.is_guild_master() begin
+            open_guild_payout_dialog("Straznik Wsi")
+        end
+
+        when 20044.chat."Odbierz utarg rzemieslnika" or
+             20045.chat."Odbierz utarg rzemieslnika" or
+             20046.chat."Odbierz utarg rzemieslnika" or
+             20060.chat."Odbierz utarg rzemieslnika" or
+             20061.chat."Odbierz utarg rzemieslnika" or
+             20062.chat."Odbierz utarg rzemieslnika" or
+             20063.chat."Odbierz utarg rzemieslnika" or
+             20064.chat."Odbierz utarg rzemieslnika" or
+             20065.chat."Odbierz utarg rzemieslnika" or
+             20066.chat."Odbierz utarg rzemieslnika" or
+             20067.chat."Odbierz utarg rzemieslnika" or
+             20068.chat."Odbierz utarg rzemieslnika" or
+             20069.chat."Odbierz utarg rzemieslnika" or
+             20070.chat."Odbierz utarg rzemieslnika" or
+             20071.chat."Odbierz utarg rzemieslnika" or
+             20072.chat."Odbierz utarg rzemieslnika"
+             with npc.get_guild() == pc.get_guild() and pc.is_guild_master() begin
+            open_guild_payout_dialog("Utarg Rzemieslnika")
+        end
+    end
+end

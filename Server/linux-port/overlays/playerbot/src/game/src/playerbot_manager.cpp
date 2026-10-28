@@ -234,6 +234,7 @@ static void SendPlayerBotShout(const char* szText, BYTE bEmpire)
 // sells, and when it lets it go.
 #include "playerbot_lpp.h"
 #include "playerbot_shop_signs.h"
+namespace { bool IsPlayerBotRetiring(DWORD dwPlayerID); }
 #include "playerbot_offline_shop.h"
 #include "playerbot_retirement.h"
 #include "playerbot_takeover.h"
@@ -4846,6 +4847,10 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 					IsPlayerBotSidekickPID(pid) || IsPlayerBotArezzoCohortPID(pid) ||
 					IsPlayerBotArezzoDungeonCohortPID(pid) || IsPlayerBotTakeoverHold(pid))
 				continue;
+			if (HasPlayerBotOfflineShop(ch))
+				continue;
+			if (ch->GetParty() && IsPlayerBotHumanLedParty(ch->GetParty()))
+				continue;
 			CGuild* guild = ch->GetGuild();
 			if (guild && guild->GetMasterPID() == pid)
 				masters.push_back(pid);
@@ -4916,10 +4921,8 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 	entry.dwLastSeen = dwNow;
 	s_mapPlayerBotRetiring[dwPID] = entry;
 	AuditPlayerBotRetireEvent(entry.dwBatchId, dwPID, "picked", pickedCh->GetName());
-	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V1: a forced pick sells nothing - its game
-	// ends at once (wiped and logged out by ProcessRetirementResets).
-	if (bForcedPick)
-		BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: no bot could go to a market");
+	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V2: all picks (normal and fallback) go to
+	// market to sell equipment and items in an offline shop before resetting.
 	++s_uPlayerBotRetireBatchQueued;
 	if (s_uPlayerBotRetireBatchQueued >= s_dwPlayerBotRetireCount)
 		s_bPlayerBotRetireBatchDone = true;

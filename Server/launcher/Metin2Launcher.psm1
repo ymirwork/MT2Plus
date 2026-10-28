@@ -2928,11 +2928,16 @@ function Export-M2Database {
     # code; the caller decides what that is worth. What the dump said on
     # stderr goes into the error, because "the dump failed" alone is what a
     # player sent us on 20 September and nobody could tell which table.
-    param([string]$Container, [string]$Database, [string]$OutFile, [switch]$Force)
+    # -NoData dumps only the database structure/schema without table rows.
+    # Used for 'log' which holds write-only event history (millions of rows,
+    # gigabytes) that the game never reads back.
+    param([string]$Container, [string]$Database, [string]$OutFile, [switch]$Force, [switch]$NoData)
     $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $errFile = "$OutFile.err"
     try {
-        $extra = if ($Force) { ' --force' } else { '' }
+        $extra = ''
+        if ($Force) { $extra += ' --force' }
+        if ($NoData) { $extra += ' --no-data' }
         $line = "docker exec $Container mariadb-dump -uroot --single-transaction --no-tablespaces --skip-lock-tables$extra $Database > `"$OutFile`" 2> `"$errFile`""
         & cmd.exe /c $line
         $code = $LASTEXITCODE
@@ -3045,7 +3050,10 @@ function Invoke-M2DatabaseImport {
             # promised in the confirmation dialog was an empty folder every time.
             # mariadb is invoked directly, with the query as its own argument.
             $exists = & docker exec $tgtC mariadb -uroot -N -B -e "SHOW DATABASES LIKE '$db'" 2>$null
-            if ($exists) { Export-M2Database -Container $tgtC -Database $db -OutFile (Join-Path $backupDir "target-before-import\$db.sql") }
+            if ($exists) {
+                $noData = ($db -eq 'log')
+                Export-M2Database -Container $tgtC -Database $db -OutFile (Join-Path $backupDir "target-before-import\$db.sql") -NoData:$noData
+            }
         }
         Stop-M2ThrowawayDb -Container $tgtC; $tgtC = $null
 
@@ -3058,7 +3066,8 @@ function Invoke-M2DatabaseImport {
         foreach ($db in $script:M2_DB_LIST) {
             $exists = & docker exec $srcC mariadb -uroot -N -B -e "SHOW DATABASES LIKE '$db'" 2>$null
             if (-not $exists) { continue }
-            Export-M2Database -Container $srcC -Database $db -OutFile (Join-Path $work "source\$db.sql")
+            $noData = ($db -eq 'log')
+            Export-M2Database -Container $srcC -Database $db -OutFile (Join-Path $work "source\$db.sql") -NoData:$noData
             $found += $db
         }
         Stop-M2ThrowawayDb -Container $srcC; $srcC = $null
@@ -3074,6 +3083,7 @@ function Invoke-M2DatabaseImport {
             [void]$sb.AppendLine("DROP DATABASE IF EXISTS $db;")
             [void]$sb.AppendLine("CREATE DATABASE $db DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         }
+        [void]$sb.AppendLine("CREATE DATABASE IF NOT EXISTS log DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         $createFile = Join-Path $work 'create.sql'
         [IO.File]::WriteAllText($createFile, $sb.ToString(), [Text.UTF8Encoding]::new($false))
         Invoke-M2SqlFile -Container $tgtC -Database '' -InFile $createFile
@@ -3156,8 +3166,9 @@ function New-M2DatabaseBackup {
             $exists = & docker exec $container mariadb -uroot -N -B -e "SHOW DATABASES LIKE '$db'" 2>$null
             if (-not $exists) { continue }
             $out = Join-Path $dir "$db.sql"
+            $noData = ($db -eq 'log')
             try {
-                Export-M2Database -Container $container -Database $db -OutFile $out
+                Export-M2Database -Container $container -Database $db -OutFile $out -NoData:$noData
             }
             catch {
                 # The log database is history only - nothing in the game reads
@@ -3171,7 +3182,7 @@ function New-M2DatabaseBackup {
                 if ($db -ne 'log') { throw }
                 $first = $_.Exception.Message
                 try {
-                    Export-M2Database -Container $container -Database $db -OutFile $out -Force
+                    Export-M2Database -Container $container -Database $db -OutFile $out -Force -NoData:$noData
                     Write-Host "UWAGA: zrzut bazy 'log' wymagal pominiecia uszkodzonych tabel ($first)."
                     $skipped += "log (czesciowo: $first)"
                 }
@@ -3204,7 +3215,8 @@ function New-M2DatabaseBackup {
         [void]$readme.AppendLine('')
         [void]$readme.AppendLine('Zawartosc (zrzuty mariadb-dump, latin1 jak w grze):')
         foreach ($s in $sizes) {
-            [void]$readme.AppendLine(('  {0,-12} {1,12:N0} B' -f ($s.Name + '.sql'), $s.Bytes))
+            $note = if ($s.Name -eq 'log') { ' (schemat tabel bez historii)' } else { '' }
+            [void]$readme.AppendLine(('  {0,-12} {1,12:N0} B{2}' -f ($s.Name + '.sql'), $s.Bytes, $note))
         }
         foreach ($k in $skipped) {
             [void]$readme.AppendLine("  UWAGA: $k")
@@ -3286,6 +3298,7 @@ function Restore-M2DatabaseBackup {
             [void]$sb.AppendLine("DROP DATABASE IF EXISTS $db;")
             [void]$sb.AppendLine("CREATE DATABASE $db DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         }
+        [void]$sb.AppendLine("CREATE DATABASE IF NOT EXISTS log DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;")
         $createFile = Join-Path $work 'create.sql'
         [IO.File]::WriteAllText($createFile, $sb.ToString(), [Text.UTF8Encoding]::new($false))
         Invoke-M2SqlFile -Container $tgtC -Database '' -InFile $createFile

@@ -30,6 +30,8 @@ TARGET_FILES = [
     'Server/linux-port/docker/game/yohara_zaklety/mob_drop_item.yohara_zaklety.txt'
 ]
 
+COMMON_DROP_FILE = 'Server/linux-port/docker/game/src/serverfiles/share/locale/poland/common_drop_item.txt'
+
 def find_repo_root():
     curr = os.path.abspath(os.path.dirname(__file__))
     while curr and os.path.dirname(curr) != curr:
@@ -120,9 +122,78 @@ def process_file(abs_path):
 
     return modified_groups, removed_pots
 
+def process_common_drop(abs_path):
+    if not os.path.exists(abs_path):
+        print(f"[OSTRZEŻENIE] Plik nie istnieje: {abs_path}")
+        return 0
+
+    with open(abs_path, 'r', encoding='latin1') as f:
+        lines = f.readlines()
+
+    modified_count = 0
+
+    # Line 68: change 1\t20 to 1\t18
+    if len(lines) >= 68 and '\t1\t20\t' in lines[67]:
+        lines[67] = lines[67].replace('\t1\t20\t', '\t1\t18\t')
+        modified_count += 1
+
+    # Lines 73, 74, 75: change 1\t120 to 1\t18 for Niebieskie Mikstury (M, Ś, D)
+    for lidx in [72, 73, 74]:
+        if len(lines) > lidx and '\t1\t120\t' in lines[lidx]:
+            lines[lidx] = lines[lidx].replace('\t1\t120\t', '\t1\t18\t')
+            modified_count += 1
+
+    # Line 325: zero out slot 0 (27002 Czerwona Ś 20-40)
+    if len(lines) >= 325 and '27002' in lines[324]:
+        tokens = lines[324].rstrip('\r\n').split('\t')
+        if len(tokens) >= 6 and tokens[4] == '27002':
+            tokens[0:6] = ['', '0', '0', '0', '0', '0']
+            lines[324] = '\t'.join(tokens) + '\n'
+            modified_count += 1
+
+    # Line 329: zero out slots 1, 2, 3 (27002 Czerwona Ś 20-40)
+    if len(lines) >= 329 and '27002' in lines[328]:
+        tokens = lines[328].rstrip('\r\n').split('\t')
+        if len(tokens) >= 24:
+            tokens[6:12] = ['', '0', '0', '0', '0', '0']
+            tokens[12:18] = ['', '0', '0', '0', '0', '0']
+            tokens[18:24] = ['', '0', '0', '0', '0', '0']
+            lines[328] = '\t'.join(tokens) + '\n'
+            modified_count += 1
+
+    # Line 353: zero out slot 0 (27003 Czerwona D 35-120)
+    if len(lines) >= 353 and '27003' in lines[352]:
+        tokens = lines[352].rstrip('\r\n').split('\t')
+        if len(tokens) >= 6 and tokens[4] == '27003':
+            tokens[0:6] = ['', '0', '0', '0', '0', '0']
+            lines[352] = '\t'.join(tokens) + '\n'
+            modified_count += 1
+
+    # Line 357: zero out slot 1 (27003 Czerwona D 35-120)
+    if len(lines) >= 357 and '27003' in lines[356]:
+        tokens = lines[356].rstrip('\r\n').split('\t')
+        if len(tokens) >= 12 and tokens[10] == '27003':
+            tokens[6:12] = ['', '0', '0', '0', '0', '0']
+            lines[356] = '\t'.join(tokens) + '\n'
+            modified_count += 1
+
+    # Line 361: zero out slots 2, 3 (27003 Czerwona D 35-120)
+    if len(lines) >= 361 and '27003' in lines[360]:
+        tokens = lines[360].rstrip('\r\n').split('\t')
+        if len(tokens) >= 24:
+            tokens[12:18] = ['', '0', '0', '0', '0', '0']
+            tokens[18:24] = ['', '0', '0', '0', '0', '0']
+            lines[360] = '\t'.join(tokens) + '\n'
+            modified_count += 1
+
+    with open(abs_path, 'w', encoding='latin1', newline='') as f:
+        f.writelines(lines)
+
+    return modified_count
+
 def main():
     root = find_repo_root()
-    print(f"MT2Plus: Usuwanie Czerwonych i Niebieskich Mikstur z Metinów i Bossów od M2 w górę...")
+    print("MT2Plus: Usuwanie Czerwonych i Niebieskich Mikstur z Metinów i Bossów od M2 w górę...")
     print(f"Katalog główny: {root}\n")
 
     total_groups = 0
@@ -135,7 +206,11 @@ def main():
         total_pots += rem_pots
         print(f" - {rel_path}: zmodyfikowano grup: {mod_groups}, usunięto linii potek: {rem_pots}")
 
-    print(f"\n[SUKCES] Łącznie zmodyfikowano grup: {total_groups}, usunięto linii mikstur: {total_pots}")
+    common_abs = os.path.join(root, COMMON_DROP_FILE.replace('/', os.sep))
+    common_mods = process_common_drop(common_abs)
+    print(f" - {COMMON_DROP_FILE}: zaktualizowano wpisów mikstur ogólnych: {common_mods}")
+
+    print(f"\n[SUKCES] Łącznie zmodyfikowano grup: {total_groups}, usunięto linii mikstur: {total_pots}, zmodyfikowano wpisów common drop: {common_mods}")
 
 if __name__ == '__main__':
     main()

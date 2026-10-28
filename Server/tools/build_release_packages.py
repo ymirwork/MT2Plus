@@ -66,17 +66,18 @@ def build_server_package(repo_root, dist_dir):
     engine_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'src', 'server', 'game', 'src')
     if os.path.exists(engine_src):
         os.makedirs(engine_dst, exist_ok=True)
-        for f in ['char_skill.cpp', 'char.cpp', 'battle.cpp', 'input_main.cpp', 'char_battle.cpp', 'char_item.cpp', 'building.cpp', 'building.h', 'cmd_gm.cpp']:
+        for f in ['char_skill.cpp', 'char.cpp', 'battle.cpp', 'input_main.cpp', 'char_battle.cpp', 'char_item.cpp', 'building.cpp', 'building.h', 'cmd_gm.cpp', 'item_manager.cpp']:
             src_f = os.path.join(engine_src, f)
             if os.path.exists(src_f):
                 shutil.copy2(src_f, engine_dst)
 
-    # 3b. Serverfiles locale overrides (mob_drop_item.txt)
-    sf_src = os.path.join(server_root, 'linux-port', 'docker', 'game', 'src', 'serverfiles', 'share', 'locale', 'poland', 'mob_drop_item.txt')
-    sf_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'src', 'serverfiles', 'share', 'locale', 'poland', 'mob_drop_item.txt')
-    if os.path.exists(sf_src):
-        os.makedirs(os.path.dirname(sf_dst), exist_ok=True)
-        shutil.copy2(sf_src, sf_dst)
+    # 3b. Serverfiles locale overrides (mob_drop_item.txt, common_drop_item.txt)
+    for locale_file in ['mob_drop_item.txt', 'common_drop_item.txt']:
+        sf_src = os.path.join(server_root, 'linux-port', 'docker', 'game', 'src', 'serverfiles', 'share', 'locale', 'poland', locale_file)
+        sf_dst = os.path.join(temp_dir, 'linux-port', 'docker', 'game', 'src', 'serverfiles', 'share', 'locale', 'poland', locale_file)
+        if os.path.exists(sf_src):
+            os.makedirs(os.path.dirname(sf_dst), exist_ok=True)
+            shutil.copy2(sf_src, sf_dst)
 
     # 4. Overlays (playerbot + seban-panel)
     pb_src = os.path.join(server_root, 'linux-port', 'overlays', 'playerbot', 'src', 'game', 'src')

@@ -1,36 +1,38 @@
-# 🛠️ Fix: Emerytura Botów – Eliminacja Zapętlenia i Losowania 1 Poziomu (MT2009_PLUS_BOT_RETIREMENT_FIX_V2)
+# 🛠️ Fix: Emerytura Botów – Eliminacja Zapętlenia, Losowania 1 Poziomu oraz Naprawa Wystawiania Sklepu Offline (MT2009_PLUS_BOT_RETIREMENT_FIX_V3)
 
 ## 📌 Problem i Przyczyna (Root Cause)
-Podczas włączenia rotacji/emerytury botów w panelu (`/advanced/retired-bots`), system losował postacie o poziomie 1, mimo że wskaźnik doradcy w Seban Panel pokazywał wysoki wskaźnik gotowości (`🟢 Zalecana rotacja`) i na serwerze znajdowały się setki botów 35+ / 40+ lvl.
-
-### Diagnoza:
-1. **Pętla powtórnego losowania:**
-   Gdy bot o wysokim poziomie (np. 35 czy 39 lvl) został wytypowany i zresetowany do 1 poziomu (co jest standardowym końcowym etapem emerytury – postać zaczyna grę od nowa od 1 lvl), silnik gry natychmiast usuwał go z mapy aktywnych procesów emerytury (`s_mapPlayerBotRetiring.erase(pid)`).
-   Ponieważ bot stał bezczynnie w mieście, silnik w tej samej turze **losował go ponownie** (w skrajnych przypadkach ten sam bot był losowany nawet 10 razy z rzędu w ciągu kilkunastu minut!).
-2. **Nadpisywanie pierwotnego poziomu w bazie danych:**
-   Tabela `common.playerbot_retire_pick` posiada `PRIMARY KEY (pid)` i zapytanie `ON DUPLICATE KEY UPDATE level=VALUES(level)`. Przy ponownym wylosowaniu tego samego bota (mającego już 1 lvl po resecie) baza danych bezpowrotnie zastępowała jego pierwotny poziom (np. 35 lvl) wartością `1`.
-3. **Brak minimalnego limitu poziomu:**
-   W silniku nie istniał żaden dolny próg poziomu (np. 10 lvl). W połączeniu z dużą liczbą nieaktywnych botów o poziomie 1, percentyle "środka stawki" (35%-65%) wyliczały się na poziomie 1.
+1. **Problem V2 (Rozwiązany wcześniej):**
+   Podczas włączenia rotacji/emerytury botów w panelu (`/advanced/retired-bots`), system losował postacie o poziomie 1, mimo że wskaźnik doradcy w Seban Panel pokazywał wysoki wskaźnik gotowości (`🟢 Zalecana rotacja`) i na serwerze znajdowały się setki botów 35+ / 40+ lvl.
+2. **Problem V3 (Brak wystawiania sklepu i natychmiastowy reset):**
+   W batchu emerytury (np. `batch=1793145285`) boty były natychmiast resetowane do 1 poziomu (etap `reset`) po kilkunastu sekundach od wylosowania, bez uprzedniego otwarcia sklepu offline (`stage=selling`) i bez wystawienia przedmiotów na rynek.
+   
+   **Przyczyny w kodzie silnika:**
+   - W `playerbot_manager.cpp`: Gdy bot został wytypowany w trybie awaryjnym (`bForcedPick`), kod natychmiast wykonywał `BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: no bot could go to a market");`, całkowicie omijając etap `PLAYERBOT_RETIRE_SHOPPING` i czyszcząc postać bez handlu.
+   - W `playerbot_retirement.h`: Warunek `if (ch->GetParty()) return false;` dyskwalifikował boty z normalnej puli, jeśli polowały w bot-party, zmuszając system do wymuszonego wyboru (`bForcedPick`).
+   - W `playerbot_offline_shop.h`: Zabezpieczenie `now - state.dwSpawnTime < 120000` (2 minuty od spawnu bota) oraz rezerwacja Yang na medale konne (`GetPlayerBotReservedGold(ch)`) blokowały otwarcie sklepu offline.
+   - W `playerbot_retirement.h`: Funkcja `ScorePlayerBotShopStock` odrzucała noszony ekwipunek jako "wartościowe wyposażenie do zatrzymania", zamiast bezwzględnie wystawiać cały zdjęty rynsztunek bota na sprzedaż.
+   - W przypadku pełnego ekwipunku miksturami HP/MP, bot nie miał miejsca w plecaku na zdjęcie zbroi, broni i biżuterii (`ch->UnequipItem`).
 
 ---
 
-## 🔧 Zastosowane Rozwiązanie (Fix)
+## 🔧 Zastosowane Rozwiązanie (Fix V3)
 
-1. **Zabezpieczenie przed powtórnym wyborem w tej samej turze (`s_setPlayerBotRetireBatchPIDs`):**
-   - Wprowadzono zestaw `s_setPlayerBotRetireBatchPIDs`, który pamięta wszystkie identyfikatory botów wytypowanych w bieżącej partii.
-   - Stan jest synchronizowany z bazą danych przy starcie partii (`SELECT pid FROM common.playerbot_retire_pick WHERE batch_id=%u`).
-   - Ani w trybie normalnym, ani w trybie awaryjnym (`bForcedPick`), żaden bot nie może zostać wylosowany więcej niż jeden raz w ramach tej samej tury.
-2. **Twardy minimalny próg poziomu (`PLAYERBOT_RETIRE_MIN_LEVEL`):**
-   - Wprowadzono zmienną `s_bPlayerBotRetireMinLevel = 10` (konfigurowalną przez zmienną środowiskową `PLAYERBOT_RETIRE_MIN_LEVEL`, domyślnie 10 lvl).
-   - Postacie poniżej 10 poziomu są całkowicie ignorowane przy wyliczaniu puli percentyli oraz odrzucane z kandydatów.
-3. **Dynamiczna weryfikacja poziomu online:**
-   - Przy budowaniu puli `live` silnik odpytuje w czasie rzeczywistym aktualny poziom w pamięci gry (`ch->GetLevel()`) i synchronizuje lokalną mapę kont `m_mapBotAccounts`.
-4. **Zabezpieczenie SQL przed degradacją poziomu w bazie:**
-   - Zapytanie `ON DUPLICATE KEY UPDATE` wykorzystuje `level=IF(batch_id=VALUES(batch_id), GREATEST(level, VALUES(level)), VALUES(level))`, co uniemożliwia nadpisanie wyższego poziomu jedynką.
+1. **Eliminacja omijania sklepu (`bForcedPick`):**
+   - Usunięto skrót natychmiastowego resetu postaci. Każdy wytypowany bot (zarówno z puli normalnej, jak i awaryjnej) przechodzi pełną procedurę: przejście do `PLAYERBOT_RETIRE_SHOPPING`, warp do rynku swojego królestwa (m1 / m21 / m41), zdjęcie ekwipunku, otwarcie sklepu offline `ikashop` i przejście w stan `selling`.
+2. **Gwarancja wystawienia całego wyposażenia:**
+   - Zdjęty rynsztunek (`wasWorn == 1`) jest bezwzględnie dodawany do listy towarów wystawianych w tobołku z realnymi cenami rynkowymi.
+   - Przed zdjęciem ekwipunku bot usuwa zbędne mikstury z plecaka, jeśli ma mniej niż 8 wolnych slotów w inwentarzu.
+   - Bot otrzymuje zapomogę 100 000 Yang, jeśli posiada za mało złota na opłacenie prowizji otwarcia sklepu.
+3. **Bypass ograniczeń czasowych dla emerytów:**
+   - W `playerbot_offline_shop.h` dodano wyjątek `IsPlayerBotRetiring(ch->GetPlayerID())` – brak blokady 2 minut od spawnu oraz zerowa rezerwa na oszczędności konne.
+4. **Zezwolenie na emeryturę botów w drużynach bot-bot:**
+   - Wykluczane są wyłącznie boty grające w party prowadzonym przez żywego gracza (`IsPlayerBotHumanLedParty`), co pozwala botom z grup NPC normalnie przechodzić na emeryturę.
+5. **Zamknięcie otwartych okien dialogowych:**
+   - Przed rozpoczęciem emerytury automatycznie zamykane są ewentualne otwarte okna handlu, magazynu czy gościa sklepu offline.
 
 ---
 
 ## 📂 Zmodyfikowane Pliki
-- `Server/linux-port/overlays/playerbot/src/game/src/playerbot_retirement.h` (oraz kopia `docker/game/src/server/game/src/`)
-- `Server/linux-port/overlays/playerbot/src/game/src/playerbot_manager.cpp` (oraz kopia `docker/game/src/server/game/src/`)
-- `Server/server-patches/krystian/fix-emerytura-botow/apply_patch.py`
+- `Server/linux-port/overlays/playerbot/src/game/src/playerbot_retirement.h` (i kopia w `docker/`)
+- `Server/linux-port/overlays/playerbot/src/game/src/playerbot_offline_shop.h` (i kopia w `docker/`)
+- `Server/linux-port/overlays/playerbot/src/game/src/playerbot_manager.cpp` (i kopia w `docker/`)

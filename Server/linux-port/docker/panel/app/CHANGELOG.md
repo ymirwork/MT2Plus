@@ -17,6 +17,67 @@ every version here.
 
 ---
 
+## 2.39.0 — 2026-10-27 — Halloween, kamienie Metin z przedmiotów, broń botów
+
+### Halloween
+**Nowy event: Halloween.** Dodałem event halloweenowy z Jackiem Pumpkinem. Domyślnie jest wyłączony – włączasz go sam.
+
+**Jak włączyć i wyłączyć**
+- W panelu (Eventy) wybierz rodzaj „Halloween (dynie i Jack Pumpkin)” i kliknij „Włącz teraz” albo dodaj go do harmonogramu.
+- GM może też użyć komendy `/eventflag halloween_hair 1` (włącza) i `/eventflag halloween_hair 0` (wyłącza).
+- Po zaplanowanym evencie Jack Pumpkin zostaje w miastach jeszcze 7 dni, już bez dropu, żeby gracze zdążyli wymienić karty.
+
+**Jak działa, krok po kroku**
+1. **Jack Pumpkin** pojawia się w Yongan, Joan i Pyungmoo, obok stołów mini gier, i znika po zakończeniu eventu.
+2. **Upiorna Dynia** wypada z każdego potwora i kamienia Metin – 1% na zabicie. To zwykły przedmiot eventowy (nie mikstura), który można zbierać i wymieniać.
+3. **Czarodziejska Różdżka** wypada tylko z kamieni Metin – 10% na zabicie.
+4. Oba dropy działają jak zwykły drop: tylko z potworów i Metinów co najwyżej 15 poziomów niższych od postaci (silniejsze dają pełną szansę). Szansy nie zwiększają eventy dropu, premium ani rękawice, a podwójny loot jej nie podwaja. Po zakończeniu eventu dynie i różdżki przestają wypadać.
+5. **Użyj Czarodziejskiej Różdżki**, mając w ekwipunku Upiorną Dynię – różdżka i dynia znikają, a dostajesz **Upiorną Skrzynię**.
+6. **Otwórz Upiorną Skrzynię** – wypada z niej jedna rzecz:
+
+| Przedmiot | Szansa |
+|---|---|
+| Karta Maski Dyni | 4% |
+| Zaczarowanie Przedmiotu | 5% |
+| Wzmocnienie Przedmiotu | 4% |
+| 5× Zielona Mikstura (D) | 17% |
+| 5× Fioletowa Mikstura (D) | 16% |
+| 2× Dłoń Krytyka | 7% |
+| 2× Dłoń Przebicia | 7% |
+| Życie Boga Smoków | 6% |
+| Atak Boga Smoków | 6% |
+| Zwój Błogosławieństwa | 6% |
+| Szkatułka Blasku Księżyca | 10% |
+| Fasolka Zen | 4% |
+| 200 000 Yang | 8% |
+
+7. **Kartę Maski Dyni zanieś do Jacka Pumpkina** i wybierz „Zamień Kartę Maski Dyni”. Dostajesz **Maskę Dyni** – kostium fryzury z dynią na głowie, dopasowany do klasy i płci postaci.
+8. **Maska ma jeden losowy bonus na 7 dni** (czas liczy się od pierwszego założenia):
+   - rodzaj (każdy po 20%): silny przeciwko potworom, Wojownikom, Ninja, Surom albo Szamanom;
+   - wartość: +5% (60%) albo +10% (40%).
+
+**Dla administratora**
+- Zawartość Upiornej Skrzyni zmienisz w panelu (Szkatułki).
+- Szanse na dynię i różdżkę zmienisz bez restartu flagami `m2_halloween_pumpkin` i `m2_halloween_wand` (w setnych częściach procenta, np. 100 = 1%).
+- **Boty nie biorą udziału w evencie**: z ich zabójstw nic nie wypada, nie podnoszą dyń, różdżek, kart ani skrzyń i nie rozmawiają z Jackiem Pumpkinem. Dynie i różdżki nie wypadają też z zabójstw Towarzysza.
+- Stary quest halloweenowy z paczki serwera nie działał (bez tekstów, skrzynia się nie otwierała) – zastąpiłem go.
+- **Wymaga nowej łatki klienta (2.0.70):** model Jacka Pumpkina (bez niego NPC jest niewidoczny), nowe opisy dyni, różdżki, karty, skrzyni i masek oraz Halloween na liście wydarzeń przy minimapie.
+
+### Kamienie Metin i żyły z przedmiotów
+- **Przywołany kamień Metin znika po 15 minutach.** Kamień Metin przywołany z przedmiotu – Kamień Metin (Słaby), (Średni) i (Silny), także ten z pudełek eventu Dzieci Kwiaty – znika 15 minut po przywołaniu, jeśli nikt go wcześniej nie zniszczy. Tak samo żyły i Sterta Muszli przywołane Zwojami Przywołania (Żyła Skamieniałego Drzewa, Miedzi, Srebra, Złota, Jadeitu, Ebonitu, Białego Złota, Kryształu, Ametystu i Niebiańskich Łez). Czas liczy się od przywołania, więc zmiana mapy czy wyjście z gry niczego nie przedłuża. Po przywołaniu gra przypomina o tym na czacie.
+- **W lochach nie da się przywołać kamienia Metin ani żyły.** W każdym lochu (także w Wieży Demonów) takie przedmioty się nie otwierają – gra pisze „Nie mozesz przywolac kamienia Metin w lochu.” (albo „…zyly w lochu.”), a przedmiot zostaje w ekwipunku. Wcześniej przywołany w lochu kamień dawał drop bez względu na poziom postaci, bo drop w lochach celowo nie patrzy na różnicę poziomów.
+- Kamienie Metin z respawnu, kamienie samych lochów i zwoje przywołania bossów działają tak jak dotąd. Nie wymaga nowego klienta.
+
+### Boty – broń
+- **Wojownik (Ciało) zakłada broń dwuręczną z plecaka, jeśli jest dużo lepsza.** Poprawiłem błąd, przez który wojownicy z grupą Ciało (i bez wybranej grupy) zdejmowali broń dwuręczną jako „niepasującą do profesji” i walczyli mieczem kupionym u kupca – np. bot na 99 poziomie z Pogromcą Nieb. Smoka+9 w plecaku nosił Stożkowy Miecz+0 z 15 poziomu, a biedniejsi stali zupełnie bez broni. Miecz jednoręczny dalej jest ich podstawową bronią, ale dwuręczna, którą bot już ma i która bije co najmniej o połowę mocniej niż jego najlepszy miecz, jest teraz zakładana (i nie trafia na sprzedaż). Bot nie goni już też celu broni, który ma w plecaku, a jeśli przez 2 godziny nie zbliża się do celu (np. broń wypada tylko na mapie, na której nie poluje), kupuje najlepszą broń, na jaką go stać – u kupca albo na rynku – całym zapasem yang ponad rezerwę. Nie wymaga nowego klienta.
+- **Ninja łucznik walczy sztyletem, jeśli ten bije mocniej niż jego łuk.** Poprawiłem błąd, przez który łucznicy nosili słaby łuk z 15 poziomu, mając w plecaku sztylet z 90 poziomu, a ci bez łuku stali w ogóle bez broni. Teraz łucznik zakłada sztylet, który ma, jeśli zadaje on więcej obrażeń niż jego najlepszy łuk (albo gdy łuku nie ma wcale), i walczy nim wręcz – zwykłymi ciosami, bez umiejętności łuczniczych, które bez łuku nic nie zadają; w pojedynku walczy jak ninja ze sztyletem, a nie z dystansu. Dalej odkłada yang i poluje tylko na lepszy łuk (nigdy na sztylet), a gdy zdobędzie łuk bijący mocniej niż sztylet, wraca do łuku. Sztylet, którym walczy, nie trafia do sprzedaży. Nie wymaga nowego klienta.
+
+## Klient 2.0.70 — 2026-10-27 — Halloween
+- **Halloween** – model Jacka Pumpkina, opisy Upiornej Dyni, Czarodziejskiej Różdżki, Karty Maski Dyni, Upiornej Skrzyni i Masek Dyni oraz Halloween na liście wydarzeń przy minimapie.
+- Zmieniły się dane przedmiotów – po aktualizacji pobierz ponownie zip z edytora bazy danych (gra przypomni o tym po zalogowaniu; MT2009-Patcher pobierze go sam).
+
+---
+
 ## 2.38.0 — 2026-10-26 — Wężowe Pole i Kraina Gigantów, budynki gildii, boty na wojnie
 
 ### Wężowe Pole i Kraina Gigantów

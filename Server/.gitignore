@@ -14,3 +14,7 @@
 /launcher-logs/
 /support-bundles/
 /.m2*
+
+/server-settings/*.zip
+/server-settings/*-OLD.txt
+/server-settings/*-0041.txt

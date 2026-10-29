@@ -2738,6 +2738,10 @@ namespace ikashop
 		if (shop->GetDuration() == 0) // skonczyl sie sklep to mozna gdziekolwiek
 			return true;
 
+		// Wlasciciel moze edytowac/zarzadzac swoim sklepem z jakiejkolwiek lokalizacji
+		if (ch->GetPlayerID() == shop->GetOwnerPID())
+			return true;
+
 		auto spawn = shop->GetSpawn();
 		if (spawn.channel != g_bChannel)
 		{
@@ -3932,6 +3936,58 @@ namespace ikashop
 			spaceFree = shop->ReserveSpace(destPos, item->GetSize());
 		if (!spaceFree)
 		{
+			CShop::ITEM_HANDLE stackItem = nullptr;
+			for (const auto& [lineId, line] : shop->GetItems())
+			{
+				if (line && line->GetInfo().pos == destPos)
+				{
+					stackItem = line;
+					break;
+				}
+			}
+
+			if (stackItem && item->CanStack() && stackItem->GetVnum() == item->GetVnum())
+			{
+				bool canMerge = true;
+				for (int i = 0; i < ITEM_SOCKET_MAX_NUM; ++i)
+				{
+					if (stackItem->GetInfo().alSockets[i] != item->GetSocket(i))
+					{
+						canMerge = false;
+						break;
+					}
+				}
+
+				if (canMerge && (stackItem->GetInfo().count + item->GetCount() <= item->GetMaxStack()))
+				{
+					const int addCount = item->GetCount();
+					const int newCount = stackItem->GetInfo().count + addCount;
+					long long newYang = (long long)stackItem->GetPrice().yang + (long long)price.yang;
+
+					if (shop->GetTotalYangValue() - stackItem->GetPrice().yang + newYang > GOLD_MAX)
+					{
+						ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("MONEY_WILL_EXCEED_OVER_LIMIT"));
+						return false;
+					}
+
+					TShopItem newInfo = stackItem->GetInfo();
+					newInfo.count = newCount;
+					newInfo.price.yang = newYang;
+					stackItem->SetInfo(newInfo);
+
+					DBManager::instance().DirectQuery("UPDATE player.item SET count = %d WHERE id = %u", newCount, stackItem->GetID());
+					SendShopEditItemDBPacket(shop->GetOwnerPID(), stackItem->GetID(), newInfo.price);
+
+					item->RemoveFromCharacter();
+					ITEM_MANAGER::instance().FlushDelayedSave(item);
+					ITEM_MANAGER::instance().DestroyItem(item);
+
+					shop->RefreshViews();
+					ch->ChatPacket(CHAT_TYPE_INFO, "Przedmiot zostal dodany do stosu w sklepie.");
+					return true;
+				}
+			}
+
 			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("SHOP_ITEM_WRONG_POS"));
 			ch->ChatDebug("pos is reserverd %d (item size %d)", destPos, item->GetSize());
 			return false;

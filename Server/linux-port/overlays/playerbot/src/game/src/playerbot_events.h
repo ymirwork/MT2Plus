@@ -759,8 +759,9 @@ void Mt2009PlusChestDrops(LPCHARACTER victim, LPCHARACTER killer, std::vector<LP
 	Mt2009PlusHalloweenDrops(victim, killer, vec_item);
 	if (!victim || !killer || !killer->IsPC() || !(victim->IsMonster() || victim->IsStone()) || s_vecPlayerBotChestDrops.empty())
 		return;
-	// MT2009_PLUS_NO_LEVEL_DELTA_DROP: skrzynie eventowe bez ograniczenia poziomu zabojcy
-	// if (killer->GetLevel() > victim->GetLevel() + 15) return;
+	// Skrzynie eventowe: do 30 poziomow roznicy
+	if (killer->GetLevel() > victim->GetLevel() + 30)
+		return;
 	for (size_t i = 0; i < s_vecPlayerBotChestDrops.size(); ++i)
 	{
 		const playerbot_events::Status& st = s_vecPlayerBotChestDrops[i];

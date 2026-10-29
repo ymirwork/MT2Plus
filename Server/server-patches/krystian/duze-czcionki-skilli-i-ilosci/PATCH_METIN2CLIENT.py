@@ -11,8 +11,10 @@ import shutil
 
 def patch_exe():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.abspath(os.path.join(script_dir, '..', '..', '..'))
+    root_dir = os.path.abspath(os.path.join(script_dir, '..', '..', '..', '..'))
     exe_path = os.path.join(root_dir, 'Klient', 'metin2client.exe')
+    if not os.path.exists(exe_path):
+        exe_path = os.path.join(os.getcwd(), 'Klient', 'metin2client.exe')
     bak_path = os.path.join(root_dir, 'Klient', 'metin2client.exe.bak')
 
     if not os.path.exists(exe_path):

@@ -95,7 +95,7 @@ def main():
     quests = [
         'black_steel_crafting.quest',
         'labirynth.quest',
-        'tp_bookmarks.quest',
+        # 'tp_bookmarks.quest' (custom devgameplay: scrolls 22000/22011/etc + dungeons)
     ]
     for q in quests:
         rel = f'linux-port/docker/game/quest/{q}'

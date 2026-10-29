@@ -861,7 +861,7 @@ class GuildWindow(ui.ScriptWindow):
 		if self.IsShow() and getattr(self, "isLoaded", 0) and hasattr(self, "pageWindow") and "GUILD_INFO" in self.pageWindow:
 			page = self.pageWindow["GUILD_INFO"]
 			if getattr(page, "guildPayoutSlot", None):
-				page.guildPayoutSlot.SetText(str(self.payoutAmount))
+				page.guildPayoutSlot.SetText(localeInfo.MoneyFormat(self.payoutAmount))
 
 	def Open(self):
 		self.Show()
@@ -1536,10 +1536,10 @@ class GuildWindow(ui.ScriptWindow):
 		page.masterNameSlot.SetText(guild.GetGuildMasterName())
 		page.guildLevelSlot.SetText(str(guild.GetGuildLevel()))
 		if page.guildMoneySlot:
-			page.guildMoneySlot.SetText(str(guild.GetGuildMoney()))
+			page.guildMoneySlot.SetText(localeInfo.MoneyFormat(guild.GetGuildMoney()))
 
 		if getattr(page, "guildPayoutSlot", None):
-			page.guildPayoutSlot.SetText(str(getattr(self, "payoutAmount", 0)))
+			page.guildPayoutSlot.SetText(localeInfo.MoneyFormat(getattr(self, "payoutAmount", 0)))
 
 		curExp, lastExp = guild.GetGuildExperience()
 		curExp *= 100

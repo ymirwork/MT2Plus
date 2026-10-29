@@ -42,11 +42,16 @@ MAP_NAMES = {
 	41: "Pyungmoo (M1)", 43: "Bakra (M2)", 44: "Imha (M3)",
 	61: "G\xf3ra Sohan", 62: "Doyyumhwaji", 63: "Pustynia Yongbi",
 	64: "Dolina Seungryong", 65: "\x8cwi\xb9tynia Hwang", 67: "Las Duch\xf3w Lungsam",
-	68: "Czerwony Las", 70: "Kraina Gigant\xf3w",
-	80: "W\xea\xbfowe Pole", 104: "Kuahklo Dong", 209: "\x8cwi\xb9tynia Ochao",
+	68: "Czerwony Las", 69: "Ognista Ziemia", 70: "Kraina Gigant\xf3w",
+	71: "Loch Paj\xb9k\xf3w V2", 72: "Grota Wygna\xf1c\xf3w V1", 73: "Grota Wygna\xf1c\xf3w V2",
+	80: "W\xea\xbfowe Pole", 104: "Kuahklo Dong (V1)", 217: "Loch Paj\xb9k\xf3w V3",
+	5: "\xa3atwy Loch Ma\xb3p (Shinsoo)", 25: "\xa3atwy Loch Ma\xb3p (Chunjo)", 45: "\xa3atwy Loch Ma\xb3p (Jinno)",
+	107: "Normalny Loch Ma\xb3p", 108: "Trudny Loch Ma\xb3p", 109: "Loch Ma\xb3p",
+	209: "\x8cwi\xb9tynia Ochao",
 	301: "Przyl\xb9dek Smoczego Ognia", 302: "Zbocze Gautama",
 	303: "Zatoka Czarnego Piasku", 304: "G\xf3ra Grzmot\xf3w",
 	360: "Dolina Cyklop\xf3w", 361: "Pustkowie Faraona", 353: "Zakl\xeaty Las",
+	362: "Zakl\xeaty Las",
 }
 
 # the name's letters the server keeps: ASCII letters and digits, "_", "-", "."

@@ -228,6 +228,20 @@ namespace
 			}
 			return true;
 		}
+		// Zielony Czar (71151) i Zielona Sila (71152) - handel i skup przez boty <= 40 lvl:
+		if (IsPlayerBotGreenTradeableBonusVnum(offer->GetVnum()))
+		{
+			if ((int)ch->GetLevel() > 40 || !PlayerBotCanSpendBonusStoneKind(ch, offer) || offer->GetCount() > 1)
+				return false;
+			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+			{
+				LPITEM held = ch->GetInventoryItem(cell);
+				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
+						IsPlayerBotGreenBonusStone(held->GetVnum()))
+					return false;
+			}
+			return true;
+		}
 
 		// MT2009_PLUS_DROPPER_INVEST_V1: a dropper buys no medal off another
 		// dropper's counter, and in its shopping window wants the materials
@@ -770,7 +784,7 @@ namespace
 		// MT2009_PLUS_TRADEABLE_BONUS_V2: the tradeable change or add at its
 		// fair price at most (the sheet's, scaled), out of a fifth of what the
 		// bot can spare.
-		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()))
+		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()) || IsPlayerBotGreenTradeableBonusVnum(item->GetVnum()))
 			return price <= (long long)GetPlayerBotShopAskingPrice(item) &&
 					price <= spare * PLAYERBOT_TRADEABLE_BONUS_BUY_PURSE_PERCENT / 100;
 		// MT2009_PLUS_RANK_FRUIT_MARKET_V1: a rank fruit near the price table,

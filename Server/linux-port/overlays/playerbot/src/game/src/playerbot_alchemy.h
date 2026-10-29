@@ -214,8 +214,8 @@ namespace
 	{
 		if (!ch || ch->GetLevel() < PLAYERBOT_ALCHEMY_MIN_LEVEL || ArePlayerBotAlchemyOff())
 			return;
-		// MT2009_PLUS_NO_LEVEL_DELTA_DROP: odlamki smoczego kamienia bez limitu poziomu
-		if (!victim)
+		// Odlamki smoczego kamienia: do 30 poziomow roznicy
+		if (!victim || (int)victim->GetLevel() < (int)ch->GetLevel() - 30)
 			return;
 		const int today = (int)(get_global_time() / 86400);
 		if (ch->GetQuestFlag(PLAYERBOT_DS_DAY_FLAG) != today)

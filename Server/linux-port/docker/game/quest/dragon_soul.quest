@@ -47,7 +47,7 @@ quest dragon_soul begin
 			say(gameforge.dragon_soul._1020_say)
 		end
 
-		when 20001.chat."Od³amek Smoczego Kamienia?!" with pc.level >= 30 and game.get_event_flag("m2_alchemy_off") == 0 begin
+		when 20001.chat."Odamek Smoczego Kamienia?!" with pc.level >= 30 and game.get_event_flag("m2_alchemy_off") == 0 begin
 			target.delete("__TARGET__")
 
 			say_title(mob_name(20001))
@@ -75,8 +75,10 @@ quest dragon_soul begin
 
 			-- Only a monster at most 15 levels under the character, or any
 			-- higher (operator, 27 September 2026).
-			-- MT2009_PLUS_NO_LEVEL_DELTA_DROP: bez wymogu +-15 lvl
-			-- if npc.get_level0() < pc.get_level() - 15 then return end
+			-- Roznica dropu do 30 poziomow
+			if npc.get_level0() < pc.get_level() - 30 then
+				return
+			end
 
 			if pc.count_item(30270) < 10 then
 				if drop_gamble_with_flag("ds_drop") then
@@ -129,8 +131,10 @@ quest dragon_soul begin
 
 			-- Only a monster at most 15 levels under the character, or any
 			-- higher (operator, 27 September 2026).
-			-- MT2009_PLUS_NO_LEVEL_DELTA_DROP: bez wymogu +-15 lvl
-			-- if npc.get_level0() < pc.get_level() - 15 then return end
+			-- Roznica dropu do 30 poziomow
+			if npc.get_level0() < pc.get_level() - 30 then
+				return
+			end
 
 			if drop_gamble_with_flag("ds_drop") then
 				local eye_left = pc.getf("dragon_soul", "eye_left")
@@ -152,7 +156,7 @@ quest dragon_soul begin
 				pc.remove_item(30270, 10)
 				pc.give_item2(50255)
 				if 1 == eye_left then
-					notice_multiline("Moc Smoczego Oka na dziœ siê wyczerpa³a. Jutro odbierz j¹ ponownie u Alchemika.", notice)
+					notice_multiline("Moc Smoczego Oka na dzi si wyczerpaa. Jutro odbierz j ponownie u Alchemika.", notice)
 					set_state(state_closed_season)
 				end
 			end

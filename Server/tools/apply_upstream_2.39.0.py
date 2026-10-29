@@ -104,12 +104,10 @@ def main():
     # game/Dockerfile
     df_path = os.path.join(server_root, 'linux-port/docker/game/Dockerfile')
     upstream_df = get_upstream_file('linux-port/docker/game/Dockerfile').decode('utf-8')
-    upstream_loop = 'labirynth black_steel_crafting event_halloween_hair; do'
-    our_loop = 'recykling_bonusow shop_unlock_slots labirynth black_steel_crafting event_halloween_hair; do'
-    if upstream_loop in upstream_df:
-        upstream_df = upstream_df.replace(upstream_loop, our_loop)
     write_file(df_path, upstream_df)
-    print("[OK] Zaktualizowano game/Dockerfile z zachowaniem customowych questow MT2Plus")
+    import patch_dockerfile
+    patch_dockerfile.patch_dockerfile(server_root)
+    print("[OK] Zaktualizowano game/Dockerfile i zabezpieczono customowe mody MT2Plus")
 
     # mariadb apply.sh
     apply_path = os.path.join(server_root, 'linux-port/docker/mariadb/playerbot/apply.sh')

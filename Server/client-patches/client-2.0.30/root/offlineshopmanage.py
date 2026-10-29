@@ -161,7 +161,7 @@ def GetEarnings():
 	return 0 if not constInfo.myshop_data.has_key("gold") else constInfo.myshop_data["gold"]
 
 class OfflineShopManage(ui.ScriptWindow):
-	WINDOW_WIDTH = 344
+	WINDOW_WIDTH = 664 # PLAYER_SHOP_TWO_BLOCKS_KEYS2_V1
 	WINDOW_HEIGHT = 380
 	ITEM_SLOT_HEIGHT = 8*32
 	SIGN_BAR_HEIGHT = 26
@@ -228,6 +228,12 @@ class OfflineShopManage(ui.ScriptWindow):
 			if itemVnum > 0:
 				item.SelectItem(itemVnum)
 				(itemWidth, itemHeight) = item.GetItemSize()
+
+				stackSlot = owner.FindStackCell(slotNumber, player.INVENTORY)
+				if stackSlot >= 0:
+					itemCount = player.GetItemCount(slotNumber)
+					self.OnSelectEmptySlot(owner, slotNumber, stackSlot, player.INVENTORY, itemVnum, itemCount)
+					return
 
 				freeSlot = owner.FindFreeCell(itemHeight)  # MT2009_PLUS_SHOP_QOL_V2: both pages
 				if freeSlot >= 0:
@@ -1211,10 +1217,11 @@ class OfflineShopManage(ui.ScriptWindow):
 				"Ten przedmiot juz jest wystawiany.", "This item is already being listed."))
 			return
 		item.SelectItem(itemVnum)
-		if self.__IsCellRangeBusy(shopSlotIndex, item.GetItemSize()[1]):
+		isStackMerge = self.__CanStackWithSlot(inventorySlotIndex, shopSlotIndex, inventoryWindowType)
+		if self.__IsCellRangeBusy(shopSlotIndex, item.GetItemSize()[1]) and not isStackMerge:
 			chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.OFFLINE_SHOP_CANNOT_PLACE_ITEM_ON_ITEM)
 			return
-		if not constInfo.myshop_data["items"].has_key(shopSlotIndex):
+		if not constInfo.myshop_data["items"].has_key(shopSlotIndex) or isStackMerge:
 			if self.addItemDialog:
 				self.addItemDialog.Close()
 
@@ -1228,7 +1235,13 @@ class OfflineShopManage(ui.ScriptWindow):
 			dialog.Open()
 
 			sockets = tuple(player.GetItemMetinSocket(inventoryWindowType, inventorySlotIndex, i) for i in xrange(player.METIN_SOCKET_MAX_NUM))
-			itemPrice = offlineShopBuilder.GetPrivateShopItemPrice(itemVnum, itemCount, sockets)
+			if isStackMerge and constInfo.myshop_data["items"].has_key(shopSlotIndex):
+				existing = constInfo.myshop_data["items"][shopSlotIndex]
+				existingCount = max(1, existing.get("count", 1))
+				unitPrice = existing.get("price", 0) / existingCount
+				itemPrice = unitPrice * itemCount
+			else:
+				itemPrice = offlineShopBuilder.GetPrivateShopItemPrice(itemVnum, itemCount, sockets)
 
 			if itemPrice > 0:
 				dialog.SetValue(itemPrice)
@@ -1406,7 +1419,7 @@ class OfflineShopManage(ui.ScriptWindow):
 
 	def ClearItemStock(self):
 		for x in range(shop.SHOP_PLAYER_WIDTH):
-			for y in range(shop.SHOP_PLAYER_HEIGHT):
+			for y in range(shop.SHOP_PLAYER_HEIGHT * 2): # PLAYER_SHOP_TWO_BLOCKS_KEYS2_V1
 				cell = x + shop.SHOP_PLAYER_WIDTH * y
 				for grid in (self.itemSlot, self.wideSlot):  # MT2009_PLUS_SHOP_QOL_V2: both pages
 					if grid:
@@ -1577,11 +1590,17 @@ class OfflineShopManage(ui.ScriptWindow):
 			self.extendButton = None
 
 	def GetBoardWidth(self):
+		if getattr(self, "myShopSlotRenderer", None) and getattr(self.myShopSlotRenderer, "_dualShop", False):
+			return self.WINDOW_WIDTH
 		if self.shopPages > 1 and self.wideSlot:
 			return self.WINDOW_WIDTH + shop.SHOP_PLAYER_WIDTH * 32
 		return self.WINDOW_WIDTH
 
 	def GridOf(self, cell):
+		if getattr(self, "myShopSlotRenderer", None) and getattr(self.myShopSlotRenderer, "_dualShop", False):
+			if 0 <= cell < shop.SHOP_PLAYER_WIDTH * shop.SHOP_PLAYER_HEIGHT * 2:
+				return (self.itemSlot, cell)
+			return (None, -1)
 		pageCells = shop.SHOP_PLAYER_WIDTH * shop.SHOP_PLAYER_HEIGHT
 		if cell < pageCells:
 			return (self.itemSlot, cell)
@@ -1602,6 +1621,12 @@ class OfflineShopManage(ui.ScriptWindow):
 			self.signBar.SetSize(self.GetBoardWidth() - 27, self.signBar.GetHeight())
 			self.signBar.UpdateRect()
 		(x, y) = self.itemSlot.GetLocalPosition()
+		if getattr(self, "myShopSlotRenderer", None) and getattr(self.myShopSlotRenderer, "_dualShop", False):
+			if self.wideSlot:
+				self.wideSlot.Hide()
+			self.itemSlot.SetWindowHorizontalAlignCenter()
+			self.itemSlot.SetPosition(0, y)
+			return
 		if self.shopPages > 1 and self.wideSlot and self.itemSlot.IsShow():
 			gridWidth = shop.SHOP_PLAYER_WIDTH * 32
 			left = (self.WINDOW_WIDTH - gridWidth) // 2
@@ -1812,13 +1837,43 @@ class OfflineShopManage(ui.ScriptWindow):
 				return True
 		return False
 
+	def __CanStackWithSlot(self, inventorySlotIndex, shopSlotIndex, inventoryWindowType=player.INVENTORY):
+		items = constInfo.myshop_data.get("items", {})
+		if not items.has_key(shopSlotIndex):
+			return False
+		shopItem = items[shopSlotIndex]
+		vnum = player.GetItemIndex(inventoryWindowType, inventorySlotIndex)
+		if vnum <= 0 or vnum != shopItem.get("vnum", 0):
+			return False
+		item.SelectItem(vnum)
+		if not item.IsFlag(item.ITEM_FLAG_STACKABLE) and vnum != 50300:
+			return False
+		invCount = player.GetItemCount(inventoryWindowType, inventorySlotIndex)
+		if shopItem.get("count", 1) + invCount > 200:
+			return False
+		shopSockets = shopItem.get("sockets", ())
+		for i in xrange(player.METIN_SOCKET_MAX_NUM):
+			invSock = player.GetItemMetinSocket(inventoryWindowType, inventorySlotIndex, i)
+			shopSock = shopSockets[i] if i < len(shopSockets) else 0
+			if invSock != shopSock:
+				return False
+		return True
+
+	def FindStackCell(self, inventorySlotIndex, inventoryWindowType=player.INVENTORY):
+		items = constInfo.myshop_data.get("items", {})
+		for slotIdx in sorted(items.keys()):
+			if self.__CanStackWithSlot(inventorySlotIndex, slotIdx, inventoryWindowType):
+				return slotIdx
+		return -1
+
 	def __QueueAdd(self, inventorySlotIndex, shopSlotIndex, inventoryWindowType, inputPrice):
 		vnum = player.GetItemIndex(inventoryWindowType, inventorySlotIndex)
 		if vnum <= 0:
 			return
 		height = self.__ItemHeight(vnum)
+		isStackMerge = self.__CanStackWithSlot(inventorySlotIndex, shopSlotIndex, inventoryWindowType)
 		if self.__IsInventorySlotPending(inventoryWindowType, inventorySlotIndex) or \
-				self.__IsCellRangeBusy(shopSlotIndex, height):
+				(not isStackMerge and self.__IsCellRangeBusy(shopSlotIndex, height)):
 			chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.OFFLINE_SHOP_CANNOT_PLACE_ITEM_ON_ITEM)
 			return
 		self.pendingAdds[shopSlotIndex] = {
@@ -1956,6 +2011,19 @@ class OfflineShopManage(ui.ScriptWindow):
 
 	def OnSelectItemSlot(self, slotIndex, click):
 		if mouseModule.mouseController.isAttached():
+			attachedSlotType = mouseModule.mouseController.GetAttachedType()
+			attachedSlotPos = mouseModule.mouseController.GetAttachedSlotNumber()
+			mouseModule.mouseController.DeattachObject()
+			if player.SLOT_TYPE_INVENTORY != attachedSlotType and player.SLOT_TYPE_DRAGON_SOUL_INVENTORY != attachedSlotType:
+				return
+			itemVNum = player.GetItemIndex(attachedSlotType, attachedSlotPos)
+			itemCount = player.GetItemCount(attachedSlotType, attachedSlotPos)
+			if itemVNum <= 0 or itemCount <= 0:
+				return
+			if not self.__CanStackWithSlot(attachedSlotPos, slotIndex, attachedSlotType):
+				chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.OFFLINE_SHOP_CANNOT_PLACE_ITEM_ON_ITEM)
+				return
+			self.OnSelectEmptySlot(attachedSlotPos, slotIndex, attachedSlotType, itemVNum, itemCount)
 			return
 
 		self.visualState.OnSelectItemSlot(self, slotIndex, click)

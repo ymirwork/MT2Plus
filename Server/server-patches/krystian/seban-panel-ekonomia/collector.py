@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pymysql
 
+import bot_stats
 import log_maintenance
 
 INTERVAL = int(os.environ.get("SEBAN_COLLECTOR_INTERVAL", "300"))
@@ -68,7 +69,11 @@ def item_not_gm_scope_sql(alias="i"):
 
 
 
-def check_plus9_refines(cur):
+def check_plus9_refines(cur)
+        try:
+            bot_stats.import_dungeon_runs(cur, CHANNEL_VAR_ROOT)
+        except Exception as exc:
+            print("[seban-collector] bot dungeon runs:", exc, flush=True):
     """Gold "/b"-style server announcement when a real player (not a bot --
     they refine to +9 constantly, that would be pure spam) upgrades
     something to +9. Off by default, toggled from /manage
@@ -589,6 +594,10 @@ def collect(con, previous):
                 cur.execute("INSERT IGNORE INTO player.web_seban_metric_snapshot VALUES (%s,%s,%s)",
                             (now, f"lvl_{int(bracket)}_{int(bracket)+9}", count))
         check_plus9_refines(cur)
+        try:
+            bot_stats.import_dungeon_runs(cur, CHANNEL_VAR_ROOT)
+        except Exception as exc:
+            print("[seban-collector] bot dungeon runs:", exc, flush=True)
         prune_old_snapshots(cur)
     return previous
 

@@ -45,7 +45,8 @@ class _PolishOnly:
 translations = _PolishOnly()
 import decisions
 import event_autogen  # MT2009_PLUS_EVENTS_AUTOGEN_V1
-import log_maintenance  # MT2009_PLUS_DB_LOG_RETENTION_V1
+import log_maintenance
+import bot_stats  # MT2009_PLUS_DB_LOG_RETENTION_V1
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SEBAN_SESSION_SECRET", "change-this-before-public-use")

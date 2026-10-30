@@ -187,8 +187,8 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     dist_dir = os.path.join(repo_root, 'dist')
     
-    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.39.0.zip')
-    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.70.zip')
+    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.40.0.zip')
+    cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.71.zip')
 
     if not os.path.exists(srv_zip) or not os.path.exists(cli_zip):
         print(f"ERROR: Missing release zip files in {dist_dir}")
@@ -197,12 +197,12 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     token = get_github_token()
     print("GitHub token acquired successfully.")
 
-    tag = "v2.39.0-mod60"
-    release_name = "MT2009 PLUS v2.39.0-mod60 - Serwer 2.39.0 & Klient 2.0.70"
+    tag = "v2.40.0-mod61"
+    release_name = "MT2009 PLUS v2.40.0-mod61 - Serwer 2.39.0 & Klient 2.0.70"
 
-    body = f"""# 📦 MT2Plus Wydanie v2.39.0-mod60
+    body = f"""# 📦 MT2Plus Wydanie v2.40.0-mod61
 
-Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.39.0, mod-60 oraz Klient 2.0.70) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
+Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.40.0, mod-61 oraz Klient 2.0.71) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
 
 ---
 
@@ -210,20 +210,23 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 
 | Paczka | Nazwa Pliku | Rozmiar (bajty) | Suma kontrolna SHA-256 |
 | :--- | :--- | :--- | :--- |
-| **Serwer MT2Plus** | `metin2-server-update-2.39.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
-| **Klient MT2Plus** | `metin2-client-update-2.0.70.zip` | `{cli_size:,} B` | `{cli_hash}` |
+| **Serwer MT2Plus** | `metin2-server-update-2.40.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
+| **Klient MT2Plus** | `metin2-client-update-2.0.71.zip` | `{cli_size:,} B` | `{cli_hash}` |
 
 ---
 
 ### 🌟 Najważniejsze Zmiany i Autorskie Modyfikacje (MT2Plus):
 
-1. **Baza Upstream v2.39.0 (mod-60, Klient 2.0.70):**
-   - **Event Halloween:** NPC Jack Pumpkin, dynie, różdżki, maski dyniowe i latające miotły (`event_halloween_hair.quest`, dedykowany drop i paczka `halloween` w kliencie).
-   - **Poprawka Kamieni Przywołania:** Metiny przywołane ze specjalnych kamieni znikają automatycznie po 15 minutach (`MT2009_PLUS_SUMMON_STONE_V1` w `char_item.cpp`).
-   - **Playerbot Engine:** Nowe reguły doboru broni, zaktualizowane statystyki pancerzy botów i optymalizacje zachowań w walce.
-   - **Klient 2.0.70:** Aktualizacja modeli, tekstur i interfejsów eventowych.
+1. **Baza Upstream v2.40.0 (mod-61, Klient 2.0.71):**
+   - **Rajdy i Wizyty Botów:** Boty odwiedzają obce królestwa (playerbot_kingdom_visits.h).
+   - **Katakumby Diabła:** Poprawki dungeonu (devilcatacomb_zone.quest).
+   - **Auto Łowy 2.x:** Zintegrowany nowy interfejs Auto Łowów z pełnym zachowaniem okna AutoFish.
+   - **Statystyki Botów (Seban Panel):** Nowa zakładka /players/bot-stats agregująca ubicia bossów, metinów i dungeony.
+   - **Drop Map 90+:** Aktualizacje w dropie (Arezzo, Ochao, Yohara).
+   - **Balans Bossów:** Zmniejszone o 50% HP dla Razadora oraz Króla Skorpionów.
+   - **Silnik C++:** Zintegrowane edycje 100-102 (AUTOHUNT_TRUE_NEAREST_V1) i 8 (DROP90_V1).
 
-2. **Autorskie Rozszerzenia MT2Plus (Wszystkie 24 w pełni zachowane i aktywne):**
+2. **Autorskie Rozszerzenia MT2Plus (Wszystkie 34 w 100% zachowane i aktywne):**
    - **Ceny Bazowe Botów:** Nowy moduł konfiguracji i dynamicznego przeliczania cen skupu/sprzedaży botów w panelu (`/economy/bot-prices`).
    - **Emerytura Botów V3:** Inteligentna i płynna rotacja emerytalna botów zapobiegająca zastojom na mapach.
    - **ItemShop Panel:** Dedykowany moduł zarządzania ofertami i sklepem w panelu administracyjnym.
@@ -238,7 +241,7 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 ---
 
 📥 **Instrukcja Uruchomienia (Ready-to-Play):**
-1. Pobierz paczkę serwera `metin2-server-update-2.39.0.zip` oraz klienta `metin2-client-update-2.0.70.zip`.
+1. Pobierz paczkę serwera `metin2-server-update-2.40.0.zip` oraz klienta `metin2-client-update-2.0.71.zip`.
 2. Wypakuj serwer i uruchom `start.bat` (wymagany Docker Desktop).
 3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
@@ -250,10 +253,10 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Release {rel_id}: {html_url}")
 
-    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.39.0.zip", srv_size):
-        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.39.0.zip")
-    if delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.70.zip", cli_size):
-        upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.70.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.40.0.zip", srv_size):
+        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.40.0.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.71.zip", cli_size):
+        upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.71.zip")
 
     print(f"\nSUCCESS! Release updated at: {html_url}")
     return html_url
@@ -264,8 +267,8 @@ if __name__ == '__main__':
     else:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         dist_dir = os.path.join(repo_root, 'dist')
-        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.39.0.zip')
-        cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.70.zip')
+        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.40.0.zip')
+        cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.71.zip')
         import hashlib
         def h(p):
             x = hashlib.sha256()

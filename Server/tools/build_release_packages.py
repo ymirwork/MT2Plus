@@ -31,13 +31,13 @@ def download_with_progress(url, dest_path):
 
 def build_server_package(repo_root, dist_dir):
     server_root = os.path.join(repo_root, 'Server')
-    base_zip = os.path.join(dist_dir, 'base_server_2.39.0.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.39.0/metin2-server-update-2.39.0.zip'
+    base_zip = os.path.join(dist_dir, 'base_server_2.40.0.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.40.0/metin2-server-update-2.40.0.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.39.0.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-server-update-2.40.0.zip')
     temp_dir = os.path.join(dist_dir, 'server_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
@@ -136,13 +136,13 @@ def build_server_package(repo_root, dist_dir):
 
 def build_client_package(repo_root, dist_dir):
     klient_root = os.path.join(repo_root, 'Klient')
-    base_zip = os.path.join(dist_dir, 'base_client_2.0.70.zip')
-    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.39.0/metin2-client-update-2.0.70.zip'
+    base_zip = os.path.join(dist_dir, 'base_client_2.0.71.zip')
+    url = 'https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.40.0/metin2-client-update-2.0.71.zip'
     
     if not os.path.exists(base_zip):
         download_with_progress(url, base_zip)
 
-    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.70.zip')
+    target_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.71.zip')
     temp_dir = os.path.join(dist_dir, 'client_extracted')
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)

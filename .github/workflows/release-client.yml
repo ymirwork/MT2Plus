@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag to upload asset to'
         required: true
-        default: 'v2.39.0-mod60'
+        default: 'v2.40.0-mod61'
 
 jobs:
   build-and-upload:
@@ -17,7 +17,7 @@ jobs:
       - name: Download Upstream Base Client
         run: |
           echo "Downloading upstream client zip..."
-          curl -sSL -o base_client.zip https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.39.0/metin2-client-update-2.0.70.zip
+          curl -sSL -o base_client.zip https://github.com/zaxerrrr-dot/mt2009-sp-plus/releases/download/v2.40.0/metin2-client-update-2.0.71.zip
           unzip -q base_client.zip -d client_extracted
           rm base_client.zip
 
@@ -54,15 +54,15 @@ jobs:
         run: |
           cd client_extracted
           find . -type f \( -name "*.bak" -o -name "syserr.txt" -o -name "syslog.txt" \) -delete
-          zip -q -r ../metin2-client-update-2.0.70.zip .
+          zip -q -r ../metin2-client-update-2.0.71.zip .
           cd ..
           rm -rf client_extracted
-          ls -lh metin2-client-update-2.0.70.zip
-          sha256sum metin2-client-update-2.0.70.zip
+          ls -lh metin2-client-update-2.0.71.zip
+          sha256sum metin2-client-update-2.0.71.zip
 
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.inputs.tag }}"
-          gh release upload "$TAG" metin2-client-update-2.0.70.zip --clobber --repo ymirwork/MT2Plus
+          gh release upload "$TAG" metin2-client-update-2.0.71.zip --clobber --repo ymirwork/MT2Plus

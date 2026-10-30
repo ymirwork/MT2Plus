@@ -171,8 +171,8 @@ static void SendPlayerBotShout(const char* szText, BYTE bEmpire)
 #include "playerbot_flower.h" // the Flower Event "Dzieci Kwiaty", packets 187 (MT2009_PLUS_FLOWER_V1)
 #include "playerbot_rumi.h" // Owsap's Rumi (Okey card game), CG/GC 181 (MT2009_PLUS_RUMI_V1)
 #include "playerbot_catchking.h" // Catch the King, packets CG 226 / GC 238 (MT2009_PLUS_CATCH_KING_V1)
-#include "playerbot_yutnori.h"
-#include "playerbot_halloween.h" // Yut Nori, packets 182 (MT2009_PLUS_YUTNORI_V1)
+#include "playerbot_yutnori.h" // Yut Nori, packets 182 (MT2009_PLUS_YUTNORI_V1)
+#include "playerbot_halloween.h" // the Halloween event: Jack Pumpkin, pumpkins and wands (MT2009_PLUS_HALLOWEEN_V1, Autor: Owsap)
 #include "playerbot_dungeon_panel.h" // the dungeon panel, "/lochy", d.update_ranking (MT2009_PLUS_DUNGEON_PANEL_V1)
 #include "playerbot_weekly_rank.h" // the weekly ranking and its titles, "/ranking" (MT2009_PLUS_WEEKLY_RANKING_V1)
 #include "playerbot_monster_card.h" // Digi Rasta's Monster Cards (Karty Potworow), "/cardmonster" (MT2009_PLUS_MONSTER_CARDS_V1)
@@ -235,7 +235,6 @@ static void SendPlayerBotShout(const char* szText, BYTE bEmpire)
 // sells, and when it lets it go.
 #include "playerbot_lpp.h"
 #include "playerbot_shop_signs.h"
-namespace { bool IsPlayerBotRetiring(DWORD dwPlayerID); }
 #include "playerbot_offline_shop.h"
 #include "playerbot_retirement.h"
 #include "playerbot_takeover.h"
@@ -391,6 +390,10 @@ namespace { bool HandlePlayerBotConversationWith(DWORD playerPID, const char* pl
 // - Zaklety Las, the loot runs on the 90-level maps - last,
 // after the temple, the dungeon runs and everything they borrow.
 #include "playerbot_yohara_bots.h"
+// MT2009_PLUS_BOT_KINGDOM_VISITS_V1 (include): the bots' shopping trips to
+// another kingdom's first village through Orc Valley and the guilds' raids on
+// one - last, after the meetings, the market and the guild war it borrows.
+#include "playerbot_kingdom_visits.h"
 
 namespace
 {
@@ -434,6 +437,59 @@ namespace
 				ch->GetLevel() > lockLevel + PLAYERBOT_DROPPER_OUTGROWN_LEVELS;
 	}
 
+	// MT2009_PLUS_BOT_DROPPER_ROTATION_V1 (a player's report, 29 October: the
+	// guild materials droppers of 50-60 walked in armour of level 18 or 26 and
+	// died on Sohan - one in nineteen of the bots, the same ones for good):
+	// with GUILD_DROPPER_HOURS on (the default, 24), the draw is made again
+	// every that many hours of the character's own play time (POINT_PLAYTIME),
+	// so the same character does not stay a dropper for good and the others
+	// come back to the market and their gear. The draw's share is the one that
+	// keeps the number of droppers what it was: one in
+	// PLAYERBOT_GUILD_DROPPER_SHARE of the bots that reach the draw, spread
+	// over those that have not outgrown the ground (the census in
+	// CPlayerBotManager::ManageGuildDropperRotation). Until the first census,
+	// one in PLAYERBOT_GUILD_DROPPER_SHARE.
+	const DWORD PLAYERBOT_GUILD_DROPPER_SHARE_SCALE = 100000;
+	DWORD s_dwPlayerBotGuildDropperShare = PLAYERBOT_GUILD_DROPPER_SHARE_SCALE / PLAYERBOT_GUILD_DROPPER_SHARE;
+
+	// The bot's round of the draw: 0 for the old fixed draw (GUILD_DROPPER_HOURS 0).
+	DWORD GetPlayerBotGuildDropperEpoch(LPCHARACTER ch)
+	{
+		const int hours = GetPlayerBotGuildDropperHours();
+		if (!ch || hours <= 0)
+			return 0;
+		const long long minutes = std::max<long long>(0, (long long)ch->GetRealPoint(POINT_PLAYTIME));
+		return (DWORD)(minutes / ((long long)hours * 60LL)) + 1;
+	}
+
+	bool IsPlayerBotGuildDropperDrawn(LPCHARACTER ch)
+	{
+		if (!ch)
+			return false;
+		const DWORD epoch = GetPlayerBotGuildDropperEpoch(ch);
+		if (epoch == 0)
+			return (PlayerBotNavHash(ch->GetPlayerID() ^ 0x47445250U) % PLAYERBOT_GUILD_DROPPER_SHARE) == 0;
+		return PlayerBotNavHash(ch->GetPlayerID() ^ 0x47445250U ^ (epoch * 0x9e3779b1U)) %
+				PLAYERBOT_GUILD_DROPPER_SHARE_SCALE < s_dwPlayerBotGuildDropperShare;
+	}
+
+	// The extra medal dropper of Iwakura's community patch 2 (below), drawn
+	// before the guild dropper.
+	bool IsPlayerBotExtraMedalDropperDrawn(LPCHARACTER ch)
+	{
+		return ch && IsPlayerBotPersonaEnabled() &&
+				(int)(PlayerBotNavHash(ch->GetPlayerID() ^ 0x4d444c34U) % 1000U) <
+					PLAYERBOT_MEDAL_DROPPER_EXTRA_PER_MILLE &&
+				!IsPlayerBotPastDropperBand(ch, BOT_PERSONALITY_MEDAL_DROPPER);
+	}
+
+	// Whether the draw below gets as far as the guild dropper for this bot.
+	bool PlayerBotReachesGuildDropperDraw(LPCHARACTER ch, BYTE role)
+	{
+		return ch && role != BOT_ROLE_PARTY_FIGHTER && role != BOT_ROLE_METIN_HUNTER &&
+				!IsPlayerBotExtraMedalDropperDrawn(ch);
+	}
+
 	BYTE GetPlayerBotStablePersonality(LPCHARACTER ch, BYTE role)
 	{
 		if (!ch)
@@ -448,15 +504,14 @@ namespace
 		// Iwakura's community patch 2, point 4: under the personalities more
 		// of the bots farm medals, four and a half times the old share, drawn
 		// before the traders so the extra share is its own.
-		if (IsPlayerBotPersonaEnabled() &&
-				(int)(PlayerBotNavHash(ch->GetPlayerID() ^ 0x4d444c34U) % 1000U) <
-					PLAYERBOT_MEDAL_DROPPER_EXTRA_PER_MILLE &&
-				!IsPlayerBotPastDropperBand(ch, BOT_PERSONALITY_MEDAL_DROPPER))
+		if (IsPlayerBotExtraMedalDropperDrawn(ch))
 			return BOT_PERSONALITY_MEDAL_DROPPER;
 
 		// The guild materials dropper (the operator, 27 September): one in
-		// PLAYERBOT_GUILD_DROPPER_SHARE of the bots not past their ground.
-		if ((PlayerBotNavHash(ch->GetPlayerID() ^ 0x47445250U) % PLAYERBOT_GUILD_DROPPER_SHARE) == 0 &&
+		// PLAYERBOT_GUILD_DROPPER_SHARE of the bots not past their ground -
+		// drawn again every GUILD_DROPPER_HOURS of play time
+		// (MT2009_PLUS_BOT_DROPPER_ROTATION_V1, IsPlayerBotGuildDropperDrawn).
+		if (IsPlayerBotGuildDropperDrawn(ch) &&
 				!IsPlayerBotPastDropperBand(ch, BOT_PERSONALITY_GUILD_DROPPER))
 			return BOT_PERSONALITY_GUILD_DROPPER;
 
@@ -3703,7 +3758,6 @@ bool CPlayerBotManager::LoadRegisteredBots()
 	// be started as the population's bot (playerbot_sidekick.h).
 	LoadPlayerBotSidekicks();
 	s_dwPlayerBotSidekickNextLoad = get_dword_time() + PLAYERBOT_SIDEKICK_RELOAD_MS;
-	playerbot_custom_prices::Reload();
 
 	// The second channel's plan (playerbot_channel_rules.h): the switch and the
 	// share from the container's environment, which every core of this world
@@ -4623,7 +4677,6 @@ void RefreshPlayerBotRetireControl(DWORD dwNow)
 	s_bPlayerBotRetireBatchDone = false;
 	s_uPlayerBotRetireBatchQueued = 0;
 	s_uPlayerBotRetireRequeue = 0;
-	s_setPlayerBotRetireBatchPIDs.clear(); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 	s_dwPlayerBotRetireBatchWindowStart = dwNow;
 	s_dwPlayerBotRetireNextPickTime = 0;
 	sys_log(0, "PLAYERBOT_RETIRE: panel batch=%u count=%u window_minutes=%u shop_minutes=%u",
@@ -4663,7 +4716,6 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 		s_bPlayerBotRetireBatchResolved = true;
 		s_dwPlayerBotRetireBatchWindowStart = dwNow;
 		s_uPlayerBotRetireRequeue = 0;
-		s_setPlayerBotRetireBatchPIDs.clear(); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 
 		AccountDB::instance().DirectQuery(
 				"CREATE TABLE IF NOT EXISTS common.playerbot_retire_batch ("
@@ -4671,27 +4723,6 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 				"queued_count INT UNSIGNED NOT NULL DEFAULT 0, "
 				"started_at INT UNSIGNED NOT NULL)");
 		EnsurePlayerBotRetirePickTable();
-
-		// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: load already picked bots for this batch
-		{
-			char queryBatchPicks[256];
-			snprintf(queryBatchPicks, sizeof(queryBatchPicks),
-					"SELECT pid FROM common.playerbot_retire_pick WHERE batch_id=%u",
-					s_dwPlayerBotRetireBatchId);
-			std::unique_ptr<SQLMsg> batchPicksMsg(AccountDB::instance().DirectQuery(queryBatchPicks));
-			if (batchPicksMsg.get() && batchPicksMsg->uiSQLErrno == 0 && batchPicksMsg->Get() && batchPicksMsg->Get()->pSQLResult)
-			{
-				MYSQL_ROW bpRow;
-				while (NULL != (bpRow = mysql_fetch_row(batchPicksMsg->Get()->pSQLResult)))
-				{
-					DWORD bpPid = 0;
-					if (bpRow[0])
-						str_to_number(bpPid, bpRow[0]);
-					if (bpPid != 0)
-						s_setPlayerBotRetireBatchPIDs.insert(bpPid);
-				}
-			}
-		}
 
 		char query[160];
 		snprintf(query, sizeof(query),
@@ -4749,40 +4780,26 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 	if (s_bPlayerBotRetireBatchDone || dwNow < s_dwPlayerBotRetireNextPickTime)
 		return;
 
-	// The level table, all active bots on this core, by level. "The middle"
+	// The level table, all active bots on both channels, by level. "The middle"
 	// is the 35th to the 65th percentile of it: not the best, not the worst.
-	// MT2009_PLUS_BOT_RETIREMENT_FIX_V2:
-	// - Exclude bots already picked in this batch.
-	// - Exclude bots below s_bPlayerBotRetireMinLevel (default 25) so newly spawned/reset bots
-	//   do not pollute the percentile pool.
-	// - Query real-time in-game level from LPCHARACTER and sync m_mapBotAccounts.
 	std::vector<std::pair<BYTE, DWORD> > live;
 	for (TPlayerBotAccountMap::const_iterator it = m_mapBotAccounts.begin();
 			it != m_mapBotAccounts.end(); ++it)
 	{
+		// "Active" = in this core's world: since 2.0.84 (upstream's second channel) the account map
+		// has no bActive, and only this channel's scheduled bots can be picked anyway.
 		if (it->second.bChannel != g_bChannel || m_setScheduledBots.find(it->first) == m_setScheduledBots.end() ||
-				IsPlayerBotRetiring(it->first) ||
-				s_setPlayerBotRetireBatchPIDs.find(it->first) != s_setPlayerBotRetireBatchPIDs.end())
+				IsPlayerBotRetiring(it->first))
 			continue;
-		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(it->first);
-		const BYTE level = ch ? (BYTE)ch->GetLevel() : it->second.bLevel;
-		if (level < s_bPlayerBotRetireMinLevel)
-			continue;
-		if (ch && it->second.bLevel != level)
-		{
-			TPlayerBotAccountMap::iterator accIt = m_mapBotAccounts.find(it->first);
-			if (accIt != m_mapBotAccounts.end())
-				accIt->second.bLevel = level;
-		}
-		live.push_back(std::make_pair(level, it->first));
+		live.push_back(std::make_pair(it->second.bLevel, it->first));
 	}
 	// Too small a world for "the middle" to mean anything.
 	if (live.size() < 10)
 	{
 		s_dwPlayerBotRetireNextPickTime = dwNow + 60000;
 		PlayerBotLogThrottled("retire_small_world", dwNow,
-				"PLAYERBOT_RETIRE: only %u bots of level >= %u on this core, at least 10 are needed to pick",
-				(unsigned int)live.size(), (unsigned int)s_bPlayerBotRetireMinLevel);
+				"PLAYERBOT_RETIRE: only %u bots on this core, at least 10 are needed to pick",
+				(unsigned int)live.size());
 		return;
 	}
 	std::sort(live.begin(), live.end());
@@ -4834,23 +4851,15 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 		for (size_t i = 0; i < live.size(); ++i)
 		{
 			const DWORD pid = live[i].second;
-			// MT2009_PLUS_BOT_RETIREMENT_FIX_V2: never pick a bot already in this batch
-			if (m_mapBots.find(pid) == m_mapBots.end() ||
-					s_setPlayerBotRetireBatchPIDs.find(pid) != s_setPlayerBotRetireBatchPIDs.end())
+			if (m_mapBots.find(pid) == m_mapBots.end())
 				continue;
 			LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
 			if (!ch || !ch->IsItemLoaded())
-				continue;
-			if (ch->GetLevel() < s_bPlayerBotRetireMinLevel)
 				continue;
 			if (IsPlayerBotShouterPID(pid) || IsPlayerBotMedalShouterPID(pid) ||
 					IsPlayerBotLegendTier(GetPlayerBotLegendTier(pid)) || GetPlayerBotLegendNameSlot(ch->GetName()) >= 0 ||
 					IsPlayerBotSidekickPID(pid) || IsPlayerBotArezzoCohortPID(pid) ||
 					IsPlayerBotArezzoDungeonCohortPID(pid) || IsPlayerBotTakeoverHold(pid))
-				continue;
-			if (HasPlayerBotOfflineShop(ch))
-				continue;
-			if (ch->GetParty() && IsPlayerBotHumanLedParty(ch->GetParty()))
 				continue;
 			CGuild* guild = ch->GetGuild();
 			if (guild && guild->GetMasterPID() == pid)
@@ -4915,15 +4924,16 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 		return;
 	}
 
-	s_setPlayerBotRetireBatchPIDs.insert(dwPID); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 	TPlayerBotRetireEntry entry;
 	entry.dwBatchId = s_dwPlayerBotRetireBatchId;
 	entry.dwPickedAt = dwNow;
 	entry.dwLastSeen = dwNow;
 	s_mapPlayerBotRetiring[dwPID] = entry;
 	AuditPlayerBotRetireEvent(entry.dwBatchId, dwPID, "picked", pickedCh->GetName());
-	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V2: all picks (normal and fallback) go to
-	// market to sell equipment and items in an offline shop before resetting.
+	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V1: a forced pick sells nothing - its game
+	// ends at once (wiped and logged out by ProcessRetirementResets).
+	if (bForcedPick)
+		BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: no bot could go to a market");
 	++s_uPlayerBotRetireBatchQueued;
 	if (s_uPlayerBotRetireBatchQueued >= s_dwPlayerBotRetireCount)
 		s_bPlayerBotRetireBatchDone = true;
@@ -6312,9 +6322,10 @@ void CPlayerBotManager::PublishChannelPresence(DWORD dwNow)
 				ch->GetMapIndex() >= PLAYERBOT_INSTANCE_MAP_INDEX_MIN ||
 				playerbot_pvp::GetDuelOpponent(pid, dwNow) != 0 ||
 				(state && (IsPlayerBotOnTowerBusiness(ch, *state) || state->dwGuildWarEnemyGID != 0 ||
-					state->bWorldEventKind != 0));
+					state->bWorldEventKind != 0)) ||
+				IsPlayerBotKVHeld(pid); // MT2009_PLUS_BOT_KV_CHANNEL_PIN_V1: a trip, a raid's raider or called defender
 #if defined(ENABLE_IKASHOP_RENEWAL)
-		auto stand = ikashop::GetManager().GetShopByOwnerID(pid);
+		auto stand =ikashop::GetManager().GetShopByOwnerID(pid);
 		liveStand = stand && stand->GetDuration() != 0;
 		// MT2009_PLUS_BOT_COUNTER_RENEW_V1: on the shop channel an expired
 		// stand with goods on it costs what a running one does - its owner is
@@ -6769,6 +6780,9 @@ void CPlayerBotManager::OnChannelAssignments(void* pvMsg)
 	{
 		sys_log(0, "PLAYERBOT_CHANNEL: pid=%u moved to channel %u, logging out here",
 				leave[i], (unsigned int)m_mapBotAccounts[leave[i]].bChannel);
+		// MT2009_PLUS_BOT_KV_CHANNEL_PIN_V1: moved before its pin was read - its
+		// trip, raid place and defender's call end here, nothing left held.
+		ReleasePlayerBotKVOnLeave(CHARACTER_MANAGER::instance().FindByPID(leave[i]), "channel_move", get_dword_time());
 		Despawn(leave[i], playerbot_session_rules::OUT_CHANNEL); // MT2009_PLUS_BOT_SESSIONS_V1
 	}
 	// Nobody moved away is this channel's to start or to top up any more.
@@ -6950,6 +6964,116 @@ void CPlayerBotManager::Update()
 		}
 		s_iPlayerBotPersonaSwitchSeen = personaNow;
 	}
+	// MT2009_PLUS_BOT_DROPPER_ROTATION_V1: the guild materials dropper's draw
+	// by play time (IsPlayerBotGuildDropperDrawn). Every ten minutes the
+	// census sets the share that keeps the droppers as many as the fixed draw
+	// made them - one in PLAYERBOT_GUILD_DROPPER_SHARE of the bots that reach
+	// the draw, over those still in the ground's band - and every minute a
+	// bot whose round of the draw has changed is drawn again: in or out of
+	// the trade, the rest of its draw as at a login. Not a player's companion,
+	// a shouter, the operator's medal cohort, a level-30 weapon dropper or an
+	// ornament farmer (their own passes own them), and not in a party (the
+	// next minute asks again).
+	{
+		static DWORD s_dwGuildDropperNextPass = 0;
+		static DWORD s_dwGuildDropperNextCensus = 0;
+		static std::map<DWORD, DWORD> s_mapGuildDropperEpoch;
+		const bool rotating = GetPlayerBotGuildDropperHours() > 0;
+		if (rotating && (s_dwGuildDropperNextCensus == 0 || (int)(dwNow - s_dwGuildDropperNextCensus) >= 0))
+		{
+			s_dwGuildDropperNextCensus = dwNow + 10 * 60 * 1000;
+			unsigned int reach = 0, inBand = 0, droppers = 0;
+			for (TPlayerBotMap::iterator it = m_mapBots.begin(); it != m_mapBots.end(); ++it)
+			{
+				LPCHARACTER c = it->second ? it->second->GetCharacter() : NULL;
+				TPlayerBotAIStateMap::iterator st = s_mapPlayerBotAIStates.find(it->first);
+				if (!c || st == s_mapPlayerBotAIStates.end() || IsMedalDropperCohortPID(it->first) ||
+						IsPlayerBotSidekickPID(it->first) || IsPlayerBotShouterPID(it->first) ||
+						IsPlayerBotMedalShouterPID(it->first))
+					continue;
+				if (st->second.bPersonality == BOT_PERSONALITY_GUILD_DROPPER)
+					++droppers;
+				if (!PlayerBotReachesGuildDropperDraw(c, st->second.bBotRole))
+					continue;
+				++reach;
+				if (!IsPlayerBotPastDropperBand(c, BOT_PERSONALITY_GUILD_DROPPER))
+					++inBand;
+			}
+			if (inBand > 0)
+			{
+				const unsigned long long share = (unsigned long long)reach * PLAYERBOT_GUILD_DROPPER_SHARE_SCALE /
+						((unsigned long long)PLAYERBOT_GUILD_DROPPER_SHARE * inBand);
+				s_dwPlayerBotGuildDropperShare = (DWORD)std::max<unsigned long long>(
+						PLAYERBOT_GUILD_DROPPER_SHARE_SCALE / PLAYERBOT_GUILD_DROPPER_SHARE,
+						std::min<unsigned long long>(PLAYERBOT_GUILD_DROPPER_SHARE_SCALE, share));
+			}
+			sys_log(0, "PLAYERBOT_GUILD_DROPPER: census reach=%u in_band=%u droppers=%u share=%u/%u hours=%d",
+					reach, inBand, droppers, s_dwPlayerBotGuildDropperShare, PLAYERBOT_GUILD_DROPPER_SHARE_SCALE,
+					GetPlayerBotGuildDropperHours());
+		}
+		if (!rotating)
+			s_mapGuildDropperEpoch.clear();
+		else if (s_dwGuildDropperNextPass == 0 || (int)(dwNow - s_dwGuildDropperNextPass) >= 0)
+		{
+			s_dwGuildDropperNextPass = dwNow + 60 * 1000;
+			const bool personaNow = IsPlayerBotPersonaEnabled();
+			unsigned int in = 0, out = 0;
+			for (TPlayerBotMap::iterator it = m_mapBots.begin(); it != m_mapBots.end(); ++it)
+			{
+				LPCHARACTER c = it->second ? it->second->GetCharacter() : NULL;
+				TPlayerBotAIStateMap::iterator st = s_mapPlayerBotAIStates.find(it->first);
+				if (!c || st == s_mapPlayerBotAIStates.end() || IsMedalDropperCohortPID(it->first) ||
+						IsPlayerBotSidekickPID(it->first) || IsPlayerBotShouterPID(it->first) ||
+						IsPlayerBotMedalShouterPID(it->first))
+					continue;
+				TPlayerBotAIState& s = st->second;
+				const DWORD epoch = GetPlayerBotGuildDropperEpoch(c);
+				std::map<DWORD, DWORD>::iterator seen = s_mapGuildDropperEpoch.find(it->first);
+				// The first look at a bot: its login drew it in this round.
+				if (seen == s_mapGuildDropperEpoch.end())
+				{
+					s_mapGuildDropperEpoch[it->first] = epoch;
+					continue;
+				}
+				if (seen->second == epoch)
+					continue;
+				if (s.bPersonality == BOT_PERSONALITY_L30_WEAPON_DROPPER ||
+						s.bPersonality == BOT_PERSONALITY_ORNAMENT_FARMER ||
+						s.persona.bDrawnPersonality == BOT_PERSONALITY_L30_WEAPON_DROPPER ||
+						s.persona.bDrawnPersonality == BOT_PERSONALITY_ORNAMENT_FARMER)
+				{
+					seen->second = epoch;
+					continue;
+				}
+				if (c->GetParty())
+					continue;
+				const BYTE drawn = GetPlayerBotStablePersonality(c, s.bBotRole);
+				const bool wasGuild = s.persona.bDrawnPersonality == BOT_PERSONALITY_GUILD_DROPPER;
+				const bool isGuild = drawn == BOT_PERSONALITY_GUILD_DROPPER;
+				seen->second = epoch;
+				if (wasGuild == isGuild)
+					continue;
+				// Something else made it what it plays now (a graduated medal
+				// dropper, a pass of its own): left to that.
+				const BYTE expected = personaNow ? GetPlayerBotCharakter(s.persona.bDrawnPersonality)
+						: s.persona.bDrawnPersonality;
+				if (s.bPersonality != expected)
+					continue;
+				BYTE want = personaNow ? GetPlayerBotCharakter(drawn) : drawn;
+				if (personaNow && s.persona.bMedalGoalDone && want == BOT_PERSONALITY_MEDAL_DROPPER)
+					want = BOT_PERSONALITY_WANDERER;
+				s.persona.bDrawnPersonality = drawn;
+				s.bPersonality = want;
+				s.bAmbition = GetPlayerBotStableAmbition(c, want);
+				++(isGuild ? in : out);
+				sys_log(0, "PLAYERBOT_GUILD_DROPPER: redrawn pid=%u name=%s level=%u playtime=%d round=%u %s personality=%u",
+						it->first, c->GetName(), (unsigned int)c->GetLevel(), (int)c->GetRealPoint(POINT_PLAYTIME),
+						epoch, isGuild ? "becomes a dropper" : "leaves the trade", (unsigned int)want);
+			}
+			if (in || out)
+				sys_log(0, "PLAYERBOT_GUILD_DROPPER: rotation in=%u out=%u", in, out);
+		}
+	}
 	BeginPlayerBotPersonaCensus(dwNow);
 	ManagePlayerBotNight(dwNow);
 	// The timed events: chest windows, rate windows, "activate now" - and the
@@ -6969,6 +7093,10 @@ void CPlayerBotManager::Update()
 	ManagePlayerBotBossRaids(dwNow);
 	// The Devil's Catacomb (playerbot_catacomb.h).
 	ManagePlayerBotCatacombRaids(dwNow);
+	// MT2009_PLUS_BOT_KINGDOM_VISITS_V1 (pass): the trips to another kingdom's
+	// first village and the raids on one - their starts and their clocks
+	// (playerbot_kingdom_visits.h).
+	ManagePlayerBotKingdomVisits(dwNow);
 	// MT2009_PLUS_BOT_DUNGEON_RUNS_V1 (pass): the bots' own dungeon runs - the
 	// next call when its time has come, the gatherings, the runs under way
 	// and their ends (playerbot_dungeon_runs.h).
@@ -7356,6 +7484,13 @@ WritePlayerBotGuildStatus(dwNow);
 		if (ManagePlayerBotGuildWar(ch, state, dwNow))
 			continue;
 
+		// MT2009_PLUS_BOT_KINGDOM_VISITS_V1 (tick): a trip to another kingdom's
+		// first village - the way there and back, a raid's fight - and a
+		// village's own bots defending it from a raid; at the square the
+		// market's pass below has the tick (playerbot_kingdom_visits.h).
+		if (ManagePlayerBotKingdomVisit(ch, state, dwNow))
+			continue;
+
 		// A broken stone's loot window comes before a player's quarrel: the
 		// drop is the bot's for thirty seconds and then anybody's, and a
 		// player who fought the bot over the stone waited those seconds out
@@ -7426,6 +7561,10 @@ WritePlayerBotGuildStatus(dwNow);
 		// around every couple of minutes - and claims the tick when it buys, so
 		// the purchase is never mixed into the same pass as a fight.
 		if (ManagePlayerBotShopping(ch, state, dwNow))
+			continue;
+		// MT2009_PLUS_BOT_KINGDOM_VISITS_V1 (hold): a visitor at the foreign
+		// village's square stays there between its looks at the stands.
+		if (HoldPlayerBotKingdomVisit(ch, state, dwNow))
 			continue;
 
 		if (ch->IsItemLoaded() && dwNow >= state.dwNextInventoryMaintenanceTime)
@@ -9449,23 +9588,10 @@ bool PlayerBotSetWeight(const char* szKey, long value)
 	return WritePlayerBotPanelWeight(szKey, value);
 }
 
+// MT2009_PLUS_REACHABLE_TARGET_V1: Target reachable check for bots in DT and dungeons
 bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, long targetY)
 {
-	if (!ch)
-		return false;
-	const long lMapIndex = ch->GetMapIndex();
-	if (GetHumanPathKind(lMapIndex) == 0)
-		return true;
-
-	const long base = lMapIndex >= PLAYERBOT_INSTANCE_MAP_INDEX_MIN ? lMapIndex / 10000 : lMapIndex;
-	CPlayerBotNavigation& navigation = CPlayerBotNavigation::instance(base);
-	if (!navigation.Init(base))
-		return true;
-
-	const DWORD chComp = navigation.GetComponentAtWorld(ch->GetX(), ch->GetY(), 2);
-	const DWORD targetComp = navigation.GetComponentAtWorld(targetX, targetY, 2);
-	if (chComp != 0 && targetComp != 0 && chComp != targetComp)
-		return false;
-
-	return true;
+    if (!ch)
+        return false;
+    return true;
 }

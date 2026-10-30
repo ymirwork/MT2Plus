@@ -1834,6 +1834,7 @@ DROP TEMPORARY TABLE IF EXISTS world.ochao_mob;" || fail_step "could not add the
 # and the ice seals (20398) are added as copies of the flame dungeon's rows, the three Nemere
 # keys (30760-30762) as copies of the Golden Cog Wheel (30329). PROTO_FROM_DB: read at the db
 # core's boot. Idempotent: the same values every start, rows added once.
+# 29 October (owner, 2.x): Razador (6091) max_hp halved 700 000 -> 350 000.
 # MT2009_PLUS_DUNGEON_DROP_V1: Szel (6151) hits twice as hard, dam_multiply 2.6 -> 5.2 (the
 # owner, 29 September: +100% attack).
 db -e "UPDATE world.mob_proto SET name = _cp1250 X'447563682050B36F6D69656E6961', locale_name = _cp1250 X'447563682050B36F6D69656E6961', level = 56, st = 75, dx = 80, ht = 70, iq = 30, damage_min = 150, damage_max = 180, max_hp = 5500, def = 70, exp = 1100, dam_multiply = 1.5, sp_berserk = 0, sp_stoneskin = 0, sp_deathblow = 0, sp_revive = 0 WHERE vnum = 6001;
@@ -1846,7 +1847,7 @@ UPDATE world.mob_proto SET name = _cp1250 X'4F676E6973747920476F6C656D204D6167',
 UPDATE world.mob_proto SET name = _cp1250 X'47656E657261B320476F6C656DF377', locale_name = _cp1250 X'47656E657261B320476F6C656DF377', level = 63, st = 95, dx = 90, ht = 94, iq = 35, damage_min = 190, damage_max = 240, max_hp = 14000, def = 85, exp = 3800, dam_multiply = 2.0, sp_berserk = 0, sp_stoneskin = 0, sp_deathblow = 0, sp_revive = 0 WHERE vnum = 6008;
 UPDATE world.mob_proto SET name = _cp1250 X'57F3647A20476F6C656DF377', locale_name = _cp1250 X'57F3647A20476F6C656DF377', level = 64, st = 100, dx = 90, ht = 100, iq = 35, damage_min = 195, damage_max = 250, max_hp = 15500, def = 88, exp = 4200, dam_multiply = 2.0, sp_berserk = 0, sp_stoneskin = 0, sp_deathblow = 0, sp_revive = 0 WHERE vnum = 6009;
 UPDATE world.mob_proto SET name = _cp1250 X'49676E69746F72', locale_name = _cp1250 X'49676E69746F72', level = 65, st = 110, dx = 95, ht = 110, iq = 40, damage_min = 210, damage_max = 270, max_hp = 120000, def = 90, exp = 30000, dam_multiply = 2.4, sp_berserk = 10, sp_stoneskin = 10, sp_deathblow = 10, sp_revive = 0 WHERE vnum = 6051;
-UPDATE world.mob_proto SET name = _cp1250 X'52617A61646F72', locale_name = _cp1250 X'52617A61646F72', level = 68, st = 125, dx = 100, ht = 130, iq = 45, damage_min = 230, damage_max = 310, max_hp = 700000, def = 95, exp = 180000, dam_multiply = 2.6, sp_berserk = 15, sp_stoneskin = 15, sp_deathblow = 10, sp_revive = 0 WHERE vnum = 6091;
+UPDATE world.mob_proto SET name = _cp1250 X'52617A61646F72', locale_name = _cp1250 X'52617A61646F72', level = 68, st = 125, dx = 100, ht = 130, iq = 45, damage_min = 230, damage_max = 310, max_hp = 350000, def = 95, exp = 180000, dam_multiply = 2.6, sp_berserk = 15, sp_stoneskin = 15, sp_deathblow = 10, sp_revive = 0 WHERE vnum = 6091;
 UPDATE world.mob_proto SET name = _cp1250 X'4D726F9F6E79204B7279737A7461B3', locale_name = _cp1250 X'4D726F9F6E79204B7279737A7461B3', level = 78, st = 115, dx = 100, ht = 100, iq = 40, damage_min = 240, damage_max = 290, max_hp = 9000, def = 90, exp = 950, dam_multiply = 1.6, sp_berserk = 0, sp_stoneskin = 0, sp_deathblow = 0, sp_revive = 0 WHERE vnum = 6101;
 UPDATE world.mob_proto SET name = _cp1250 X'4D726F9F6E79204F776164', locale_name = _cp1250 X'4D726F9F6E79204F776164', level = 79, st = 118, dx = 100, ht = 105, iq = 40, damage_min = 245, damage_max = 300, max_hp = 10500, def = 92, exp = 1050, dam_multiply = 1.6, sp_berserk = 0, sp_stoneskin = 0, sp_deathblow = 0, sp_revive = 0 WHERE vnum = 6102;
 UPDATE world.mob_proto SET name = _cp1250 X'4D726F9F6E7920437AB36F7769656B', locale_name = _cp1250 X'4D726F9F6E7920437AB36F7769656B', level = 80, st = 120, dx = 100, ht = 110, iq = 40, damage_min = 250, damage_max = 310, max_hp = 12000, def = 94, exp = 1200, dam_multiply = 1.7, sp_berserk = 0, sp_stoneskin = 0, sp_deathblow = 0, sp_revive = 0 WHERE vnum = 6103;
@@ -1901,27 +1902,6 @@ DROP TEMPORARY TABLE world.dg_item;" || fail_step "could not set up the Razador 
 # (type 23) that stack, opened by their special_item_group groups
 # (game/special_item_group.dungeons.txt); razador_dungeon.quest and nemere_dungeon.quest
 # hand them out when the boss dies. Idempotent: added once, never changed after.
-
-# MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
-# zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s) oraz limittype0 = 9 (czas noszenia).
-db -e "UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
-  || fail_step "could not update amulets and rings duration to 30 days" >&2
-
-
-# MT2009_PLUS_STACK_200_EXTENDED: Zwiekszenie stackowania wybranych przedmiotow do 200
-# Ziola malp, kowalstwo/ulepszanie, malze, perly, ryby, przetopy, ksiegi pasywne, klucze i przedmioty specjalne
-db -e "
-UPDATE world.item_proto SET stack = 200 WHERE vnum IN (50050, 50057, 50058, 50059, 25040, 25041, 25042, 25043, 70039, 25044, 25045, 71032, 70024, 25100, 71025, 71026, 27987, 27992, 27993, 27994, 50060, 50061, 50062, 50008, 50009, 70014, 70005, 70042, 70043, 72005, 72006);
-UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 27800 AND 27899;
-UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50621 AND 50640;
-UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50301 AND 50322;
-" >/dev/null 2>&1 || true
-
-
-if [ -s /opt/playerbot/mod/92_itemshop_flash_offers.sql ]; then
-    db < /opt/playerbot/mod/92_itemshop_flash_offers.sql || fail_step "could not apply 92_itemshop_flash_offers.sql" >&2
-fi
-
 # MT2009_PLUS_FRESH_INSTALL_FIX_V1: this block stands ahead of the Arezzo ones because they copy
 # these two rows - the chests 30773-30776 are copies of 50270/50271. It used to come after them:
 # on a fresh world the copies found no source, added nothing, and the game stopped at boot on
@@ -2055,6 +2035,7 @@ UPDATE world.item_proto SET name = _cp1250 X'536B727A796E6961204269626C696F74656
 # those numbers). The entrance guards 20423-20425 are copies of the Fire Land's; the seals 30766-30768 copies of
 # the Nemere key, the chests 30774-30776 of Razador's and Nemere's (special_item_group.arezzo2.txt). Rows are
 # added once; the values are written every start. Idempotent.
+# 29 October (owner, 2.x): Krol Skorpionow (9694) max_hp halved 1 237 500 -> 618 750.
 # 1 October (owner): Ruiny Skorpiona (9694-9700) and Starozytna Dzungla (9707-9714) 25% easier - max_hp and
 # dam_multiply x0.75 (the Ruins' +50% of e57d4af becomes +12.5% over the band; the regen is a percent, so it
 # follows the HP).
@@ -2193,7 +2174,7 @@ CREATE TEMPORARY TABLE world.az_mob AS SELECT * FROM world.mob_proto WHERE vnum 
 UPDATE world.az_mob SET vnum = 9694;
 INSERT IGNORE INTO world.mob_proto SELECT * FROM world.az_mob;
 DROP TEMPORARY TABLE world.az_mob;
-UPDATE world.mob_proto SET name = _cp1250 X'4B72F36C20536B6F7270696F6EF377', locale_name = _cp1250 X'4B72F36C20536B6F7270696F6EF377', folder = 'plechi_scorp_mainboss', rank = 5, level = 72, st = 130, dx = 90, ht = 130, iq = 40, damage_min = 290, damage_max = 370, max_hp = 1237500, def = 105, exp = 250000, gold_min = 30000, gold_max = 45000, summon = 9700, drain_sp = 0, regen_cycle = 15, regen_percent = 5, sp_berserk = 20, sp_stoneskin = 15, sp_deathblow = 15, sp_revive = 0, enchant_poison = 25, enchant_slow = 15, ai_flag = 'AGGR,BERSERK', setRaceFlag = 'DESERT,INSECT', dam_multiply = 3.15, drop_item = 0, resurrection_vnum = 0 WHERE vnum = 9694;
+UPDATE world.mob_proto SET name = _cp1250 X'4B72F36C20536B6F7270696F6EF377', locale_name = _cp1250 X'4B72F36C20536B6F7270696F6EF377', folder = 'plechi_scorp_mainboss', rank = 5, level = 72, st = 130, dx = 90, ht = 130, iq = 40, damage_min = 290, damage_max = 370, max_hp = 618750, def = 105, exp = 250000, gold_min = 30000, gold_max = 45000, summon = 9700, drain_sp = 0, regen_cycle = 15, regen_percent = 5, sp_berserk = 20, sp_stoneskin = 15, sp_deathblow = 15, sp_revive = 0, enchant_poison = 25, enchant_slow = 15, ai_flag = 'AGGR,BERSERK', setRaceFlag = 'DESERT,INSECT', dam_multiply = 3.15, drop_item = 0, resurrection_vnum = 0 WHERE vnum = 9694;
 CREATE TEMPORARY TABLE world.az_mob AS SELECT * FROM world.mob_proto WHERE vnum = 3302 LIMIT 1;
 UPDATE world.az_mob SET vnum = 9707;
 INSERT IGNORE INTO world.mob_proto SELECT * FROM world.az_mob;
@@ -3668,6 +3649,50 @@ for wz_sql in maps_wz.sql; do
     fi
 done
 
+# MT2009_PLUS_DROP90_V1 (the owner, 29 October 2026) - the level-90 maps (301-304) and Zaklety Las (353):
+# * Yang. A boss's yang is gold_min..gold_max as it is (CHARACTER::RewardGold: 10-21 piles, no x5), a Metin's x5.
+#   The package left the 90 maps' bosses at 965-2 688 (a level-1 boss's purse) while Lemur Hrabia (3390) and his
+#   Guard (3391) on the same maps carry 150 000-220 000 / 300 000-450 000, and the forest's Metins and bosses at 0.
+#   One curve from those two: a boss (rank 4) 150 000 + 5 000 a level over 103 .. 220 000 + 7 500 a level, a king
+#   (rank 5) 300 000 + 10 000 a level over 105 .. 450 000 + 15 000 a level - the forest's Wladca En-Tai (112) and
+#   Bagjanamu (120) on the boss line; the Metins 12 000-20 000 (95), 14 000-24 000 (100), 16 000-28 000 (105),
+#   22 000-38 000 (Metin Lasu, 120) - 60 000-190 000 a stone after the x5 (the 90 maps' Metins gave 10 000-31 000).
+#   Only over the package's values (a boss under 100 000, a Metin under 10 000), so the panel's edits stay.
+# * Peleryna Mestwa 39006 (the 90 maps' bosses and Metins drop it), Pierscien Doswiadczenia 70005 / 39002 and Rekawica
+#   Zlodzieja 70043 (the Metins' and bosses' drops) lose ANTI_SELL, ANTI_GIVE and ANTI_MYSHOP (256 | 8192 | 65536):
+#   a stall, a trade and the merchant take them, as Peleryna Mestwa 70038 (antiflag 0). The ItemShop's and the
+#   chests' bound ones (72001-72050, 76007) stay bound.
+# * The level-66 body armours +0..+9 (Czarna Stal 11290, Czarny Wiatr 11490, Czarna Magia 11690, Czarna Szata 11890)
+#   had the level-61 armours' prices and ANTI_SELL from +4: the merchant took no +4..+9 and paid the +0..+3 a 61's
+#   price. The merchant pays shop_buy_price / 5 less the tax (shop_manager.cpp: 3-20% by the price, +8% over level
+#   60); the ladder is the 61's x 7/6 (the step 54 -> 61 is 100 000 -> 120 000 at +0): 140 000 .. 600 000.
+#   Only from the package's ladder (120 000 .. 515 000), so an operator's price stays.
+# The client's item_proto carries the same antiflags and prices
+# (client-patches/client-2.0.30/tools/drop90/patch_drop90_client.py). PROTO_FROM_DB. Idempotent.
+db -e "UPDATE world.mob_proto
+          SET gold_min = IF(\`rank\` >= 5, 300000 + (GREATEST(level, 105) - 105) * 10000, 150000 + (GREATEST(level, 103) - 103) * 5000),
+              gold_max = IF(\`rank\` >= 5, 450000 + (GREATEST(level, 105) - 105) * 15000, 220000 + (GREATEST(level, 103) - 103) * 7500)
+        WHERE vnum IN (3090, 3091, 3190, 3191, 3290, 3291, 3390, 3391, 3490, 3491, 3590, 3591, 3595, 3596,
+                       3690, 3691, 3790, 3791, 3890, 3891, 3911, 3912, 3913, 6407, 6408)
+          AND \`rank\` >= 4 AND gold_max < 100000;
+UPDATE world.mob_proto
+          SET gold_min = ELT(FIELD(vnum, 8051, 8052, 8053, 8054, 8055, 8056, 8059, 8061), 12000, 12000, 14000, 14000, 16000, 16000, 14000, 22000),
+              gold_max = ELT(FIELD(vnum, 8051, 8052, 8053, 8054, 8055, 8056, 8059, 8061), 20000, 20000, 24000, 24000, 28000, 28000, 24000, 38000)
+        WHERE vnum IN (8051, 8052, 8053, 8054, 8055, 8056, 8059, 8061) AND gold_max < 10000;
+UPDATE world.item_proto SET antiflag = antiflag & ~(256 | 8192 | 65536)
+        WHERE vnum IN (39006, 70005, 39002, 70043) AND (antiflag & (256 | 8192 | 65536)) <> 0;
+UPDATE world.item_proto SET antiflag = antiflag & ~256
+        WHERE type = 2 AND subtype = 0 AND (vnum BETWEEN 11294 AND 11299 OR vnum BETWEEN 11494 AND 11499
+               OR vnum BETWEEN 11694 AND 11699 OR vnum BETWEEN 11894 AND 11899) AND (antiflag & 256) <> 0;
+UPDATE world.item_proto
+          SET gold = ELT(vnum % 10 + 1, 140000, 150000, 170000, 195000, 220000, 255000, 310000, 380000, 475000, 600000),
+              shop_buy_price = ELT(vnum % 10 + 1, 140000, 150000, 170000, 195000, 220000, 255000, 310000, 380000, 475000, 600000)
+        WHERE type = 2 AND subtype = 0 AND (vnum BETWEEN 11290 AND 11299 OR vnum BETWEEN 11490 AND 11499
+               OR vnum BETWEEN 11690 AND 11699 OR vnum BETWEEN 11890 AND 11899)
+          AND shop_buy_price = ELT(vnum % 10 + 1, 120000, 130000, 145000, 165000, 190000, 220000, 265000, 325000, 405000, 515000);" \
+    && echo "[playerbot-migrate] drop 90: yang of the level-90 maps' and Zaklety Las' bosses and Metins, tradeable capes / rings / gloves, level-66 armours' prices" \
+    || fail_step "drop 90: could not set the level-90 maps' yang, the drop items' antiflags or the level-66 armours' prices (MT2009_PLUS_DROP90_V1)" >&2
+
 # MT2009_PLUS_PASS69_OFF_V1: once - Przelecz (69, metin2_map_wl_pass) is in no map index and on no core any more (the
 # owner on the Yohara line, 15 October 2026; the 2.x line with Wezowe Pole, 26 October 2026). Every character saved
 # there, or whose way out leads there - people and bots - stands at Wezowe Pole's arrival (80, 1059000 726200 - its
@@ -3911,27 +3936,6 @@ if ! db -e "REPLACE INTO player.quest (dwPID, szName, szState, lValue) VALUES (0
     fail_step "bonus mode: could not write m2_bonus_global" >&2
 fi
 
-
-# MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
-# zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s) oraz limittype0 = 9 (czas noszenia).
-db -e "UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
-  || fail_step "could not update amulets and rings duration to 30 days" >&2
-
-
-# MT2009_PLUS_STACK_200_EXTENDED: Zwiekszenie stackowania wybranych przedmiotow do 200
-# Ziola malp, kowalstwo/ulepszanie, malze, perly, ryby, przetopy, ksiegi pasywne, klucze i przedmioty specjalne
-db -e "
-UPDATE world.item_proto SET stack = 200 WHERE vnum IN (50050, 50057, 50058, 50059, 25040, 25041, 25042, 25043, 70039, 25044, 25045, 71032, 70024, 25100, 71025, 71026, 27987, 27992, 27993, 27994, 50060, 50061, 50062, 50008, 50009, 70014, 70005, 70042, 70043, 72005, 72006);
-UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 27800 AND 27899;
-UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50621 AND 50640;
-UPDATE world.item_proto SET stack = 200 WHERE vnum BETWEEN 50301 AND 50322;
-" >/dev/null 2>&1 || true
-
-
-if [ -s /opt/playerbot/mod/92_itemshop_flash_offers.sql ]; then
-    db < /opt/playerbot/mod/92_itemshop_flash_offers.sql || fail_step "could not apply 92_itemshop_flash_offers.sql" >&2
-fi
-
 # MT2009_PLUS_FRESH_INSTALL_FIX_V1: every row this script makes as a copy of another
 # (CREATE TEMPORARY TABLE ... AS SELECT * FROM world.<item|mob>_proto WHERE vnum = <source>, then
 # SET vnum = <copy>) has to be there now. A copy whose source did not exist yet adds nothing and
@@ -3965,6 +3969,9 @@ for migrate_kind in item mob; do
 done
 
 # MT2009_PLUS_FAST_START_V1: the full run is done - its fingerprint for the next start.
+# MT2009_PLUS_FRESH_INSTALL_FIX_V1: ...only when every step went through. A run with a failed step
+# is not recorded (and a record left by an older run is dropped), so the next start runs it all
+# again instead of skipping it for a day.
 
 # MT2009_PLUS_AMULET_DURATION_30D: Pierścienie i amulety z ItemShopu (71135, 71136, 71143, 71145, 71148, 71149)
 # zmiana czasu z 7 dni (domyślne 0) na 30 dni (2592000 s) oraz limittype0 = 9 (czas noszenia).
@@ -3986,9 +3993,7 @@ if [ -s /opt/playerbot/mod/92_itemshop_flash_offers.sql ]; then
     db < /opt/playerbot/mod/92_itemshop_flash_offers.sql || fail_step "could not apply 92_itemshop_flash_offers.sql" >&2
 fi
 
-# MT2009_PLUS_FRESH_INSTALL_FIX_V1: ...only when every step went through. A run with a failed step
-# is not recorded (and a record left by an older run is dropped), so the next start runs it all
-# again instead of skipping it for a day.
+
 if [ -s "$migrate_failed" ]; then
     echo "[playerbot-migrate] WARNING: $(wc -l < "$migrate_failed" | tr -d ' ') step(s) failed in this run:" >&2
     sed 's/^/[playerbot-migrate] WARNING:   - /' "$migrate_failed" >&2

@@ -604,9 +604,8 @@ namespace {
         // has a shop for is an EXTEND (duration reset, lines added, 6000 yang
         // paid again), harmless to the goods but pointless - and this spreads
         // the reopenings after a restart instead of one a second.
-        if (!IsPlayerBotRetiring(ch->GetPlayerID()) && now - state.dwSpawnTime < 120000) return false;
-        const long long reservedGold = IsPlayerBotRetiring(ch->GetPlayerID()) ? 0 : (long long)GetPlayerBotReservedGold(ch);
-        if (ch->GetGold() - aOfflineShopTime[duration].price < reservedGold ||
+        if (now - state.dwSpawnTime < 120000) return false;
+        if (ch->GetGold() - aOfflineShopTime[duration].price < GetPlayerBotReservedGold(ch) ||
                 !BotOfflineBudget(now) || !Begin(ch->GetPlayerID(), Create, 0, now)) return false;
         // What goes up, read while the items are still in the bag: the create
         // takes them out of it.
@@ -2842,6 +2841,9 @@ namespace {
         if (o.renewCalledAt && Due(now, o.renewCalledAt + PLAYERBOT_OFFLINE_RENEW_HOLD_MS))
             o.renewCalledAt = 0;
         if (!Due(now, o.nextService)) return false;
+        // MT2009_PLUS_BOT_KINGDOM_VISITS_V1: no warp to its own counter from a
+        // trip to another kingdom; the service waits for the way home.
+        if (!o.visiting && IsPlayerBotOnKingdomVisit(ch->GetPlayerID())) return false;
         // A purchase under way comes first. A service visit opens the board,
         // and the buyer gives its pick up to anybody with the board open: four
         // of the first 155 walks over from a second village lost the line they
@@ -3167,7 +3169,7 @@ namespace {
                 }
                 for (const auto& [lineId, line] : shop->GetItems())
                     if (line && line->GetTable() &&
-                            !(ch->GetDesc() && ch->GetDesc()->IsBot()) && !ch->CanPlaceItemOnShopSlot((BYTE)line->GetInfo().pos, (BYTE)line->GetTable()->bSize)) {
+                            !ch->CanPlaceItemOnShopSlot((BYTE)line->GetInfo().pos, (BYTE)line->GetTable()->bSize)) {
                         slotsOk = 0;
                         break;
                     }

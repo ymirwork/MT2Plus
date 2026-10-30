@@ -323,6 +323,47 @@ PRIORITY_LABELS = (
     T('Moby > Bossy > Metiny', 'Monsters > Bosses > Metins'),
     T('Moby > Metiny > Bossy', 'Monsters > Metins > Bosses'),
 )
+# MT2009_PLUS_AUTOHUNT_TRUE_NEAREST_V1 (the owner, 28 October 2026: "ma isc
+# do NAJBLIZSZEGO potwora"): "Najblizszy" took every VID the server named, so a
+# hunter between two monsters at much the same distance ran from one to the
+# other; it now leaves a live target only for one at least
+# NEAREST_SWITCH_MARGIN nearer, and never one it is already fighting in reach.
+# "Fokus" kept a far target it had not reached yet while a pack came up to
+# it: until the hunter first stands in reach of its target, a monster
+# FOCUS_SWITCH_MARGIN nearer is taken instead; a target once fought is kept
+# as before. The server ranks by the true distance now and a monster behind a
+# wall by a detour (server-patches/enginefixes, the same marker).
+NEAREST_SWITCH_MARGIN = 100
+FOCUS_SWITCH_MARGIN = 300
+# MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1 (the owner, 28 October 2026: "nie
+# zatrzymywal sie przy otrzymywaniu obrazen od lucznikow"): a monster's arrow
+# that reaches the running character plays its flinch (the exe's
+# CActorInstance::OnShootDamage: InterceptOnceMotion(DAMAGE), then WAIT), which
+# ends the run motion the walk moves by - the character stood until the next
+# step was ordered, up to MOVE_INTERVAL (RETURN_MOVE_INTERVAL on the way back)
+# later. A walk ordered within WALK_KEEP_SECONDS whose character has not moved
+# for WALK_KEEP_STILL while still WALK_KEEP_ARRIVED from its goal is ordered
+# again at once, WALK_KEEP_RETRY apart and WALK_KEEP_TRIES times a walk at
+# most (a wall that holds it is the stuck measures' job, not this). The exe
+# from client-patches/exe (ENABLE_MT2009_RUN_THROUGH_ARROWS) no longer stops a
+# running character for an arrow at all; this covers an older exe and a melee
+# blow.
+WALK_KEEP_SECONDS = 1.2
+WALK_KEEP_STILL = 0.05
+WALK_KEEP_ARRIVED = 60.0
+WALK_KEEP_MOVED = 0.5
+WALK_KEEP_RETRY = 0.1
+WALK_KEEP_TRIES = 4
+# MT2009_PLUS_AUTOHUNT_BUFF_RENEW_V1 (as upstream 2.2.124): a buff that is on
+# is cast again when no more than BUFF_RENEW_LEAD seconds of it are left (a
+# quarter of its time at most, so a short one is not cast round the clock),
+# off its cooldown - Berserk, Aura, Fear and the like no longer run out
+# between two casts. Never a toggle (a cast would switch it off) or Stealth
+# (BUFF_RENEW_NEVER), and only a buff whose time this client heard from the
+# server (OnAffectAdded) - one of unknown time waits until it is gone.
+BUFF_RENEW_LEAD = 30.0
+BUFF_RENEW_SHARE = 0.25
+BUFF_RENEW_NEVER = (34,)
 # The server reads a command line of 256 characters (interpret_command): the
 # skip list is cut so the order after it always arrives.
 TARGET_COMMAND_MAX = 240
@@ -427,7 +468,6 @@ DEFAULTS.append(('config_version', CONFIG_VERSION))
 GLOBAL_DEFAULTS = [
     ('win_main_x', -1), ('win_main_y', -1),
     ('win_loot_x', -1), ('win_loot_y', -1),
-    ('win_fish_x', -1), ('win_fish_y', -1),
 ]
 
 def DefaultConfig():
@@ -625,24 +665,6 @@ def StopPoint(fromX, fromY, toX, toY, short):
     if distance <= short or distance <= 0:
         return (fromX, fromY)
     return (toX + dx * short / distance, toY + dy * short / distance)
-
-def GetActorPosition(vid):
-    try:
-        pos = chr.GetPixelPosition(vid)
-        if pos:
-            return pos
-    except Exception:
-        pass
-    try:
-        import textTail
-        pos = textTail.GetPosition(vid)
-        if pos:
-            return pos
-    except Exception:
-        pass
-    (px, py, pz) = player.GetMainCharacterPosition()
-    return (px, py, pz)
-
 
 def FindInventoryCell(vnum):
     if not vnum:
@@ -1126,7 +1148,6 @@ class Hunter(object):
         self.running = False
         self.mainWindow = None
         self.lootWindow = None
-        self.fishWindow = None
         self.isLoaded = False
         # The first frame of a game phase waits here until the character has
         # a name (OnGameSession): True after an autologin, False otherwise.
@@ -1176,6 +1197,13 @@ class Hunter(object):
         self.targetLastHP = None
         self.focusLastProgress = 0.0
         self.forceNearestUntil = 0.0
+        # MT2009_PLUS_AUTOHUNT_TRUE_NEAREST_V1: the target stood in reach once.
+        self.targetEngaged = False
+        # MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1: the last walk ordered.
+        self.ResetWalkKeep()
+        # MT2009_PLUS_AUTOHUNT_BUFF_RENEW_V1: when the affects' observer is
+        # added again (a warp drops it).
+        self.nextAffectWatch = 0.0
         # MT2009_PLUS_AUTOHUNT_MOUNT_V1 (Autor: blaki): a recovery under way
         # outlives a new start (it ends by itself).
         self.mountRecoveryPhase = getattr(self, 'mountRecoveryPhase', 0)
@@ -1344,6 +1372,7 @@ class Hunter(object):
             
             self.ResetEscape()
             self.ResetNavigation()
+            self.ResetWalkKeep()  # MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1
             self.WhileDead(now)
             return
             
@@ -1378,9 +1407,13 @@ class Hunter(object):
                 self.CastSkills(now)
                 self.AskForLoot(now)
                 self.Chase(now)
+                # MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1: after Chase, which may
+                # have ordered this frame's step already.
+                self.KeepWalking(now)
         else:
             # A walk's measure taken before the saddle is no measure after it.
             self.ResetChaseMovement()
+            self.ResetWalkKeep()  # MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1
             self.ResetEscape()
             self.ResetReturnMovement()
             self.ResetPath()
@@ -1414,11 +1447,6 @@ class Hunter(object):
             self.lootWindow.Hide()
             self.lootWindow.Destroy()
             self.lootWindow = None
-            
-        if self.fishWindow:
-            self.fishWindow.Hide()
-            self.fishWindow.Destroy()
-            self.fishWindow = None
             
         self.isLoaded = False
 
@@ -1554,9 +1582,8 @@ class Hunter(object):
         # live target whatever the server names; "Najblizszy" takes the new
         # one at once.
         if self.targetVid != 0 and new_vid != self.targetVid:
-            if self.TargetMode() == TARGET_MODE_FOCUS:
-                if player.GetCharacterDistance(self.targetVid) >= 0 and not self.IsKnownDead(self.targetVid):
-                    return
+            if not self.TakeNewTarget(new_vid):  # MT2009_PLUS_AUTOHUNT_TRUE_NEAREST_V1
+                return
 
         if new_vid != self.targetVid:
             self.returning = False
@@ -1576,6 +1603,7 @@ class Hunter(object):
                 self.ResetChaseMovement()
             self.blockedWaiting = False
             self.targetVid = new_vid
+            self.targetEngaged = False  # MT2009_PLUS_AUTOHUNT_TRUE_NEAREST_V1
             self.targetLastHP = None
             self.focusLastProgress = now
             self.forceNearestUntil = 0.0
@@ -1590,6 +1618,34 @@ class Hunter(object):
         if str(blocked) == '1' and new_vid == self.targetVid:
             self.AskBlockedPath(now, new_vid)
 
+    # MT2009_PLUS_AUTOHUNT_TRUE_NEAREST_V1
+    def TakeNewTarget(self, new_vid):
+        """Whether the server's new VID replaces the live target in hand.
+        A target gone or dead is always replaced. "Fokus" (MT2009_PLUS_
+        AUTOHUNT_PRIORITY_V1) keeps one it has stood in reach of, and gives
+        one it is still walking to for a monster FOCUS_SWITCH_MARGIN nearer;
+        "Najblizszy" with no order of the kinds keeps one it fights in reach
+        and otherwise takes a monster NEAREST_SWITCH_MARGIN nearer; with an
+        order it takes what the server names, as before."""
+        current = player.GetCharacterDistance(self.targetVid)
+        if current < 0 or self.IsKnownDead(self.targetVid):
+            return True
+        distance = player.GetCharacterDistance(new_vid)
+        if distance < 0:
+            # Not loaded here yet: nearer it cannot be told, so not taken.
+            return False
+        if self.TargetMode() == TARGET_MODE_FOCUS:
+            if self.targetEngaged:
+                return False
+            return distance + FOCUS_SWITCH_MARGIN <= current
+        if self.PriorityOrder() != 0:
+            # An order of the kinds: the server's word is the order's, a
+            # farther boss before a nearer monster - taken as before.
+            return True
+        if current <= self.Reach():
+            return False
+        return distance + NEAREST_SWITCH_MARGIN <= current
+
     # MT2009_PLUS_AUTOHUNT_BLOCKED_V1 (Autor: blaki)
     def AskBlockedPath(self, now, vid):
         if self.pathPoints and self.pathPurpose == 'target' and self.pathVid == vid:
@@ -1599,7 +1655,7 @@ class Hunter(object):
         distance = player.GetCharacterDistance(vid)
         if 0 <= distance <= self.Reach():
             return False
-        (tx, ty, tz) = GetActorPosition(vid)
+        (tx, ty, tz) = chr.GetPixelPosition(vid)
         return self.AskPath(now, 'target', vid, tx, ty)
 
     # MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (Autor: blaki)
@@ -2377,7 +2433,7 @@ class Hunter(object):
         if not self.pathPoints or self.pathPurpose != 'target' or self.pathVid != vid:
             return False
         if self.pathEnd is not None:
-            (tx, ty, tz) = GetActorPosition(vid)
+            (tx, ty, tz) = chr.GetPixelPosition(vid)
             (ex, ey) = self.pathEnd
             if (tx - ex) ** 2 + (ty - ey) ** 2 > PATH_DRIFT ** 2 and self.PathAskable(vid, now):
                 
@@ -2415,7 +2471,7 @@ class Hunter(object):
             repeated = (px - bx) ** 2 + (py - by) ** 2 <= ESCAPE_REPEAT_DISTANCE ** 2
         self.blockPosition = (px, py)
         self.blockAt = now
-        (tx, ty, tz) = GetActorPosition(vid)
+        (tx, ty, tz) = chr.GetPixelPosition(vid)
         self.ReleaseAttack()
         # A stop where it stands: the walk ordered at the target would go on
         # into the pack the moment it gave way. No step back to the start.
@@ -2554,11 +2610,11 @@ class Hunter(object):
                 if self.pathKind == PATH_KIND_CORRIDORS and self.PathAskable(vid, now):
                     
                     
-                    (tx, ty, tz) = GetActorPosition(vid)
+                    (tx, ty, tz) = chr.GetPixelPosition(vid)
                     self.AskPath(now, 'target', vid, tx, ty)
             elif now - self.approachSince > PATH_STALL_SECONDS and self.PathAskable(vid, now):
                 
-                (tx, ty, tz) = GetActorPosition(vid)
+                (tx, ty, tz) = chr.GetPixelPosition(vid)
                 self.AskPath(now, 'target', vid, tx, ty)
             elif now - self.approachSince > STUCK_SECONDS:
                 self.BlockTarget(vid, now)
@@ -2574,7 +2630,7 @@ class Hunter(object):
             if now >= self.nextMove and now >= self.skillHoldUntil:
                 self.nextMove = now + MOVE_INTERVAL
                 (px, py, pz) = player.GetMainCharacterPosition()
-                (tx, ty, tz) = GetActorPosition(vid)
+                (tx, ty, tz) = chr.GetPixelPosition(vid)
                 (sx, sy) = StopPoint(px, py, tx, ty, reach * STOP_SHORT_SHARE)
                 self.WalkTo(sx, sy)
                 self.NoteChaseWalk(now, vid, px, py, distance)
@@ -2586,6 +2642,7 @@ class Hunter(object):
         
         self.targetBlockAttempts.pop(vid, None)
         self.approachSince = 0.0
+        self.targetEngaged = True  # MT2009_PLUS_AUTOHUNT_TRUE_NEAREST_V1
         # MT2009_PLUS_AUTOHUNT_PRIORITY_V1 (Autor: blaki): no fall of its
         # health for FOCUS_IDLE_SECONDS in reach - another target.
         if self.FocusIdle(now, vid):
@@ -2620,7 +2677,7 @@ class Hunter(object):
                     if now >= self.nextMove:
                         self.nextMove = now + MOVE_INTERVAL
                         (px, py, pz) = player.GetMainCharacterPosition()
-                        (tx, ty, tz) = GetActorPosition(vid)
+                        (tx, ty, tz) = chr.GetPixelPosition(vid)
                         dx = tx - px
                         dy = ty - py
                         d = math.sqrt(dx * dx + dy * dy)
@@ -2698,6 +2755,11 @@ class Hunter(object):
             self.nextRequest = 0
 
     def CastSkills(self, now, buffsOnly=False):
+        # MT2009_PLUS_AUTOHUNT_BUFF_RENEW_V1: a buff's time is heard on foot
+        # too, not only by the rider.
+        if now >= self.nextAffectWatch:
+            self.nextAffectWatch = now + RIDER_WATCH_INTERVAL
+            self.WatchAffects()
         for index, slot, skillIndex in self.SkillCandidates(now, buffsOnly):
             # MT2009_PLUS_AUTOHUNT_STANDING_MOUNT_V1: a standing mount
             # casts the class's skills and never the horse's.
@@ -2726,7 +2788,8 @@ class Hunter(object):
                 continue
             if skill.IsToggleSkill(skillIndex) and player.IsSkillActive(slot):
                 continue
-            if skillIndex in BUFF_SKILLS and self.BuffPresent(slot, skillIndex):
+            if skillIndex in BUFF_SKILLS and self.BuffPresent(slot, skillIndex) and \
+                    not self.BuffRenewDue(slot, skillIndex, now):  # MT2009_PLUS_AUTOHUNT_BUFF_RENEW_V1
                 continue
             if buffsOnly and skillIndex not in BUFF_SKILLS:
                 continue
@@ -2791,12 +2854,7 @@ class Hunter(object):
             self.lootSince = 0.0
             return False
         self.nextLootPick = now + LOOT_PICK_INTERVAL
-        # Fast area pickup (/pickup_nearby)
-        mask = LootMask(self.config)
-        if mask:
-            self.Command('/pickup_nearby %d' % mask, now)
-        else:
-            net.SendChatPacket("/pickup_nearby")
+        net.SendItemPickUpPacket(vid)
         self.lootVid = 0
         self.lootSince = 0.0
         self.nextLootRequest = min(self.nextLootRequest, now + 0.3)
@@ -2923,11 +2981,49 @@ class Hunter(object):
         (px, py, pz) = player.GetMainCharacterPosition()
         if (px - x) ** 2 + (py - y) ** 2 >= (2 * COMBAT_MOVE_THRESHOLD) ** 2:
             self.walkIntentAt = clientclock.Now()
+        # MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1: the walk KeepWalking keeps going.
+        self.walkGoal = (int(x), int(y))
+        self.walkGoalAt = clientclock.Now()
+        self.walkKeepTries = 0
         chr.MoveToDestPosition(player.GetMainCharacterIndex(), int(x), int(y))
+
+    # MT2009_PLUS_AUTOHUNT_RUN_ON_HIT_V1 ------------------------------------
+    def ResetWalkKeep(self):
+        self.walkGoal = None
+        self.walkGoalAt = 0.0
+        self.walkKeepTries = 0
+        self.walkKeepNext = 0.0
+        self.walkLastPos = None
+        self.walkStillSince = 0.0
+
+    def KeepWalking(self, now):
+        """A walk the hunt ordered that a blow stopped half-way (see
+        WALK_KEEP_SECONDS) is ordered again at once, not on the next step's
+        clock. Nothing while the attack key is held or a skill's motion
+        runs: there the character stands on purpose."""
+        (px, py, pz) = player.GetMainCharacterPosition()
+        last = self.walkLastPos
+        self.walkLastPos = (px, py)
+        if last is None or (px - last[0]) ** 2 + (py - last[1]) ** 2 > WALK_KEEP_MOVED ** 2:
+            self.walkStillSince = now
+            return False
+        goal = self.walkGoal
+        if goal is None or now - self.walkGoalAt > WALK_KEEP_SECONDS:
+            return False
+        if self.attacking or now < self.skillHoldUntil or self.walkKeepTries >= WALK_KEEP_TRIES:
+            return False
+        if now - self.walkStillSince < WALK_KEEP_STILL or now < self.walkKeepNext:
+            return False
+        if (px - goal[0]) ** 2 + (py - goal[1]) ** 2 <= WALK_KEEP_ARRIVED ** 2:
+            return False
+        self.walkKeepTries += 1
+        self.walkKeepNext = now + WALK_KEEP_RETRY
+        chr.MoveToDestPosition(player.GetMainCharacterIndex(), goal[0], goal[1])
+        return True
 
     def Face(self, vid):
         (px, py, pz) = player.GetMainCharacterPosition()
-        (tx, ty, tz) = GetActorPosition(vid)
+        (tx, ty, tz) = chr.GetPixelPosition(vid)
         chr.SelectInstance(player.GetMainCharacterIndex())
         chr.SetRotation(FacingDegree(px, py, tx, ty))
 
@@ -3391,6 +3487,20 @@ class Hunter(object):
             return None
         return max(0.0, seconds - (now - at))
 
+    # MT2009_PLUS_AUTOHUNT_BUFF_RENEW_V1
+    def BuffRenewDue(self, slot, skillIndex, now):
+        """A buff that is on and ends within BUFF_RENEW_LEAD (a share of its
+        time at most): cast it again now. Off its cooldown is the caller's."""
+        if skillIndex in BUFF_RENEW_NEVER or IsToggle(skillIndex):
+            return False
+        stamp = self.riderBuffStamp.get(skillIndex)
+        if stamp is None or stamp[1] <= 0:
+            return False
+        left = self.BuffRemaining(slot, skillIndex, now)
+        if left is None:
+            return False
+        return left <= min(BUFF_RENEW_LEAD, stamp[1] * BUFF_RENEW_SHARE)
+
     def BuffPresent(self, slot, skillIndex):
         if IsToggle(skillIndex) and self.SkillActive(slot):
             return True
@@ -3816,10 +3926,6 @@ class Hunter(object):
                 self.config_global['win_main_y'] = int(my)
                 self.config_global['win_loot_x'] = int(lx)
                 self.config_global['win_loot_y'] = int(ly)
-                if hasattr(self, 'fishWindow') and self.fishWindow:
-                    fx, fy = self.fishWindow.GetLocalPosition()
-                    self.config_global['win_fish_x'] = int(fx)
-                    self.config_global['win_fish_y'] = int(fy)
             except RuntimeError:
                 pass
                 
@@ -3849,7 +3955,6 @@ class Hunter(object):
     def CreateWindows(self):
         self.mainWindow = AutoHuntWindow(self)
         self.lootWindow = AutoHuntLootWindow(self)
-        self.fishWindow = AutoFishWindow(self)
         
         sw = wndMgr.GetScreenWidth()
         sh = wndMgr.GetScreenHeight()
@@ -3862,8 +3967,6 @@ class Hunter(object):
         my = self.config_global.get('win_main_y', -1)
         lx = self.config_global.get('win_loot_x', -1)
         ly = self.config_global.get('win_loot_y', -1)
-        fx = self.config_global.get('win_fish_x', -1)
-        fy = self.config_global.get('win_fish_y', -1)
         
         if mx < 0 or my < 0 or mx + w1 > sw or my + h1 > sh:
             mx = max(0, (sw - (w1 + 10 + w2)) / 2)
@@ -3874,14 +3977,9 @@ class Hunter(object):
         if lx < 0 or ly < 0 or lx + w2 > sw or ly + self.lootWindow.HEIGHT > sh:
             lx = mx + w1 + 10
             ly = my
-
-        if fx < 0 or fy < 0 or fx + self.fishWindow.WIDTH > sw or fy + self.fishWindow.HEIGHT > sh:
-            fx = lx
-            fy = ly + self.lootWindow.HEIGHT + 10
             
         self.mainWindow.SetPosition(int(mx), int(my))
         self.lootWindow.SetPosition(int(lx), int(ly))
-        self.fishWindow.SetPosition(int(fx), int(fy))
 
     def ShowLootWindow(self):
         """The settings window alone, from the game options' "Ustaw": its
@@ -3987,8 +4085,8 @@ class Hunter(object):
 
 class AutoHuntWindow(ui.BoardWithTitleBar):
     WIDTH = 300
-    # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: 25 more for "Dodatkowe ustawienia", +30 for "Auto-Wedkowanie".
-    HEIGHT = 610
+    # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: 25 more for "Dodatkowe ustawienia".
+    HEIGHT = 580
     GRID_ROWS = 4
     SLOT_STEP = 40
     SLOTS_PER_ROW = 6
@@ -4149,10 +4247,6 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
         self.settingsButton = self._Btn(self, 'large', 202, y + 25, T('Otw\xf3rz', 'Open'),
             self.ToggleExtraWindow)
 
-        self._Label(self, 22, y + 54, T('Auto-W\xeadkowanie', 'Auto-Fishing'))
-        self.fishButton = self._Btn(self, 'large', 202, y + 50, T('Otw\xf3rz', 'Open'),
-            self.ToggleFishWindow)
-
     # MT2009_PLUS_AUTOHUNT_WINDOWS_V1 (Autor: blaki)
     def RefreshSettingsButton(self):
         loot = self.hunter.lootWindow if self.hunter else None
@@ -4161,15 +4255,6 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
         except RuntimeError:
             shown = False
         self.settingsButton.SetText(T('Zamknij', 'Close') if shown else T('Otw\xf3rz', 'Open'))
-
-    def RefreshFishButton(self):
-        fw = self.hunter.fishWindow if self.hunter else None
-        try:
-            shown = bool(fw and fw.IsShow())
-        except RuntimeError:
-            shown = False
-        if hasattr(self, 'fishButton') and self.fishButton:
-            self.fishButton.SetText(T('Zamknij', 'Close') if shown else T('Otw\xf3rz', 'Open'))
 
     def ToggleExtraWindow(self):
         loot = self.hunter.lootWindow if self.hunter else None
@@ -4183,18 +4268,6 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
             loot.Show()
             loot.SetTop()
         self.RefreshSettingsButton()
-        self.hunter.SaveGlobalConfig()
-
-    def ToggleFishWindow(self):
-        fw = self.hunter.fishWindow if self.hunter else None
-        if not fw:
-            return
-        if fw.IsShow():
-            fw.Close()
-        else:
-            fw.Show()
-            fw.SetTop()
-        self.RefreshFishButton()
         self.hunter.SaveGlobalConfig()
 
     def _Board(self, x, y, w, h):
@@ -4360,8 +4433,6 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
             edit.SetText(str(config[key]))
         self.RefreshSlots()
         self.RefreshStatus()
-        self.RefreshSettingsButton()
-        self.RefreshFishButton()
 
     def RefreshSlots(self):
         config = self.hunter.config
@@ -4541,8 +4612,6 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
             # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: closing K closes both.
             if self.hunter.lootWindow:
                 self.hunter.lootWindow.Close()
-            if hasattr(self.hunter, 'fishWindow') and self.hunter.fishWindow:
-                self.hunter.fishWindow.Close()
         self.Hide()
 
     def OnPressEscapeKey(self):
@@ -4858,6 +4927,56 @@ class AutoHuntLootWindow(ui.BoardWithTitleBar):
         self.priorityBtn = None
         self.priorityText = None
 
+
+_hunter = None
+
+def GetHunter():
+    global _hunter
+    if _hunter is None:
+        _hunter = Hunter()
+    return _hunter
+
+def ToggleWindow():
+    GetHunter().ToggleWindow()
+
+def ShowLootWindow():
+    GetHunter().ShowLootWindow()
+
+# MT2009_PLUS_AUTOHUNT_QUICK_V1: the quick start/stop and whether a hunt runs
+# (the inventory sidebar's button shows it).
+def QuickToggle():
+    GetHunter().QuickToggle()
+
+def IsRunning():
+    return _hunter is not None and bool(_hunter.running)
+
+def OnServerTarget(value, blocked='0'):
+    GetHunter().OnServerTarget(value, blocked)
+
+# MT2009_PLUS_AUTOHUNT_MOUNT_V1 (Autor: blaki)
+def OnServerMount(action, mounted):
+    GetHunter().OnServerMount(action, mounted)
+
+def OnServerLoot(vid, x, y):
+    GetHunter().OnServerLoot(vid, x, y)
+
+def OnServerPath(seq='0', answer='', kind='0', points='', *rest):
+    GetHunter().OnServerPath(seq, answer, kind, points)
+
+def OnServerOff(reason=''):
+    GetHunter().OnServerOff(reason)
+
+def OnServerTargetHP(vid, hp, maxHp):
+    GetHunter().OnServerTargetHP(vid, hp, maxHp)
+
+
+def OnFocusLost():
+    """The exe cleared its pressed keys: forget our held attack too.
+    Background hunting resumes on the next frame with its own live target.
+    """
+    if _hunter is not None:
+        _hunter.ReleaseAttack()
+        _hunter.ResetChaseMovement()
 
 class AutoFishWindow(ui.BoardWithTitleBar):
     WIDTH = 300

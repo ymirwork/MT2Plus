@@ -175,6 +175,17 @@ SCHEMA = [
        "Lista map: 301 Przylądek Smoczego Ognia, 302 Zbocze Gautama, 303 Nefrytowa Zatoka, 304 Gromiste Góry – wszystkie na rdzeniu game3 "
        "(siatki botów: 301 ~160 MB, 302 ~125 MB, 303 ~80 MB, 304 ~107 MB pamięci na kanał).",
        "boty", "string", "301,302,303,304", ["game"]),
+    # MT2009_PLUS_MAPS_WZ_BOTS_V1: Wezowe Pole / Kraina Gigantow (game3) through the handover.
+    # MT2009_PLUS_MAPS_WZ_NOCAP_V1: -1 (the default) = no limit (the owner, 26 October 2026).
+    _e("PLAYERBOT_SNAKEFIELD_MAX", "Boty na Wężowym Polu (na kanał)",
+       "Ilu botów 63–78 naraz expi na Wężowym Polu (mapa 80, rdzeń game3). -1 = bez limitu (domyślnie), 0 = żaden, więcej = najwyżej tylu na kanał.",
+       "boty", "int", "-1", ["game"], min=-1, max=300),
+    _e("PLAYERBOT_GIANTLAND_MAX", "Boty w Krainie Gigantów (na kanał)",
+       "Ilu botów 63–80 naraz expi w Krainie Gigantów (mapa 70, rdzeń game3). -1 = bez limitu (domyślnie), 0 = żaden, więcej = najwyżej tylu na kanał.",
+       "boty", "int", "-1", ["game"], min=-1, max=300),
+    _e("PLAYERBOT_WZ_STAY_MIN", "Wyprawa na Wężowe Pole / do Krainy (min)",
+       "Ile minut bot zostaje na Wężowym Polu albo w Krainie Gigantów, zanim wróci do wioski.",
+       "boty", "int", "120", ["game"], min=20, max=600),
     # MT2009_PLUS_CH34_V1: the third and fourth channel, same principle as CH2.
     _e("M2_PLAYERBOT_CH3", "Trzeci kanał (CH3)",
        "Włączone: serwer uruchamia trzeci kanał – trzy kolejne rdzenie gry na własnych procesach (ok. 2,5–3 GB RAM więcej i od pół do jednego rdzenia CPU pod obciążeniem), "
@@ -197,7 +208,7 @@ SCHEMA = [
        options=[["unified", "unified – jeden rdzeń dla całego świata"], ["split", "split – każde królestwo na swoim rdzeniu"]]),
     # MT2009_PLUS_237_NEWCORE_V1: the fourth game core of a channel (bin/m2-render-config).
     _e("M2_MAP_CORE", "Osobny rdzeń dla nowych map",
-       "Włączone: Zaklęty Las (353) i mapy 90 (301–304) stoją na osobnym rdzeniu game3 w każdym kanale (port 13003 na CH1, 13004–13006 na CH2–CH4). "
+       "Włączone: Zaklęty Las (353), mapy 90 (301–304), Wężowe Pole (80) i Kraina Gigantów (70) stoją na osobnym rdzeniu game3 w każdym kanale (port 13003 na CH1, 13004–13006 na CH2–CH4). "
        "Wyłączone: te mapy wracają na rdzeń game2, bez game3 – ok. 0,15 GB RAM na kanał mniej, dla komputera z małą ilością pamięci.",
        "boty", "bool", "1", ["game"], dangerous=True),
     _e("M2_PLAYERBOT_DISABLE_STUDENT_CHEST", "Boty bez Skrzyni Ucznia",
@@ -323,9 +334,14 @@ SCHEMA = [
        "siec", "address", "0.0.0.0", ["game", "itemshop", "panel", "seban-panel"], dangerous=True,
        suggestions=["0.0.0.0", "127.0.0.1"]),
     _e("M2_PANEL_BIND_ADDRESS", "Adres nasłuchu paneli",
-       "To samo dla paneli i ItemShopu. 127.0.0.1 trzyma panele przy tym komputerze (dostęp np. przez tunel SSH).",
-       "siec", "address", "0.0.0.0", ["itemshop", "panel", "seban-panel"], dangerous=True,
+       "To samo dla paneli. 127.0.0.1 trzyma panele przy tym komputerze (dostęp np. przez tunel SSH).",
+       "siec", "address", "0.0.0.0", ["panel", "seban-panel"], dangerous=True,
        suggestions=["0.0.0.0", "127.0.0.1"]),
+    # MT2009_PLUS_ITEMSHOP_PUBLIC_V1: the ItemShop follows the game's ports, not the panels'.
+    _e("M2_ITEMSHOP_BIND_ADDRESS", "Adres nasłuchu ItemShopu",
+       "Puste = tak jak porty gry. Gracze otwierają ItemShop z gry, więc na serwerze musi być dostępny z zewnątrz.",
+       "siec", "address", "", ["itemshop"], allow_empty=True, dangerous=True,
+       suggestions=["", "0.0.0.0", "127.0.0.1"]),
     _e("M2_AUTH_PORT", "Port logowania", "Port serwera logowania. Zmień tylko, gdy 11000 jest zajęty – gracze muszą wtedy dostać nowy port.",
        "siec", "port", "11000", ["game", "panel"], dangerous=True),
     _e("M2_CHANNELS", "Liczba kanałów",

@@ -111,9 +111,9 @@ Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzglę
 
 ## 1. Wersjonowanie i Identyfikacja
 
-- **Wersja serwera (`Server/VERSION`):** `2.39.0`
-- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-60`
-- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.70`
+- **Wersja serwera (`Server/VERSION`):** `2.40.0`
+- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-61`
+- **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.71`
 - **Baza kodu:** Fork projektu *Metin2 Playerbots Singleplayer* (`mt2009`) autorstwa Tieru, wywodzący się z bazy MartySama r41023 (oraz wczesnych serwerfiles AzzlackSyndicate).
 - **Główni autorzy rozszerzenia SP+:** ZAXEP / SIZOWSKI, Digi Rasta, Vekirion, seban latino, OskarPWA, Iwakura.
 
@@ -450,4 +450,14 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
       - **Asystentowi kategorycznie zabrania się automatycznego wykonywania `git commit`, `git push`, wydawania wersji na GitHub Releases oraz wypychania zmian patchera na `gh-pages` przed otrzymaniem od użytkownika jednoznacznego potwierdzenia, że test w grze zakończył się sukcesem i wszystko działa poprawnie.**
       - Wszystkie zmiany po kompilacji i spakowaniu pozostają wyłącznie lokalnie na gałęzi deweloperskiej w repozytorium roboczym.
       - Dopiero gdy użytkownik napisze np. „przetestowane, działa”, „wszystko ok, wrzucaj”, asystent przystępuje do zatwierdzenia zmian (commit), pusha do zdalnego repozytorium GitHub, publikacji wydań i synchronizacji patchera CDN (`publish_patcher_web.py`).
+
+18. **Żelazna Zasada Szybkiej i Nisko-Tokenowej Synchronizacji z Upstream (Fast Upstream Sync & Promisor Guard):**
+    - **A. Ochrona przed Promisor Remote i pobieraniem wielkich paczek binarnych (`releases/`):**
+      - Repozytorium korzysta z częściowego klonowania git (`promisor remote`). Uruchomienie ogólnych poleceń `git diff <commit>..<commit>` lub `git grep` na całym drzewie powoduje, że Git próbuje pobierać wieloset-megabajtowe archiwa zip (`releases/*.zip.part*`), co prowadzi do wielominutowych zawieszeń i błędów RPC (`curl 56 Recv failure`).
+      - **Bezwzględna reguła:** Inspekcję zmian upstreamu ZAWSZE należy wykonywać z ograniczeniem ścieżek (np. `git diff <commit>..<commit> --name-status` lub zawężając do `Server/`, `Klient/`), kategorycznie wykluczając katalog `releases/`.
+    - **B. Automatyzacja synchronizacji upstreamu dedykowanym skryptem (`apply_upstream_*.py` / `sync_upstream.py`):**
+      - Wszelkie powtarzalne operacje synchronizacji (aktualizacja znaczników `VERSION`, `MOD_VERSION`, `CLIENT_VERSION`, `CHANGELOG.md`, `client-files.json`, aplikowanie patchy silnika/rankpoints, rekompilacja paczki `root` i audyt modyfikacji) powinny być orkiestrowane bezpośrednio przez deterministyczny skrypt w `Server/tools/`, zamiast wieloetapowego, kosztownego odpytywania modelu AI i wielokrotnych promptów.
+    - **C. Zabezpieczenie sieciowe budowy Docker i Patcher CDN:**
+      - Budowanie kontenerów w środowisku deweloperskim powinno korzystać z flagi `--network=host` w przypadku problemów z DNS dockera.
+      - Skrypty patchera (`publish_patcher_web.py`) muszą posiadać twarde timeouty na połączenia sieciowe (max 5-10s) oraz flagę separującą generowanie manifestów od finalnego pusha na `gh-pages`.
 

@@ -198,7 +198,7 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     print("GitHub token acquired successfully.")
 
     tag = "v2.40.0-mod61"
-    release_name = "MT2009 PLUS v2.40.0-mod61 - Serwer 2.39.0 & Klient 2.0.70"
+    release_name = "MT2009 PLUS v2.40.0-mod61 - Serwer 2.40.0 & Klient 2.0.71"
 
     body = f"""# 📦 MT2Plus Wydanie v2.40.0-mod61
 

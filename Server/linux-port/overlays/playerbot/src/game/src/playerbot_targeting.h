@@ -1642,6 +1642,9 @@ namespace
 					baseScore = isMetinHunter ? 1500000 : PLAYERBOT_STONE_BASE_SCORE;
 					if (IsPlayerBotStoneUnderJoinableAttack(m_owner, candidate))
 						baseScore += PLAYERBOT_STONE_JOIN_BONUS;
+					// MT2009_PLUS_GREEN_STONES_M1M2_DROP_V1 (bot metin priority):
+					if (botLevel <= 40 && candidate->GetRaceNum() >= 8001 && candidate->GetRaceNum() <= 8007)
+						baseScore += 500000;
 				}
 				else
 				{
@@ -1674,6 +1677,23 @@ namespace
 							CountPlayerBotRaiders(candidate->GetRaceNum(), m_dwNow) >=
 								PLAYERBOT_RAID_SWARM_MIN)
 						baseScore += PLAYERBOT_RAID_SWARM_TARGET_BONUS;
+
+					// MT2009_PLUS_GREEN_STONES_M1M2_DROP_V1 (bot boss priority):
+					if (candidate->GetMobRank() >= MOB_RANK_BOSS)
+					{
+						const DWORD raceVnum = candidate->GetRaceNum();
+						const long lMap = candidate->GetMapIndex();
+						const bool isM1M2Boss = (raceVnum >= 191 && raceVnum <= 194) ||
+												(raceVnum >= 391 && raceVnum <= 394) ||
+												(raceVnum >= 491 && raceVnum <= 494) ||
+												(raceVnum == 591) ||
+												((lMap == 1 || lMap == 21 || lMap == 41 || lMap == 3 || lMap == 23 || lMap == 43) && candidate->GetLevel() <= 45);
+
+						if (isM1M2Boss && botLevel <= 45)
+						{
+							baseScore += (botLevel <= 40) ? 800000 : 500000;
+						}
+					}
 
 					// For dedicated Metin breakers, normal mobs get low score unless attacking
 					if (isMetinHunter && candidate->GetVictim() != m_owner)

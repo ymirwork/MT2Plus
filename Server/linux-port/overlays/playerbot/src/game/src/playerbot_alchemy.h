@@ -40,7 +40,7 @@ namespace
 	const int PLAYERBOT_DS_SHARDS_PER_COR = 10;
 	// Cors a day: the players' event flag ds_cor_day (dragon_soul.quest, the
 	// admin panel's alchemy page; 1-20), this when it is unset or out of range.
-	const int PLAYERBOT_DS_CORS_PER_DAY = 5;
+	const int PLAYERBOT_DS_CORS_PER_DAY = 15;
 	const DWORD PLAYERBOT_COR_ROUGH_VNUM = 50255;
 	const int PLAYERBOT_COR_LINE_MIN_UNITS = 5;
 	const DWORD PLAYERBOT_DS_TIME_ELIXIR_VNUM = 100002;
@@ -170,7 +170,7 @@ namespace
 	int GetPlayerBotDragonCorsPerDay()
 	{
 		const int n = quest::CQuestManager::instance().GetEventFlag("ds_cor_day");
-		return (n >= 1 && n <= 20) ? n : PLAYERBOT_DS_CORS_PER_DAY;
+		return (n >= 1 && n <= 30) ? n : PLAYERBOT_DS_CORS_PER_DAY;
 	}
 
 	// The share scaled by the panel's ALCHEMY will (playerbot_config.h; 100 =

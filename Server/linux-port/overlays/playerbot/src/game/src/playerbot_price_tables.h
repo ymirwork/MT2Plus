@@ -682,6 +682,9 @@ namespace
 		{ 71089,   120000 },	// Ksiega Misji (Normalna)
 		{ 71090,   250000 },	// Ksiega Misji (Trudna)
 		{ 71092,    75000 },	// Ksiega Polimorfii
+		{ 30368,  4500000 },	// Pozwolenie na Wzmocnienie Przedmiotu
+		{ 30369,  4500000 },	// Pozwolenie na Wzmocnienie Przedmiotu (alt)
+		{ 30370,  1200000 },	// Pozwolenie na Zaczarowanie Przedmiotu
 		{ 71151,   100000 },	// Zielony Czar (scaled like the sheet)
 		{ 71152,   250000 },	// Zielona Sila (scaled like the sheet)
 		{ 71284,  1380000 },	// Zaczarowanie Przedmiotu (MT2009_PLUS_TRADEABLE_BONUS_V3: 69 SM by the 50 SM coupon; scaled like the sheet)

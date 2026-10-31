@@ -17,12 +17,12 @@
 --    "Alchemia i szarfy" page writes the event flag m2_alchemy_off). While it
 --    is off: no letter, no shard, no hand-in, no renewal - what a character
 --    already holds, and its state here, stays for the day it is on again;
---  * Cors a day: the event flag ds_cor_day (1-20; anything else reads as 5,
---    the operator's choice of 17 September - the package had 10). The panel
+--  * Cors a day: the event flag ds_cor_day (1-30; anything else reads as 15,
+--    the operator's choice of October 2026 - MT2Plus Hard Rebalance). The panel
 --    sets it next to the shard chance; the bots read the same flag
 --    (playerbot_alchemy.h);
 --  * shard chance: the event flag ds_drop (1-100; questlib's
---    drop_gamble_with_flag reads anything else as 10), the panel or /e ds_drop;
+--    drop_gamble_with_flag reads anything else as 15), the panel or /e ds_drop;
 --  * shards only from a monster at most 15 levels under the killer, or any
 --    higher (operator, 27 September 2026);
 --  * bots never get shards here and never get the letter: their own errand
@@ -90,8 +90,8 @@ quest dragon_soul begin
 			say_title(mob_name(20001))
 			if pc.count_item(30270) >= 10 then
 				local per_day = game.get_event_flag("ds_cor_day")
-				if per_day < 1 or per_day > 20 then
-					per_day = 5
+				if per_day < 1 or per_day > 30 then
+					per_day = 15
 				end
 				say(string.format(gameforge.dragon_soul._1070_say, per_day - 1))
 				pc.remove_item(30270, 10)
@@ -168,8 +168,8 @@ quest dragon_soul begin
 				say(gameforge.dragon_soul._1130_say)
 			else
 				local per_day = game.get_event_flag("ds_cor_day")
-				if per_day < 1 or per_day > 20 then
-					per_day = 5
+				if per_day < 1 or per_day > 30 then
+					per_day = 15
 				end
 				say((string.gsub(gameforge.dragon_soul._1140_say, "10 ", per_day .. " ")))
 				pc.setf("dragon_soul", "eye_timestamp", today)
@@ -198,8 +198,8 @@ quest dragon_soul begin
 				say(gameforge.dragon_soul._1130_say)
 			else
 				local per_day = game.get_event_flag("ds_cor_day")
-				if per_day < 1 or per_day > 20 then
-					per_day = 5
+				if per_day < 1 or per_day > 30 then
+					per_day = 15
 				end
 				say((string.gsub(gameforge.dragon_soul._1140_say, "10 ", per_day .. " ")))
 				pc.setf("dragon_soul", "eye_timestamp", today)

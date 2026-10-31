@@ -2625,6 +2625,53 @@ namespace
 				((long long)ch->GetGold() > GetPlayerBotLiquidationFee(IsPlayerBotTier1M1M2Material(vnum)) * 2);
 	}
 
+	// MT2009_PLUS_PERMIT_EXCHANGE_V1 (Task 2):
+	// Boty wymieniaja Pozwolenia na Zaczarowania/Wzmocnienia (30370, 30368, 30369)
+	// na handlowalne Zaczarowania (71284) i Wzmocnienia (71285).
+	// Nastepnie bot uzywa ich na wlasny ekwipunek, a nadmiar wystawia na sklep offline.
+	bool ManagePlayerBotPermitExchange(LPCHARACTER ch)
+	{
+		if (!ch || !ch->IsItemLoaded())
+			return false;
+
+		bool convertedAny = false;
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (!item || item->isLocked())
+				continue;
+
+			const DWORD vnum = item->GetVnum();
+			if (vnum == 30370) // Pozwolenie na Zaczar. Przedmiotu
+			{
+				DWORD count = item->GetCount();
+				ch->RemoveSpecifyItem(30370, count);
+				LPITEM reward = ch->AutoGiveItem(71284, count, -1, false);
+				if (reward)
+				{
+					LogManager::instance().ItemLog(ch, reward, "PLAYERBOT_PERMIT_EXCHANGE", reward->GetName());
+					sys_log(0, "PLAYERBOT_PERMIT_EXCHANGE: pid=%u name=%s exchanged permit=30370 count=%u -> reward=71284",
+						ch->GetPlayerID(), ch->GetName(), count);
+					convertedAny = true;
+				}
+			}
+			else if (vnum == 30368 || vnum == 30369) // Pozwolenie na Wzmocn. Przedmiotu
+			{
+				DWORD count = item->GetCount();
+				ch->RemoveSpecifyItem(vnum, count);
+				LPITEM reward = ch->AutoGiveItem(71285, count, -1, false);
+				if (reward)
+				{
+					LogManager::instance().ItemLog(ch, reward, "PLAYERBOT_PERMIT_EXCHANGE", reward->GetName());
+					sys_log(0, "PLAYERBOT_PERMIT_EXCHANGE: pid=%u name=%s exchanged permit=%u count=%u -> reward=71285",
+						ch->GetPlayerID(), ch->GetName(), vnum, count);
+					convertedAny = true;
+				}
+			}
+		}
+		return convertedAny;
+	}
+
 	bool ManagePlayerBotBonusReroll(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 	{
 		if (!ch || !ch->IsItemLoaded() || dwNow < state.dwNextBonusCheckTime)
@@ -2636,6 +2683,7 @@ namespace
 			ManagePlayerBotDustBonusStones(ch);
 		ManagePlayerBotRefinerExchange(ch);
 		ManagePlayerBotLiquidationM1M2(ch);
+		ManagePlayerBotPermitExchange(ch);
 		// Nothing to spend, nothing to weigh: the pass below scores every line
 		// of eight worn pieces, and a bag with no stone and no marble ends here.
 		// Any stone at any level: under PLAYERBOT_BONUS_MIN_LEVEL the green

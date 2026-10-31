@@ -178,6 +178,36 @@ c34_pt = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot
 c34_m = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_market.h'))
 results['zielone-dodania-m1m2'] = bool(c34_pt and c34_m and '71151' in c34_pt and 'IsPlayerBotGreenTradeableBonusVnum' in c34_m)
 
+# 35. balans-alchemia-cor
+c35_im = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/item_manager.cpp'))
+c35_ds = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/quest/dragon_soul.quest'))
+results['balans-alchemia-cor'] = bool(c35_im and c35_ds and 'MT2009_PLUS_COR_DRACONIS_REBALANCE_V1' in c35_im and 'per_day = 15' in c35_ds)
+
+# 36. zielone-kamienie-m1m2-drop
+c36_im = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/item_manager.cpp'))
+c36_pb = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_bonus.h'))
+c36_pt = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_targeting.h'))
+results['zielone-kamienie-m1m2-drop'] = bool(
+    c36_im and c36_pb and c36_pt and
+    'MT2009_PLUS_GREEN_STONES_M1M2_DROP_V1' in c36_im and
+    'ManagePlayerBotPermitExchange' in c36_pb and
+    'MT2009_PLUS_GREEN_STONES_M1M2_DROP_V1' in c36_pt
+)
+
+# 37. quest-mob-podswietlenie-aqua
+c37_ch = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/char.cpp'))
+c37_qm = read_file_safe(os.path.join(repo, 'Klient/pack/root/questmobhighlight.py'))
+c37_ut = read_file_safe(os.path.join(repo, 'Klient/pack/root/uitarget.py'))
+c37_gm = read_file_safe(os.path.join(repo, 'Klient/pack/root/game.py'))
+results['quest-mob-podswietlenie-aqua'] = bool(
+    c37_ch and c37_qm and c37_ut and c37_gm and
+    'MT2009_PLUS_QUEST_MOB_AQUA_V1' in c37_ch and
+    'RefreshQuestMobMarks' in c37_ch and
+    'COLOR_AQUA_RGB' in c37_qm and
+    '0xFF00E5FF' in c37_ut and
+    'QuestMobMark' in c37_gm
+)
+
 all_ok = True
 print(f'{"NAZWA MODYFIKACJI":42} | STATUS')
 print('-' * 60)
@@ -190,7 +220,7 @@ for k, v in results.items():
 print('=' * 60)
 print(f'WYNIK AUDYTU MT2PLUS: {sum(results.values())}/{len(results)} AKTYWNYCH!')
 if all_ok:
-    print('WSZYSTKIE 34 AUTORSKIE MODYFIKACJE SA W 100% AKTYWNE I ZGODNE!')
+    print(f'WSZYSTKIE {len(results)} AUTORSKIE MODYFIKACJE SA W 100% AKTYWNE I ZGODNE!')
 else:
     print('UWAGA: ZNALEZIONO BRAKUJACE LUB NIEKOMPLETNE MODYFIKACJE!')
     sys.exit(1)

@@ -5767,6 +5767,7 @@ namespace
 		outScored.clear();
 		if (!ch || !ch->IsItemLoaded())
 			return;
+		ManagePlayerBotPermitExchange(ch);
 		// Once a minute per bot the ledger decisions are counted and the
 		// refusals logged; the other scans of the same bag say nothing.
 		const bool report = ShouldReportPlayerBotMarketDecisions(

@@ -165,8 +165,10 @@ def build_client_package(repo_root, dist_dir):
         if os.path.exists(hp):
             shutil.copy2(hp, os.path.join(pack_dst, hf))
 
-    # Inject CLIENT_VERSION
+    # Inject CLIENT_VERSION and patched metin2client.exe
     shutil.copy2(os.path.join(klient_root, 'CLIENT_VERSION'), os.path.join(temp_dir, 'CLIENT_VERSION'))
+    if os.path.exists(os.path.join(klient_root, 'metin2client.exe')):
+        shutil.copy2(os.path.join(klient_root, 'metin2client.exe'), os.path.join(temp_dir, 'metin2client.exe'))
 
     # Clean any unwanted bak or syserr files
     for root, dirs, files in os.walk(temp_dir):

@@ -1148,6 +1148,7 @@ class Hunter(object):
         self.running = False
         self.mainWindow = None
         self.lootWindow = None
+        self.fishWindow = None
         self.isLoaded = False
         # The first frame of a game phase waits here until the character has
         # a name (OnGameSession): True after an autologin, False otherwise.
@@ -1447,6 +1448,7 @@ class Hunter(object):
             self.lootWindow.Hide()
             self.lootWindow.Destroy()
             self.lootWindow = None
+        self.fishWindow = None
             
         self.isLoaded = False
 
@@ -2844,17 +2846,9 @@ class Hunter(object):
             return False
         if self.LootDistance() > LOOT_PICK_DISTANCE:
             return False
-        vid = self.lootVid
-        attempts = self.lootPickAttempts.get(vid, 0) + 1
-        self.lootPickAttempts[vid] = attempts
-        if attempts > LOOT_MAX_PICK_RETRIES:
-            self.lootSkippedVids[vid] = now + LOOT_SKIP_DURATION
-            self.lootPickAttempts.pop(vid, None)
-            self.lootVid = 0
-            self.lootSince = 0.0
-            return False
+        mask = LootMask(self.config)
         self.nextLootPick = now + LOOT_PICK_INTERVAL
-        net.SendItemPickUpPacket(vid)
+        self.Command('/pickup_nearby %d' % mask, now)
         self.lootVid = 0
         self.lootSince = 0.0
         self.nextLootRequest = min(self.nextLootRequest, now + 0.3)
@@ -3955,6 +3949,7 @@ class Hunter(object):
     def CreateWindows(self):
         self.mainWindow = AutoHuntWindow(self)
         self.lootWindow = AutoHuntLootWindow(self)
+        self.fishWindow = AutoFishWindow(self)
         
         sw = wndMgr.GetScreenWidth()
         sh = wndMgr.GetScreenHeight()
@@ -3977,9 +3972,16 @@ class Hunter(object):
         if lx < 0 or ly < 0 or lx + w2 > sw or ly + self.lootWindow.HEIGHT > sh:
             lx = mx + w1 + 10
             ly = my
+
+        fx = self.config_global.get('win_fish_x', -1)
+        fy = self.config_global.get('win_fish_y', -1)
+        if fx < 0 or fy < 0 or fx + self.fishWindow.WIDTH > sw or fy + self.fishWindow.HEIGHT > sh:
+            fx = max(0, (sw - self.fishWindow.WIDTH) / 2)
+            fy = max(0, (sh - self.fishWindow.HEIGHT) / 2)
             
         self.mainWindow.SetPosition(int(mx), int(my))
         self.lootWindow.SetPosition(int(lx), int(ly))
+        self.fishWindow.SetPosition(int(fx), int(fy))
 
     def ShowLootWindow(self):
         """The settings window alone, from the game options' "Ustaw": its
@@ -3992,6 +3994,7 @@ class Hunter(object):
         except RuntimeError:
             self.mainWindow = None
             self.lootWindow = None
+            self.fishWindow = None
             self.CreateWindows()
         self.lootWindow.Refresh()
         self.lootWindow.Show()
@@ -4010,6 +4013,7 @@ class Hunter(object):
         except RuntimeError:
             self.mainWindow = None
             self.lootWindow = None
+            self.fishWindow = None
             self.CreateWindows()
             is_show = False
 
@@ -4085,8 +4089,8 @@ class Hunter(object):
 
 class AutoHuntWindow(ui.BoardWithTitleBar):
     WIDTH = 300
-    # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: 25 more for "Dodatkowe ustawienia".
-    HEIGHT = 580
+    # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: with Dodatkowe ustawienia + Auto-Wedkowanie.
+    HEIGHT = 610
     GRID_ROWS = 4
     SLOT_STEP = 40
     SLOTS_PER_ROW = 6
@@ -4247,6 +4251,10 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
         self.settingsButton = self._Btn(self, 'large', 202, y + 25, T('Otw\xf3rz', 'Open'),
             self.ToggleExtraWindow)
 
+        self._Label(self, 22, y + 54, T('Auto-W\xeadkowanie', 'Auto-Fishing'))
+        self.fishButton = self._Btn(self, 'large', 202, y + 50, T('Otw\xf3rz', 'Open'),
+            self.ToggleFishWindow)
+
     # MT2009_PLUS_AUTOHUNT_WINDOWS_V1 (Autor: blaki)
     def RefreshSettingsButton(self):
         loot = self.hunter.lootWindow if self.hunter else None
@@ -4255,6 +4263,26 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
         except RuntimeError:
             shown = False
         self.settingsButton.SetText(T('Zamknij', 'Close') if shown else T('Otw\xf3rz', 'Open'))
+        self.RefreshFishButton()
+
+    def RefreshFishButton(self):
+        fw = self.hunter.fishWindow if self.hunter else None
+        try:
+            shown = bool(fw and fw.IsShow())
+        except RuntimeError:
+            shown = False
+        if hasattr(self, 'fishButton') and self.fishButton:
+            self.fishButton.SetText(T('Zamknij', 'Close') if shown else T('Otw\xf3rz', 'Open'))
+
+    def ToggleFishWindow(self):
+        fw = self.hunter.fishWindow if self.hunter else None
+        if not fw:
+            return
+        if fw.IsShow():
+            fw.Close()
+        else:
+            fw.Open()
+        self.RefreshFishButton()
 
     def ToggleExtraWindow(self):
         loot = self.hunter.lootWindow if self.hunter else None
@@ -4607,6 +4635,8 @@ class AutoHuntWindow(ui.BoardWithTitleBar):
 
     def Close(self):
         self.ReadEdits()
+        if hasattr(self.hunter, "fishWindow") and self.hunter.fishWindow:
+            self.hunter.fishWindow.Close()
         if self.hunter:
             self.hunter.SaveGlobalConfig()
             # MT2009_PLUS_AUTOHUNT_WINDOWS_V1: closing K closes both.

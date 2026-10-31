@@ -2974,6 +2974,9 @@ namespace
 	// number the panel's rates page writes.
 	DWORD GetPlayerBotBookAskingBase(DWORD dwSkill)
 	{
+		const DWORD custom = playerbot_custom_prices::GetCustomSkillPrice(dwSkill);
+		if (custom > 0)
+			return ScalePlayerBotIwakuraPrice(custom);
 		DWORD base = PLAYERBOT_PRIOR_BOOK_ORDINARY;
 		for (size_t i = 0; i < sizeof(PLAYERBOT_BOOK_PRICES) / sizeof(PLAYERBOT_BOOK_PRICES[0]); ++i)
 			if (PLAYERBOT_BOOK_PRICES[i].dwSkill == dwSkill)
@@ -2988,6 +2991,9 @@ namespace
 	// by name, or zero when he has not priced this one.
 	DWORD GetPlayerBotMaterialAskingBase(DWORD dwVnum)
 	{
+		const DWORD custom = playerbot_custom_prices::GetCustomItemPrice(dwVnum);
+		if (custom > 0)
+			return ScalePlayerBotIwakuraPrice(custom);
 		// The guild building materials at the operator's price
 		// (playerbot_guild_land.h), through the same curve and inflation.
 		if (IsPlayerBotGuildBuildMaterial(dwVnum))
@@ -3277,6 +3283,9 @@ namespace
 	// gives the lower grades one price each, with three exceptions.
 	DWORD GetPlayerBotSoulStoneAskingBase(DWORD dwVnum)
 	{
+		const DWORD custom = playerbot_custom_prices::GetCustomItemPrice(dwVnum);
+		if (custom > 0)
+			return ScalePlayerBotIwakuraPrice(custom);
 		const int kind = GetPlayerBotSoulStoneKind(dwVnum);
 		const int grade = GetPlayerBotSoulStoneGrade(dwVnum);
 		for (size_t i = 0; i < sizeof(PLAYERBOT_SOUL_STONE_PRICES) /
@@ -3352,6 +3361,9 @@ namespace
 			return 1;
 		if (dwVnum <= (DWORD)CSpecialItemGroup::MOB_GROUP)
 			return 0;
+		const DWORD custom = playerbot_custom_prices::GetCustomItemPrice(dwVnum);
+		if (custom > 0)
+			return ScalePlayerBotIwakuraPrice(custom);
 		const TItemTable* proto = ITEM_MANAGER::instance().GetTable(dwVnum);
 		if (!proto)
 			return 0;
@@ -5097,7 +5109,7 @@ namespace
 		// MT2009_PLUS_TRADEABLE_BONUS_V2: the tradeable change and add
 		// (71284/71285) over what the bot keeps to spend itself
 		// (GetPlayerBotBonusStoneKeep) are the owner's counter goods.
-		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()))
+		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()) || IsPlayerBotGreenTradeableBonusVnum(item->GetVnum()))
 			return playerbot_stall_rules::HoldsSpare(CountPlayerBotVnumUnitsAhead(ch, item),
 					(int)item->GetCount(), GetPlayerBotCountedGoodsKeep(ch, item))
 					? PlayerBotGoods(PLAYERBOT_SHOP_RARE_GOODS_SCORE, per::GOODS_RARE_GOODS) : -1;

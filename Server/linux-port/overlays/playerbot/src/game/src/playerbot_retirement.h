@@ -947,7 +947,7 @@ EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
 
 	// 5. Ensure the bot has sufficient gold to pay the offline shop fee
 	if (ch->GetGold() < 100000)
-		ch->PointChange(POINT_GOLD, 100000);
+		PlayerBotChangeGold(ch, 100000);
 
 	// Ensure free inventory slots for unequipped items by discarding useless red/blue potions if bag is full
 	if (ch->GetEmptyInventory(1) < 8)

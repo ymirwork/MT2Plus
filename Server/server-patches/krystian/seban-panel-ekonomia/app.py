@@ -9064,6 +9064,20 @@ def retirement_control_status():
         result[key] = int(progress.get(key) or 0)
     result["seen"] = bool(int(progress.get("seen") or 0))
     started_at = int(progress.get("started_at") or result["requested_at"] or 0)
+    total_span_sec = (result["window_minutes"] + result["shop_minutes"]) * 60
+    elapsed = max(0, int(time.time() - started_at)) if started_at > 0 else 0
+
+    # MT2009_PLUS_BOT_RETIREMENT_FIX_V4: auto-conclude if window+shop time expired and no bots are active
+    if result["active_count"] == 0 and result["queued_count"] < result["bot_count"] and started_at > 0 and elapsed > total_span_sec:
+        try:
+            rows("""UPDATE common.playerbot_retire_control c
+                    LEFT JOIN common.playerbot_retire_batch b ON b.id=c.batch_id
+                    SET c.bot_count=LEAST(c.bot_count, COALESCE(b.queued_count,0))
+                    WHERE c.id=1""")
+            result["bot_count"] = result["queued_count"]
+        except Exception:
+            pass
+
     if result["active_count"] or result["queued_count"] < result["bot_count"]:
         result["state"] = "active"
     elif result["batch_id"]:
@@ -9075,8 +9089,6 @@ def retirement_control_status():
 
     # ETA calculation
     if result["state"] == "active" and started_at > 0:
-        total_span_sec = (result["window_minutes"] + result["shop_minutes"]) * 60
-        elapsed = max(0, int(time.time() - started_at))
         rem = max(0, total_span_sec - elapsed)
         result["eta_seconds"] = rem
         if rem >= 3600:

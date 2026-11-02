@@ -958,7 +958,7 @@ RUN set -eu; L=/opt/metin2/share/locale/poland; C=$L/cube.txt; A=/tmp/cube-add/c
  && sed -i 's/\r$//; s/$/\r/' "$A" \
  && { [ -z "$(tail -c 1 "$C")" ] || printf '\r\n' >> "$C"; } \
  && cat "$A" >> "$C" \
- && test "$(grep -c -E '^npc[[:blank:]]+20082[[:space:]]*$' "$C")" -eq 9 \
+ && test "$(grep -c -E '^npc[[:blank:]]+20082[[:space:]]*$' "$C")" -eq 13 \
  && for p in "metin2_map_a1 675 560 8" "metin2_map_b1 598 695 4" "metin2_map_c1 394 702 5" \
              "metin2_map_a3 422 613 3" "metin2_map_b3 392 350 2" "metin2_map_c3 487 393 8"; do \
       set -- $p; F="$L/map/$1/npc.txt"; \
@@ -967,7 +967,7 @@ RUN set -eu; L=/opt/metin2/share/locale/poland; C=$L/cube.txt; A=/tmp/cube-add/c
       test "$(grep -c -E '[[:blank:]]20082[[:space:]]*$' "$F")" -eq 1 || exit 1; \
     done \
  && rm -rf /tmp/cube-add \
- && echo "share: belts - 9 recipes at Mistrz (20082), Mistrz in M1/M3 of the three kingdoms"
+ && echo "share: belts and cors - 13 recipes at Mistrz (20082), Mistrz in M1/M3 of the three kingdoms"
 
 # MT2009_PLUS_OCHAO_V1 (share): Swiatynia Ochao, the Temple of Ochao of the
 # "Version 16.2" package - map 209, metin2_map_mt_th_dungeon_01, an open map

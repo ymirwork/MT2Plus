@@ -38,3 +38,4 @@ Katalog zawiera zbiór autorskich łatek, systemów, skryptów klienta i serwera
 ## 🛠️ Zastosowanie i Dobre Praktyki
 - Wszystkie systemy są uporządkowane w autonomicznych folderach wraz ze swoją dokumentacją `README.md`, skryptami instalacyjnymi i kodem źródłowym.
 - W przypadku aktualizacji z oficjalnego repozytorium (Upstream), ten katalog służy jako główne źródło autorskich modyfikacji do weryfikacji i reintegracji na gałęzi `dev`.
+| [**wytwarzanie-cor-draconis**](file:///d:/Github/MT2Plus/Server/server-patches/krystian/wytwarzanie-cor-draconis) | Serwer (Quest/Cube) + Klient (Python) | Wytwarzanie Cor Draconis u NPC Mistrz (20082): osobne okno craftingu (filtr kategorii), przelicznik 3:1 (Surowy -> Szlifowany -> Rzadki -> Antyczny -> Legendarny), 100% szansy. |

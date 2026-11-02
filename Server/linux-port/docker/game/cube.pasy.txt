@@ -110,3 +110,39 @@ reward	18080	1
 gold	50000
 percent	10
 end
+
+# Cor Draconis (szlifowane) (3:1)
+section
+npc	20082
+item	50255	3
+reward	50256	1
+gold	0
+percent	100
+end
+
+# Cor Draconis (rzadkie) (3:1)
+section
+npc	20082
+item	50256	3
+reward	50257	1
+gold	0
+percent	100
+end
+
+# Cor Draconis (antyczne) (3:1)
+section
+npc	20082
+item	50257	3
+reward	50258	1
+gold	0
+percent	100
+end
+
+# Cor Draconis (legendarne) (3:1)
+section
+npc	20082
+item	50258	3
+reward	50259	1
+gold	0
+percent	100
+end

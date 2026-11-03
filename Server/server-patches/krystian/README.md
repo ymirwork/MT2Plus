@@ -34,6 +34,7 @@ Katalog zawiera zbiór autorskich łatek, systemów, skryptów klienta i serwera
 | [**`balans-metinow-i-bossow`**](file:///d:/Github/MT2Plus/Server/server-patches/krystian/balans-metinow-i-bossow) | Serwer (Locale / Drops) | Kompleksowy balans dropu kamieni Metin (40–105) oraz kluczowych bossów (Baronówna 2092, Niebieska Śmierć 1095, Beran-Setaou 2493, Lodowa Wiedźma 1192, Król Pająków 2094): Kamienie Duszy +3/+4, Kamienie Duchowe, Bodziaki, usunięcie fontann gotowego eq +7 na rzecz +3/+4. |
 | [**`wytwarzanie-cor-draconis`**](file:///d:/Github/MT2Plus/Server/server-patches/krystian/wytwarzanie-cor-draconis) | Serwer (Quest/Cube) + Klient (Python) | Wytwarzanie Cor Draconis u NPC Mistrz (20082): osobne okno craftingu (filtr kategorii), przelicznik 3:1 (Surowy -> Szlifowany -> Rzadki -> Antyczny -> Legendarny), 100% szansy. |
 | [**`boty-obieg-autopotek`**](file:///d:/Github/MT2Plus/Server/server-patches/krystian/boty-obieg-autopotek) | Serwer (C++) | Autonomiczny obieg eliksirów (auto-potek): limity ekwipunku (2-3), depozyt u dozorcy (2-3), wystawianie na sklep (3-4 z marżą 25%), napełnianie pustych butelek u Alchemika, TTL/ściąganie niesprzedanych i skupowanie z rynku przez potrzebujące boty. |
+| [**`fix-mount-teleport`**](file:///d:/Github/MT2Plus/Server/server-patches/krystian/fix-mount-teleport) | Serwer (C++) | Zapobieganie zsiadaniu z wierzchowca podczas teleportacji (Boss Tracker, pierścienie, zwoje, zmiana mapy) – zachowanie stanu jazdy i automatyczny remount w `CHARACTER::CheckMount()`. |
 
 ---
 

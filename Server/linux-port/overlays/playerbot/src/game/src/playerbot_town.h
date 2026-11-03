@@ -446,6 +446,51 @@ namespace
 		}
 	}
 
+	// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Safebox storage for surplus auto-potions (max 3 in safebox, 3 in bag)
+	int CountPlayerBotSafeboxAutoPotions(CSafebox* box, DWORD affect)
+	{
+		if (!box) return 0;
+		int count = 0;
+		for (DWORD pos = 0; pos < SAFEBOX_MAX_NUM; ++pos)
+		{
+			LPITEM item = box->Get(pos);
+			if (item && GetPlayerBotAutoPotionAffect(item->GetVnum()) == affect && !IsPlayerBotAutoPotionEmpty(item))
+				++count;
+		}
+		return count;
+	}
+
+	void CollectPlayerBotSafeboxAutoPotions(LPCHARACTER ch, CSafebox* box, std::vector<WORD>& cells)
+	{
+		if (!ch || !box) return;
+		int boxHP = CountPlayerBotSafeboxAutoPotions(box, AFFECT_AUTO_HP_RECOVERY);
+		int boxSP = CountPlayerBotSafeboxAutoPotions(box, AFFECT_AUTO_SP_RECOVERY);
+		int bagHP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_HP_RECOVERY, false);
+		int bagSP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_SP_RECOVERY, false);
+
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (!item || item->IsEquipped() || item->isLocked() || IsPlayerBotAutoPotionEmpty(item))
+				continue;
+			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
+			if (affect == 0) continue;
+			if (item->GetSocket(0) != 0) continue; // active stays in bag
+			if (affect == AFFECT_AUTO_HP_RECOVERY && bagHP > PLAYERBOT_AUTO_POTION_BAG_KEEP && boxHP < PLAYERBOT_AUTO_POTION_SAFEBOX_KEEP)
+			{
+				cells.push_back(cell);
+				--bagHP;
+				++boxHP;
+			}
+			else if (affect == AFFECT_AUTO_SP_RECOVERY && bagSP > PLAYERBOT_AUTO_POTION_BAG_KEEP && boxSP < PLAYERBOT_AUTO_POTION_SAFEBOX_KEEP)
+			{
+				cells.push_back(cell);
+				--bagSP;
+				++boxSP;
+			}
+		}
+	}
+
 	// The mission books a bot's village has no room for on its counters
 	// (IsPlayerBotMissionBookMarketFull), for the kinds whose coin says the
 	// storekeeper - the merchant takes the others through the junk rule
@@ -1218,6 +1263,10 @@ namespace
 		std::vector<WORD> missionBooks;
 		CollectPlayerBotSafeboxMissionBooks(ch, missionBooks);
 		cells.insert(cells.end(), missionBooks.begin(), missionBooks.end());
+		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: surplus auto potions to safebox
+		std::vector<WORD> autoPotions;
+		CollectPlayerBotSafeboxAutoPotions(ch, box, autoPotions);
+		cells.insert(cells.end(), autoPotions.begin(), autoPotions.end());
 		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the herbs over the keep and the
 		// counter's full stacks (CollectPlayerBotSafeboxHerbs), the smallest
 		// stacks of a kind first - the full ones are the counter's lines.
@@ -2218,6 +2267,34 @@ namespace
 		const int energyPieces = CollectPlayerBotEnergyScrap(ch, NULL);
 		if (energyPieces > 0)
 			DismantlePlayerBotEnergyScrap(ch);
+
+		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Refill empty auto potions at the Alchemist
+		int refilledPotions = 0;
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (!item || !IsPlayerBotAutoPotionEmpty(item))
+				continue;
+			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
+			const int fullCount = CountPlayerBotAutoPotions(ch, affect, false);
+			const long long cost = GetPlayerBotAutoPotionRefillCost(item);
+
+			if (fullCount < PLAYERBOT_AUTO_POTION_BAG_KEEP && ch->GetGold() >= cost && cost > 0)
+			{
+				PlayerBotChangeGold(ch, -cost);
+				item->SetSocket(1, 0, true, "SOCKET_AUTOPOTION");
+				item->SetSocket(0, false, true, "SOCKET_AUTOPOTION");
+				++refilledPotions;
+				sys_log(0, "PLAYERBOT_ALCHEMIST: refilled auto potion pid=%u name=%s vnum=%u cost=%lld gold_left=%lld",
+						ch->GetPlayerID(), ch->GetName(), item->GetVnum(), cost, (long long)ch->GetGold());
+			}
+			else
+			{
+				ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_EMPTY_AUTOPOTION");
+				sys_log(0, "PLAYERBOT_ALCHEMIST: discarded empty auto potion pid=%u name=%s vnum=%u gold=%lld cost=%lld fullCount=%d",
+						ch->GetPlayerID(), ch->GetName(), item->GetVnum(), (long long)ch->GetGold(), cost, fullCount);
+			}
+		}
 
 		state.bVisitingAlchemist = false;
 		state.dwNextAlchemistActionTime = 0;
@@ -3991,6 +4068,14 @@ namespace
 	{
 		if (!item)
 			return 1;
+		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Auto potion asking price: refill cost + 25% margin
+		if (IsPlayerBotAutoPotion(item))
+		{
+			const long long refill = GetPlayerBotAutoPotionRefillCost(item);
+			const DWORD price = (DWORD)(refill * 125LL / 100LL);
+			PlayerBotPriceStep(per::STEP_OPERATOR_PRICE, price, price);
+			return price;
+		}
 		// Materialy Rzemieslnicze: the operator's price, a piece, as it stands
 		// (playerbot_saddlebag.h).
 		// MT2009_PLUS_OWNER_PRICES_V2: on the curve above.
@@ -4942,6 +5027,18 @@ namespace
 				return PlayerBotGoods(PLAYERBOT_SHOP_POLICY_STALL_SCORE, per::GOODS_POLICY_STALL, policy);
 			if (policy != PLAYERBOT_ITEM_POLICY_NONE)
 				return -1;
+		}
+		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Auto potions for private shop / counter
+		if (IsPlayerBotAutoPotion(item))
+		{
+			if (IsPlayerBotAutoPotionEmpty(item))
+				return -1;
+			if (item->GetSocket(0) != 0 || item->GetSocket(1) > 0)
+				return -1; // Never sell open or partially used potion
+			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
+			if (ch && CountPlayerBotAutoPotions(ch, affect, false) <= PLAYERBOT_AUTO_POTION_BAG_KEEP)
+				return -1;
+			return PlayerBotGoods(PLAYERBOT_SHOP_RARE_GOODS_SCORE, per::GOODS_RARE_GOODS);
 		}
 		// MT2009_PLUS_BOT_WORKSHOP_V1: nor what a belt maker or a talisman worker keeps for its
 		// craft (playerbot_workshop.h) - the units over the keep are goods as before.

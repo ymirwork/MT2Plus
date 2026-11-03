@@ -573,6 +573,13 @@ namespace
 	{
 		if (!ch)
 			return false;
+		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: bots needing auto potions look for them on stalls
+		if (CountPlayerBotAutoPotions(ch, AFFECT_AUTO_HP_RECOVERY, false) == 0 &&
+				ch->GetGold() >= 3000000LL)
+			return true;
+		if (CountPlayerBotAutoPotions(ch, AFFECT_AUTO_SP_RECOVERY, false) == 0 &&
+				ch->GetGold() >= 600000LL)
+			return true;
 		// A key for a chest it carries (PlayerBotWantsKeyFromMarket).
 		if (PlayerBotWantsKeyFromMarket(ch))
 			return true;

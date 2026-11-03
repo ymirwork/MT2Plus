@@ -472,10 +472,64 @@ namespace
 		return 0;
 	}
 
+	// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Quotas and economy rules for auto potions
+	const int PLAYERBOT_AUTO_POTION_BAG_KEEP = 3;       // Max full/active auto potions kept in inventory
+	const int PLAYERBOT_AUTO_POTION_SAFEBOX_KEEP = 3;   // Max kept in safebox
+	const int PLAYERBOT_AUTO_POTION_SHOP_MAX = 4;       // Max lines on offline shop / counter
+
 	// The engine's own test in the use path: nothing left to give.
 	bool IsPlayerBotAutoPotionEmpty(LPITEM item)
 	{
 		return item && item->GetSocket(1) == item->GetSocket(2);
+	}
+
+	inline bool IsPlayerBotAutoPotion(LPITEM item)
+	{
+		return item && GetPlayerBotAutoPotionAffect(item->GetVnum()) != 0;
+	}
+
+	inline bool IsPlayerBotAutoPotionFull(LPITEM item)
+	{
+		return item && IsPlayerBotAutoPotion(item) && item->GetSocket(1) == 0 && item->GetSocket(2) > 0;
+	}
+
+	inline long long GetPlayerBotAutoPotionRefillCost(LPITEM item)
+	{
+		if (!item) return 0;
+		const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
+		const long maxCap = item->GetSocket(2) > 0 ? item->GetSocket(2) : (item->GetValue(0) > 0 ? item->GetValue(0) : 100000);
+		if (affect == AFFECT_AUTO_HP_RECOVERY)
+			return (long long)maxCap * 2LL;
+		else if (affect == AFFECT_AUTO_SP_RECOVERY)
+			return (long long)maxCap * 4LL;
+		return 0;
+	}
+
+	inline long long GetPlayerBotAutoPotionRefillCost(DWORD vnum, long maxCap)
+	{
+		const DWORD affect = GetPlayerBotAutoPotionAffect(vnum);
+		if (maxCap <= 0) maxCap = 100000;
+		if (affect == AFFECT_AUTO_HP_RECOVERY)
+			return (long long)maxCap * 2LL;
+		else if (affect == AFFECT_AUTO_SP_RECOVERY)
+			return (long long)maxCap * 4LL;
+		return 0;
+	}
+
+	inline int CountPlayerBotAutoPotions(LPCHARACTER ch, DWORD affect, bool onlyFull = false)
+	{
+		if (!ch) return 0;
+		int count = 0;
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (!item) continue;
+			if (GetPlayerBotAutoPotionAffect(item->GetVnum()) != affect) continue;
+			if (IsPlayerBotAutoPotionEmpty(item)) continue;
+			if (onlyFull && (item->GetSocket(0) != 0 || item->GetSocket(1) > 0)) continue;
+			++count;
+		}
+		return count;
 	}
 
 	// Sztuka Combo and the three Leadership books: ITEM_USE, USE_SPECIAL, read
@@ -603,7 +657,18 @@ namespace
 				continue;
 			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
 			if (noHP && affect == AFFECT_AUTO_HP_RECOVERY) continue;
-			if (affect == 0 || ch->FindAffect(affect) || IsPlayerBotAutoPotionEmpty(item))
+			if (affect == 0) continue;
+			if (IsPlayerBotAutoPotionEmpty(item))
+			{
+				// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: discard empty auto potion if already stocked or bag under pressure
+				if (CountPlayerBotAutoPotions(ch, affect, false) >= PLAYERBOT_AUTO_POTION_BAG_KEEP ||
+						CountPlayerBotFreeInventoryCells(ch) <= PLAYERBOT_BAG_PRESSURE_FREE_CELLS)
+				{
+					ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_EMPTY_AUTOPOTION");
+				}
+				continue;
+			}
+			if (ch->FindAffect(affect))
 				continue;
 			const DWORD vnum = item->GetVnum();
 			if (ch->UseItem(TItemPos(INVENTORY, cell)) && ch->FindAffect(affect))

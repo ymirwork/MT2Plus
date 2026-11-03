@@ -549,6 +549,7 @@ namespace {
     bool FindPlayerBotRareGamblerBasePick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotStalkiPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotBookPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
+    bool FindPlayerBotAutoPotionPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotOutdatedGearPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotWeaponUpgradePick(LPCHARACTER ch, TPlayerBotAIState& state, DWORD now); // MT2009_PLUS_BOT_GEAR_UPGRADE_V1
     bool FindPlayerBotArmourUpgradePick(LPCHARACTER ch, TPlayerBotAIState& state, DWORD now); // MT2009_PLUS_BOT_GEAR_UPGRADE_V2
@@ -681,6 +682,13 @@ namespace {
                     return RunPlayerBotOfflinePick(ch, state, now);
                 }
             }
+            // MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: buy needed auto potions from counters
+            if (FindPlayerBotAutoPotionPick(ch, state, budget, now)) {
+                sys_log(0, "PLAYERBOT_MARKET: goes for auto potion pid=%u name=%s owner=%u item=%u",
+                    ch->GetPlayerID(), ch->GetName(), o.buyOwner, o.buyItem);
+                return RunPlayerBotOfflinePick(ch, state, now);
+            }
+
             // What the piece under Iwakura's scroll rule lacks for its next
             // step - the weapon, or the armour once the weapon is at +8 - is
             // looked for on every stand of the map, the gambler's way, before
@@ -1265,6 +1273,57 @@ namespace {
     // cheapest book a unit on a stand of its map the buyer would take on
     // arrival, the purchase's own tests asked of the line, for no more than
     // `cap`. Only a line whose proto is a skill book is built into an item.
+    // MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: bots needing auto potions buy full ones from offline shops
+    bool FindPlayerBotAutoPotionPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now) {
+        using namespace playerbot_offline;
+        if (!ch || cap <= 0) return false;
+        const bool needHP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_HP_RECOVERY, false) == 0;
+        const bool needSP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_SP_RECOVERY, false) == 0;
+        if (!needHP && !needSP) return false;
+
+        const int shopChannel = CPlayerBotManager::instance().IsChannelTableMode()
+                ? playerbot_channel_rules::SHOP_CHANNEL : (int)g_bChannel;
+        DWORD bestOwner = 0, bestItem = 0;
+        long long bestPrice = 0;
+
+        for (const auto& [pid, shop] : ikashop::GetManager().GetPlayerBotOfflineShops()) {
+            if (!shop || pid == ch->GetPlayerID() || shop->GetDuration() == 0 || shop->IsEditMode()) continue;
+            const auto spawn = shop->GetSpawn();
+            if (spawn.map != ch->GetMapIndex() || (int)spawn.channel != shopChannel) continue;
+            for (const auto& [id, line] : shop->GetItems()) {
+                if (!line || !line->GetTable() || IsPlayerBotLineClaimedByOther(id, ch->GetPlayerID(), now))
+                    continue;
+                const DWORD vnum = line->GetInfo().vnum;
+                const DWORD affect = GetPlayerBotAutoPotionAffect(vnum);
+                if (affect == 0) continue;
+                if (affect == AFFECT_AUTO_HP_RECOVERY && !needHP) continue;
+                if (affect == AFFECT_AUTO_SP_RECOVERY && !needSP) continue;
+
+                // Socket 1 is used amount: 0 means 100% full!
+                if (line->GetInfo().alSockets[1] != 0) continue;
+
+                const long long price = (long long)line->GetPrice().GetTotalYangAmount();
+                if (price <= 0 || price > cap) continue;
+
+                const long long asking = GetPlayerBotAutoPotionRefillCost(vnum, line->GetInfo().alSockets[2]) * 130LL / 100LL;
+                if (price > asking * 2LL) continue; // Skip overpriced listings
+
+                if (bestOwner == 0 || price < bestPrice) {
+                    bestOwner = pid;
+                    bestItem = id;
+                    bestPrice = price;
+                }
+            }
+        }
+        if (!bestOwner) return false;
+        state.offlineShop.buyOwner = bestOwner;
+        state.offlineShop.buyItem = bestItem;
+        state.offlineShop.buyQuantity = 1;
+        state.offlineShop.buyUntil = now + PLAYERBOT_MARKET_FAR_PICK_WALK_MS;
+        ClaimPlayerBotFarLine(bestItem, ch->GetPlayerID(), now);
+        return true;
+    }
+
     bool FindPlayerBotBookPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now) {
         using namespace playerbot_offline;
         if (!ch || cap <= 0 || !PlayerBotWantsOwnBooks(ch)) return false;

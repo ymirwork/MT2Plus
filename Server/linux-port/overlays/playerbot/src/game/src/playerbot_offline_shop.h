@@ -1341,7 +1341,9 @@ namespace {
         if (!shop) return 0;
         auto& o = state.offlineShop;
         for (const auto& [id, line] : shop->GetItems()) {
-            if (!line || GetPlayerBotRareGoodsKind(line->GetInfo().vnum) == PLAYERBOT_RARE_GOODS_NONE) continue;
+            if (!line) continue;
+            const bool isAutoPot = GetPlayerBotAutoPotionAffect(line->GetInfo().vnum) != 0;
+            if (!isAutoPot && GetPlayerBotRareGoodsKind(line->GetInfo().vnum) == PLAYERBOT_RARE_GOODS_NONE) continue;
             auto listed = o.listed.find(id);
             if (listed == o.listed.end())
                 listed = o.listed.emplace(id, playerbot_offline::ListedLine{
@@ -1860,6 +1862,16 @@ namespace {
     // or a line cut for the add would stand in the bag unadded.
     bool BotOfflineCounterRefuses(NativeShop shop, LPITEM item) {
         if (!item) return true;
+        // MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Max lines of auto potions per shop (max 3-4)
+        if (IsPlayerBotAutoPotion(item) && shop) {
+            int autoPotionLines = 0;
+            for (const auto& [lid, l] : shop->GetItems()) {
+                if (l && GetPlayerBotAutoPotionAffect(l->GetInfo().vnum) != 0)
+                    ++autoPotionLines;
+            }
+            if (autoPotionLines >= PLAYERBOT_AUTO_POTION_SHOP_MAX)
+                return true;
+        }
         // MT2009_PLUS_BOT_SHOP_MGMT_V1: nothing but the goods it keeps
         // (IsPlayerBotShopMgmtKept) over the fill target, and a stack kind
         // (point 4) goes up as a new line only once every line of it on the

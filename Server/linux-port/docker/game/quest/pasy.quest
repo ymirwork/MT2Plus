@@ -1,4 +1,4 @@
-﻿-- MT2009_PLUS_BELTS_V1 - the belt system (Pasy). Autor: Digi Rasta (nowy-system v0.27.0,
+-- MT2009_PLUS_BELTS_V1 - the belt system (Pasy). Autor: Digi Rasta (nowy-system v0.27.0,
 -- SYSTEMY/pasy.md), ported into MT2009 PLUS. Mistrz (20082), beside the Blacksmith in M1
 -- and M3 of every kingdom (spawned by the Dockerfile), opens the cube window with the nine
 -- belt recipes of cube.pasy.txt. Odlamki Energii: quest energia_alchemik; Kamienie

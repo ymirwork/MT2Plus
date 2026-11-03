@@ -5553,6 +5553,36 @@ namespace
 		CompactPlayerBotPotionStacks(ch);
 		SellPlayerBotExcessPotions(ch);
 
+		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Cleanup empty auto potions and limit surplus
+		{
+			int fullHP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_HP_RECOVERY, false);
+			int fullSP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_SP_RECOVERY, false);
+			const int maxCap = PLAYERBOT_AUTO_POTION_BAG_KEEP + PLAYERBOT_AUTO_POTION_SAFEBOX_KEEP + PLAYERBOT_AUTO_POTION_SHOP_MAX;
+			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+			{
+				LPITEM item = ch->GetInventoryItem(cell);
+				if (!item || !IsPlayerBotAutoPotion(item))
+					continue;
+				if (IsPlayerBotAutoPotionEmpty(item))
+				{
+					ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_EMPTY_AUTOPOTION");
+					continue;
+				}
+				if (item->GetSocket(0) != 0) continue; // Keep active potion
+				const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
+				if (affect == AFFECT_AUTO_HP_RECOVERY && fullHP > maxCap)
+				{
+					ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_EXCESS_AUTOPOTION");
+					--fullHP;
+				}
+				else if (affect == AFFECT_AUTO_SP_RECOVERY && fullSP > maxCap)
+				{
+					ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_EXCESS_AUTOPOTION");
+					--fullSP;
+				}
+			}
+		}
+
 		// Count red and blue potions
 		size_t redCount = 0;
 		size_t blueCount = 0;

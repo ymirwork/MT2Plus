@@ -237,7 +237,7 @@ RUN set -eux; \
     # zodiac_temple.*, pc.*animasphere, pc.*_flag_cz_ulimit_enter, d.zodiac_* and
     # game.zodiac_temple_table for the Zodiac Temple's quests (MT2009_PLUS_ZODIAC_V1,
     # playerbot_zodiac_questlua.cpp; Autor: Digi Rasta).
-    for fn in mes.get_message mes.get_arguments pc.is_premium_subscription pc.get_special_flag pc.set_special_flag mysql_direct_query pc.equip_slot pc.unequip_slot item.set_attr item.get_max_stack item.use pc.open_special_shop affect.add_new affect.remove_new pc.is_playerbot affect.get_duration pc.has_affect pc.warp_channel game.get_catchking_score game.get_catchking_myscore game.catchking_claim_reward game.catchking_use_item game.catchking_deliver pc.clear_quest_letter guild.treasury_available guild.treasury_spend guild.payout_add guild.payout_withdraw guild.payout_get open_guild_payout_dialog guild.treasury_withdraw zodiac_temple.starttemple zodiac_temple.startlogin zodiac_temple.new_floor zodiac_temple.setflag zodiac_temple.getflag pc.set_animasphere pc.get_animasphere pc.delete_animasphere pc.is_flag_cz_ulimit_enter pc.set_flag_cz_ulimit_enter d.zodiac_notice d.zodiac_notice_clear d.zodiac_time d.zodiac_time_clear game.zodiac_temple_table guild.leave_war is_on_war_map; do \
+    for fn in mes.get_message pc.get_special_flag pc.set_special_flag mysql_direct_query pc.equip_slot pc.unequip_slot item.set_attr item.get_max_stack item.use pc.open_special_shop affect.add_new affect.remove_new pc.is_playerbot affect.get_duration pc.has_affect pc.warp_channel game.get_catchking_score game.get_catchking_myscore game.catchking_claim_reward game.catchking_use_item game.catchking_deliver pc.clear_quest_letter guild.treasury_available guild.treasury_spend guild.payout_add guild.payout_withdraw guild.payout_get open_guild_payout_dialog guild.treasury_withdraw zodiac_temple.starttemple zodiac_temple.startlogin zodiac_temple.new_floor zodiac_temple.setflag zodiac_temple.getflag pc.set_animasphere pc.get_animasphere pc.delete_animasphere pc.is_flag_cz_ulimit_enter pc.set_flag_cz_ulimit_enter d.zodiac_notice d.zodiac_notice_clear d.zodiac_time d.zodiac_time_clear game.zodiac_temple_table guild.leave_war is_on_war_map; do \
       grep -qx "$fn" /tmp/qc-work/quest_functions || echo "$fn" >> /tmp/qc-work/quest_functions; \
     done; \
     # MT2009_PLUS_HORSE30_V1 (Digi Rasta's horse to level 30): konie is the
@@ -482,7 +482,7 @@ RUN set -eu; F=/opt/metin2/share/locale/poland/mob_drop_item.txt; G=/opt/metin2/
           if (t=="drop" && $3=="1" && ($2=="27987" || $2=="25040")) { c = ($2=="27987") ? 10 : 5; sub(/^[[:blank:]]*[0-9]+[[:blank:]]+[0-9]+[[:blank:]]+1[[:blank:]]/, "\t" $1 "\t" $2 "\t" c "\t"); n++ } \
           else if (t=="limit" && $3=="3" && ($2=="71084" || $2=="71085") && $4=="0.2") { sub(/[[:blank:]]0\.2([[:blank:]]|$)/, "\t10\t"); sub(/[[:blank:]]+$/, ""); n++ } } \
         printf "%s%s\n", $0, (cr ? "\r" : "") } \
-      END{ if (n != 4 && n != 1) { print "FATAL: Beran lines changed: " n " (4 or 1 expected)" > "/dev/stderr"; exit 1 } }' "$F" > "$F.new" \
+      END{ if (n != 4) { print "FATAL: Beran lines changed: " n " (4 expected)" > "/dev/stderr"; exit 1 } }' "$F" > "$F.new" \
  && mv "$F.new" "$F" \
  && test "$(grep -c -E '^Group[[:blank:]]+MT2009_dropedit_' "$F")" = 9 \
  && awk '{cr = sub(/\r$/, "")} /^[[:blank:]]*Group/{v=""} tolower($1)=="vnum"{v=$2} \
@@ -847,6 +847,36 @@ RUN set -eu; L=/opt/metin2/share/locale/poland/map; N=$L/map_n_threeway/npc.txt 
     done \
  && echo "share: Grotto of Exile entrance restored in Orc Valley"
 
+# MT2009_PLUS_GROTA2_REGEN_V1: Grota Wygnancow V2 (73, metin2_map_skipia_dungeon_02) had whole rooms without a
+# monster (the owner, 3 November 2026). The package's regen.txt is the old dump of the map: 84 of its 722 lines
+# ("r ... 2410") are commented out because our group_group.txt has no 2410 - the newer dump's skipia1_10 is
+# groups 2417 + 2418, the same as 2409 - and the newer dump (Owsap's uk set) has 598 more points the old file
+# lacks, most of them in the rooms the old file leaves empty, plus Dowodca Yonghan (2491) at five places to our
+# one. Here: the 84 lines come back as "r ... 2409"; grota2/regen.grota2.txt (tools/grota2/gen_grota2.py, which
+# also reports what was where) adds the newer dump's points once each and, where a walkable metre was still more
+# than 40 m of walking from every spawn, a point of the nearest spawn's group_group (the inner 87-90 and the outer
+# 91-97 Setaou stay where they were), every centre on free ground of the map's server_attr, our 90 s; and
+# grota2/boss.grota2.txt the four missing Commanders (our 20 min). 51% of the ground was more than 25 m of walking
+# from any live spawn, 8% is now (the corridors' straight runs, as thin as the package keeps them).
+COPY grota2/ /tmp/grota2-add/
+RUN set -eu; M=/opt/metin2/share/locale/poland/map/metin2_map_skipia_dungeon_02; A=/tmp/grota2-add; L=/opt/metin2/share/locale/poland \
+ && grep -q -E '^73[[:blank:]]+metin2_map_skipia_dungeon_02[[:space:]]*$' "$L/map/index" \
+ && for v in 2408 2409 2411 2412 2413 2414; do grep -q -E "^[[:blank:]]*Vnum[[:blank:]]+$v[[:space:]]*\$" "$L/group_group.txt"; done \
+ && sed -i '1s/^\xEF\xBB\xBF//; s/\r$//; s/$/\r/' "$A/regen.grota2.txt" "$A/boss.grota2.txt" \
+ && test "$(grep -c -E '^//r[[:blank:]].*[[:blank:]]2410[[:space:]]*$' "$M/regen.txt")" = 84 \
+ && n0="$(grep -c -E '^r[[:blank:]]' "$M/regen.txt")" \
+ && sed -i -E 's#^//r([[:blank:]].*[[:blank:]])2410([[:space:]]*)$#r\12409\2#' "$M/regen.txt" \
+ && ! grep -q -E '[[:blank:]]2410[[:space:]]*$' "$M/regen.txt" \
+ && { [ -z "$(tail -c 1 "$M/regen.txt")" ] || printf '\r\n' >> "$M/regen.txt"; } \
+ && cat "$A/regen.grota2.txt" >> "$M/regen.txt" \
+ && test "$(grep -c -E '^r[[:blank:]]' "$M/regen.txt")" = "$((n0 + 84 + $(grep -c -E '^r[[:blank:]]' "$A/regen.grota2.txt")))" \
+ && b0="$(grep -c -E '^m[[:blank:]].*[[:blank:]]2491[[:space:]]*$' "$M/boss.txt")" \
+ && { [ -z "$(tail -c 1 "$M/boss.txt")" ] || printf '\r\n' >> "$M/boss.txt"; } \
+ && cat "$A/boss.grota2.txt" >> "$M/boss.txt" \
+ && test "$(grep -c -E '^m[[:blank:]].*[[:blank:]]2491[[:space:]]*$' "$M/boss.txt")" = "$((b0 + $(grep -c . "$A/boss.grota2.txt")))" \
+ && rm -rf "$A" \
+ && echo "share: Grota Wygnancow V2 - 84 lines of 2410 live, $(grep -c -E '^r[[:blank:]]' "$M/regen.txt") spawn lines, $(grep -c -E '^m[[:blank:]]' "$M/boss.txt") Commanders"
+
 # The Devil's Catacomb (port/shareify.py renders this step; the quest itself is
 # compiled from quest/devilcatacomb_zone.quest above): its Guardian (20367)
 # comes back to Hwang Temple, and the Reaper (1093) drops the Reaper's token -
@@ -967,7 +997,7 @@ RUN set -eu; L=/opt/metin2/share/locale/poland; C=$L/cube.txt; A=/tmp/cube-add/c
       test "$(grep -c -E '[[:blank:]]20082[[:space:]]*$' "$F")" -eq 1 || exit 1; \
     done \
  && rm -rf /tmp/cube-add \
- && echo "share: belts and cors - 13 recipes at Mistrz (20082), Mistrz in M1/M3 of the three kingdoms"
+ && echo "share: belts - 9 recipes at Mistrz (20082), Mistrz in M1/M3 of the three kingdoms"
 
 # MT2009_PLUS_OCHAO_V1 (share): Swiatynia Ochao, the Temple of Ochao of the
 # "Version 16.2" package - map 209, metin2_map_mt_th_dungeon_01, an open map
@@ -1617,7 +1647,7 @@ RUN set -eu; F=/opt/metin2/share/locale/poland/mob_drop_item.txt \
       !inb { print; next; } \
       { B[++nb] = $0; t = $0; sub(/\r$/, "", t); k = split(t, f); if (k >= 2 && tolower(f[1]) == "mob") mob = f[2]; if (k >= 2 && tolower(f[1]) == "type") typ = tolower(f[2]); } \
       /^}/ { flush(); inb = 0; } \
-      END { if (inb) flush(); if ((hits != 1 && hits != 0) || (gone != nc && gone != 0)) { printf "share: %d limit groups of %s, %d of its %d lines of 75 cut\n", hits, from, gone, nc > "/dev/stderr"; bad = 1; } for (m in NA) if (got[m] != 1) { printf "share: %d limit groups of %s\n", got[m], m > "/dev/stderr"; bad = 1; } if (twice) { printf "share: %d lines of 75 were there already\n", twice > "/dev/stderr"; bad = 1; } exit bad; } \
+      END { if (inb) flush(); if (hits != 1 || gone != nc) { printf "share: %d limit groups of %s, %d of its %d lines of 75 cut\n", hits, from, gone, nc > "/dev/stderr"; bad = 1; } for (m in NA) if (got[m] != 1) { printf "share: %d limit groups of %s\n", got[m], m > "/dev/stderr"; bad = 1; } if (twice) { printf "share: %d lines of 75 were there already\n", twice > "/dev/stderr"; bad = 1; } exit bad; } \
       ' "$F" > "$F.new" \
  && mv "$F.new" "$F" \
  && awk -v from=2092 -v cut="$C" -v add="$A" ' \
@@ -1631,7 +1661,7 @@ RUN set -eu; F=/opt/metin2/share/locale/poland/mob_drop_item.txt \
       /^Group/ { mob = ""; typ = ""; nb = 0; } \
       { t = $0; sub(/\r$/, "", t); k = split(t, f); if (k >= 2 && tolower(f[1]) == "mob") mob = f[2]; if (k >= 2 && tolower(f[1]) == "type") typ = tolower(f[2]); if (k >= 2 && f[1] ~ /^[0-9]+$/) { nb++; I[nb] = f[1] + 0; V[nb] = f[2]; } } \
       /^}/ && typ == "limit" && (mob == from || (mob in M)) { check(); } \
-      END { if (seen[from] > 1) { printf "share: %d limit groups of %s\n", seen[from], from > "/dev/stderr"; bad = 1; } for (m in M) if (seen[m] != 1) { printf "share: %d limit groups of %s\n", seen[m], m > "/dev/stderr"; bad = 1; } exit bad; } \
+      END { if (seen[from] != 1) { printf "share: %d limit groups of %s\n", seen[from], from > "/dev/stderr"; bad = 1; } for (m in M) if (seen[m] != 1) { printf "share: %d limit groups of %s\n", seen[m], m > "/dev/stderr"; bad = 1; } exit bad; } \
       ' "$F" \
  && echo "share: the level-75 weapons are the Reaper's and Azrael's, not the Spider Baroness's"
 

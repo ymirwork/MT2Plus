@@ -2363,6 +2363,9 @@ namespace
 	// Four since Iwakura's Patch 4, point 6: "natychmiast aplikuje Dodania, a
 	// nastepnie jesli przedmiot posiada 4 bonusy dodatkowe to zmienia bonusy".
 	const int PLAYERBOT_BONUS_CHANGE_MIN_LINES = 4;
+	// MT2009_PLUS_BOT_CHANGE_NO_ADD_V1 (the owner, 3 November 2026): with no ordinary add stone in the bag the change
+	// goes on a piece of three lines already (playerbot_bonus_rules.h, PlainChangeLinesReached).
+	const int PLAYERBOT_BONUS_CHANGE_NO_ADD_LINES = 3;
 	// What the lines rolled on a piece add to what a stall asks for it.
 	//
 	// A counter wanted the same 150 000 for boots +7 carrying five bonus lines
@@ -4112,6 +4115,9 @@ namespace
 	// is drawn by: V1's ice of 81, V2's Setaou of 87.
 	const BYTE PLAYERBOT_GROTTO_V1_MIN_LEVEL = 78;
 	const BYTE PLAYERBOT_GROTTO_V2_MIN_LEVEL = 84;
+	// MT2009_PLUS_BOT_GROTTO2_90_95_V1 (playerbot_travel.h): the levels whose exp ground is the Grotto V2 alone.
+	const int PLAYERBOT_GROTTO2_ONLY_MIN_LEVEL = 90;
+	const int PLAYERBOT_GROTTO2_ONLY_MAX_LEVEL = 95;
 	// MT2009_PLUS_OCHAO_BOTS_V1 (map): the Temple of Ochao (map 209,
 	// metin2_map_mt_th_dungeon_01), entered from Orc Valley through Straznik
 	// Swiatyni from level 95 (temple_of_the_ochao.quest) and left through the
@@ -8051,6 +8057,19 @@ namespace
 	// at twenty million filled 775 pages and no bot could pay for one.
 	const int PLAYERBOT_CRAFT_MATERIAL_LINE_UNITS = 20;
 	const int PLAYERBOT_CRAFT_MATERIAL_COUNTER_LINES = 4;
+#define MT2009_PLUS_BOT_DUST_MARKET_V1 1
+	// MT2009_PLUS_BOT_DUST_MARKET_V1 (2.x: the counter's yang room alone, from the Yohara line's 782fd9d5 - its dust
+	// market, Champion buyers, shell and pearls are not here): a counter at the bots' yang cap (PLAYERBOT_GOLD_MAX)
+	// that refuses a line of the cheap goods (IsPlayerBotDustMarketGoodsVnum) takes home its dearest line unsold for
+	// PLAYERBOT_DUST_MARKET_ROOM_STAND_MS and holds that kind back for PLAYERBOT_DUST_MARKET_ROOM_HOLD_MS
+	// (playerbot_offline_shop.h: PLAYERBOT_OFFLINE: yang cap / yang room).
+	const DWORD PLAYERBOT_DUST_MARKET_ROOM_STAND_MS = 6 * 60 * 60 * 1000;
+	const DWORD PLAYERBOT_DUST_MARKET_ROOM_HOLD_MS = 12 * 60 * 60 * 1000;
+	// The goods the yang cap makes room for, on 2.x: Magiczny Pyl and Materialy Rzemieslnicze.
+	inline bool IsPlayerBotDustMarketGoodsVnum(DWORD vnum)
+	{
+		return vnum == PLAYERBOT_MAGIC_DUST_VNUM || vnum == PLAYERBOT_CRAFT_MATERIAL_VNUM_PRICED;
+	}
 	// MT2009_PLUS_MARKET_SINK_V1: a Cor Draconis line is at most this many
 	// (lines of 50-67 filled 50 pages), and a counter shows at most this many
 	// Cor lines. The Cors bought off a counter, for the census

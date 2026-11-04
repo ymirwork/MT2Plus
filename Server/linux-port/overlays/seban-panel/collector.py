@@ -8,6 +8,8 @@ import pymysql
 
 import bot_stats
 import log_maintenance
+import snapshot_retention
+import threading
 
 INTERVAL = int(os.environ.get("SEBAN_COLLECTOR_INTERVAL", "300"))
 CHANNEL_VAR_ROOT = Path(os.environ.get("PLAYERBOTS_VAR_ROOT", "/opt/metin2/var"))
@@ -37,7 +39,10 @@ def status_paths():
 
 
 def connect():
-    return pymysql.connect(host=os.environ.get("DB_HOST", "mariadb"), port=int(os.environ.get("DB_PORT", "3306")), user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"], charset="utf8mb4", autocommit=True)
+    con = pymysql.connect(host=os.environ.get("DB_HOST", "mariadb"), port=int(os.environ.get("DB_PORT", "3306")), user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"], charset="utf8mb4", autocommit=True)
+    with con.cursor() as cur:
+        cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
+    return con
 
 
 def decode_cp1250(value):
@@ -600,6 +605,7 @@ def collect(con, previous):
 
 def main():
     previous = None
+    threading.Thread(target=snapshot_retention.loop, name="snapshot-retention", daemon=True).start()
     while True:
         try:
             with connect() as con:

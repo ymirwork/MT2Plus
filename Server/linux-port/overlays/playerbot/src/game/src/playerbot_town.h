@@ -446,51 +446,6 @@ namespace
 		}
 	}
 
-	// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Safebox storage for surplus auto-potions (max 3 in safebox, 3 in bag)
-	int CountPlayerBotSafeboxAutoPotions(CSafebox* box, DWORD affect)
-	{
-		if (!box) return 0;
-		int count = 0;
-		for (DWORD pos = 0; pos < SAFEBOX_MAX_NUM; ++pos)
-		{
-			LPITEM item = box->Get(pos);
-			if (item && GetPlayerBotAutoPotionAffect(item->GetVnum()) == affect && !IsPlayerBotAutoPotionEmpty(item))
-				++count;
-		}
-		return count;
-	}
-
-	void CollectPlayerBotSafeboxAutoPotions(LPCHARACTER ch, CSafebox* box, std::vector<WORD>& cells)
-	{
-		if (!ch || !box) return;
-		int boxHP = CountPlayerBotSafeboxAutoPotions(box, AFFECT_AUTO_HP_RECOVERY);
-		int boxSP = CountPlayerBotSafeboxAutoPotions(box, AFFECT_AUTO_SP_RECOVERY);
-		int bagHP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_HP_RECOVERY, false);
-		int bagSP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_SP_RECOVERY, false);
-
-		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
-		{
-			LPITEM item = ch->GetInventoryItem(cell);
-			if (!item || item->IsEquipped() || item->isLocked() || IsPlayerBotAutoPotionEmpty(item))
-				continue;
-			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
-			if (affect == 0) continue;
-			if (item->GetSocket(0) != 0) continue; // active stays in bag
-			if (affect == AFFECT_AUTO_HP_RECOVERY && bagHP > PLAYERBOT_AUTO_POTION_BAG_KEEP && boxHP < PLAYERBOT_AUTO_POTION_SAFEBOX_KEEP)
-			{
-				cells.push_back(cell);
-				--bagHP;
-				++boxHP;
-			}
-			else if (affect == AFFECT_AUTO_SP_RECOVERY && bagSP > PLAYERBOT_AUTO_POTION_BAG_KEEP && boxSP < PLAYERBOT_AUTO_POTION_SAFEBOX_KEEP)
-			{
-				cells.push_back(cell);
-				--bagSP;
-				++boxSP;
-			}
-		}
-	}
-
 	// The mission books a bot's village has no room for on its counters
 	// (IsPlayerBotMissionBookMarketFull), for the kinds whose coin says the
 	// storekeeper - the merchant takes the others through the junk rule
@@ -1263,10 +1218,6 @@ namespace
 		std::vector<WORD> missionBooks;
 		CollectPlayerBotSafeboxMissionBooks(ch, missionBooks);
 		cells.insert(cells.end(), missionBooks.begin(), missionBooks.end());
-		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: surplus auto potions to safebox
-		std::vector<WORD> autoPotions;
-		CollectPlayerBotSafeboxAutoPotions(ch, box, autoPotions);
-		cells.insert(cells.end(), autoPotions.begin(), autoPotions.end());
 		// MT2009_PLUS_BOT_HERB_SURPLUS_V1: the herbs over the keep and the
 		// counter's full stacks (CollectPlayerBotSafeboxHerbs), the smallest
 		// stacks of a kind first - the full ones are the counter's lines.
@@ -2267,34 +2218,6 @@ namespace
 		const int energyPieces = CollectPlayerBotEnergyScrap(ch, NULL);
 		if (energyPieces > 0)
 			DismantlePlayerBotEnergyScrap(ch);
-
-		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Refill empty auto potions at the Alchemist
-		int refilledPotions = 0;
-		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
-		{
-			LPITEM item = ch->GetInventoryItem(cell);
-			if (!item || !IsPlayerBotAutoPotionEmpty(item))
-				continue;
-			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
-			const int fullCount = CountPlayerBotAutoPotions(ch, affect, false);
-			const long long cost = GetPlayerBotAutoPotionRefillCost(item);
-
-			if (fullCount < PLAYERBOT_AUTO_POTION_BAG_KEEP && ch->GetGold() >= cost && cost > 0)
-			{
-				PlayerBotChangeGold(ch, -cost);
-				item->SetSocket(1, 0, true, "SOCKET_AUTOPOTION");
-				item->SetSocket(0, false, true, "SOCKET_AUTOPOTION");
-				++refilledPotions;
-				sys_log(0, "PLAYERBOT_ALCHEMIST: refilled auto potion pid=%u name=%s vnum=%u cost=%lld gold_left=%lld",
-						ch->GetPlayerID(), ch->GetName(), item->GetVnum(), cost, (long long)ch->GetGold());
-			}
-			else
-			{
-				ITEM_MANAGER::instance().RemoveItem(item, "PLAYERBOT_EMPTY_AUTOPOTION");
-				sys_log(0, "PLAYERBOT_ALCHEMIST: discarded empty auto potion pid=%u name=%s vnum=%u gold=%lld cost=%lld fullCount=%d",
-						ch->GetPlayerID(), ch->GetName(), item->GetVnum(), (long long)ch->GetGold(), cost, fullCount);
-			}
-		}
 
 		state.bVisitingAlchemist = false;
 		state.dwNextAlchemistActionTime = 0;
@@ -3872,6 +3795,18 @@ namespace
 	// family and plus, the rest by name - and never under what the merchant
 	// pays for it. Not the goods the operator prices on his own curve, which
 	// would take them off it.
+	// MT2009_PLUS_BOT_LOW_PLUS_BONUS_PRICE_V1 (CapPlayerBotLowPlusBonusPrice below): the pieces whose lines add at most
+	// PLAYERBOT_LOW_PLUS_BONUS_PERCENT of their plain price - to the asking price and to the floor alike.
+	const int PLAYERBOT_LOW_PLUS_BONUS_MAX_PLUS = 5;
+	const int PLAYERBOT_LOW_PLUS_BONUS_PERCENT = 50;
+	bool IsPlayerBotLowPlusBonusCapped(LPITEM item)
+	{
+		return item && (item->GetType() == ITEM_WEAPON || item->GetType() == ITEM_ARMOR) &&
+				(int)item->GetRefineLevel() <= PLAYERBOT_LOW_PLUS_BONUS_MAX_PLUS && item->GetAttributeCount() > 0 &&
+				!IsPlayerBotMaxBonusPiece(item) && !IsPlayerBotPrizeItem(item) &&
+				!IsPlayerBotSpecialLevel30Weapon(item) && !IsPlayerBotStalkiItem(item);
+	}
+
 	DWORD GetPlayerBotMarketFloor(LPITEM item)
 	{
 		if (!item)
@@ -3905,8 +3840,14 @@ namespace
 		// share of the owner's add-on for its lines, so no markdown takes a
 		// bracelet of two lines back to a plain one's price.
 		if (item->GetType() == ITEM_WEAPON || item->GetType() == ITEM_ARMOR)
-			sheet = (DWORD)std::min<unsigned long long>(0xFFFFFFFFULL,
-					(unsigned long long)sheet + GetPlayerBotBonusCountAddon(item));
+		{
+			unsigned long long addon = GetPlayerBotBonusCountAddon(item);
+			// MT2009_PLUS_BOT_LOW_PLUS_BONUS_PRICE_V1: a +0..+5's lines at most half its plain price on the floor too.
+			if (IsPlayerBotLowPlusBonusCapped(item))
+				addon = std::min<unsigned long long>(addon,
+						(unsigned long long)sheet * (unsigned long long)PLAYERBOT_LOW_PLUS_BONUS_PERCENT / 100ULL);
+			sheet = (DWORD)std::min<unsigned long long>(0xFFFFFFFFULL, (unsigned long long)sheet + addon);
+		}
 		const unsigned long long floor = std::max<unsigned long long>(
 				(unsigned long long)sheet * (unsigned long long)PLAYERBOT_MARKET_V3_FLOOR_PERCENT / 100ULL * count,
 				(unsigned long long)GetPlayerBotNpcSellUnitPrice(item) * count);
@@ -4064,18 +4005,29 @@ namespace
 		return (DWORD)std::min<unsigned long long>(price, 0xFFFFFFFFULL);
 	}
 
+	// MT2009_PLUS_BOT_LOW_PLUS_BONUS_PRICE_V1 (the owner, 3 November 2026: "Sprzet +0..+5 z bonusem nie az tak drogi
+	// (dodaj 50% tej wartosci)"): a weapon or an armour piece at +0..+5 whose lines lifted its price (the premium, the
+	// "like a +N" of LiftPlayerBotGearPrice, the bonus count's add-on) asks at most its plain price and half of it again
+	// - a bracelet +0 of one health line asked a +7's price. Not a piece of really good lines
+	// (IsPlayerBotMaxBonusPiece), a prize, a level-30 weapon or a Stalki: those keep their price.
+	unsigned int s_uPlayerBotLowPlusBonusCapped = 0;
+	DWORD CapPlayerBotLowPlusBonusPrice(LPITEM item, DWORD base, DWORD full)
+	{
+		if (full <= base || !IsPlayerBotLowPlusBonusCapped(item))
+			return full;
+		const unsigned long long cap = (unsigned long long)std::max<DWORD>(1, base) *
+				(unsigned long long)(100 + PLAYERBOT_LOW_PLUS_BONUS_PERCENT) / 100ULL;
+		if ((unsigned long long)full <= cap)
+			return full;
+		++s_uPlayerBotLowPlusBonusCapped;
+		PlayerBotPriceStep(per::STEP_BONUS_PREMIUM, (long long)cap, PLAYERBOT_LOW_PLUS_BONUS_PERCENT);
+		return (DWORD)std::min<unsigned long long>(cap, 0xFFFFFFFFULL);
+	}
+
 	DWORD GetPlayerBotShopAskingPriceRaw(LPITEM item)
 	{
 		if (!item)
 			return 1;
-		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Auto potion asking price: refill cost + 25% margin
-		if (IsPlayerBotAutoPotion(item))
-		{
-			const long long refill = GetPlayerBotAutoPotionRefillCost(item);
-			const DWORD price = (DWORD)(refill * 125LL / 100LL);
-			PlayerBotPriceStep(per::STEP_OPERATOR_PRICE, price, price);
-			return price;
-		}
 		// Materialy Rzemieslnicze: the operator's price, a piece, as it stands
 		// (playerbot_saddlebag.h).
 		// MT2009_PLUS_OWNER_PRICES_V2: on the curve above.
@@ -4202,8 +4154,8 @@ namespace
 			}
 			// MT2009_PLUS_MARKET_V3: and the plus its lines or its average make it,
 			// the best copy's and Intelligence's premiums (LiftPlayerBotGearPrice).
-			return ApplyPlayerBotPriceCompetition(item, LiftPlayerBotGearPrice(item,
-					ApplyPlayerBotBonusPremium(std::max(gearBase, investment), bonusPercent)));
+			return ApplyPlayerBotPriceCompetition(item, CapPlayerBotLowPlusBonusPrice(item, std::max(gearBase, investment),	// MT2009_PLUS_BOT_LOW_PLUS_BONUS_PRICE_V1
+					LiftPlayerBotGearPrice(item, ApplyPlayerBotBonusPremium(std::max(gearBase, investment), bonusPercent))));
 		}
 		// A polymorph marble asks his number and nothing else (Community Patch
 		// 5, point 3): an exception its own, any other kind a draw from his
@@ -4274,7 +4226,8 @@ namespace
 			}
 			// MT2009_PLUS_MARKET_V3: scrap by its plus, not by its lines - a
 			// bracelet +0 of 1 500 health is a +7's price (LiftPlayerBotGearPrice).
-			return LiftPlayerBotGearPrice(item, ApplyPlayerBotBonusPremium(std::max(scrap, investment), bonusPercent));
+			return CapPlayerBotLowPlusBonusPrice(item, std::max(scrap, investment),	// MT2009_PLUS_BOT_LOW_PLUS_BONUS_PRICE_V1
+					LiftPlayerBotGearPrice(item, ApplyPlayerBotBonusPremium(std::max(scrap, investment), bonusPercent)));
 		}
 		DWORD unit = npcUnit * PLAYERBOT_SHOP_MATERIAL_MARKUP;
 		// Which prior below set the unit, for the explanation.
@@ -4698,6 +4651,36 @@ namespace
 	// (playerbot_price_rules::SupplyMarkdownPercent; a line that stood unsold
 	// still asks no markup, marked down or not) - and the price written the way
 	// a person writes one (HumanizePlayerBotPrice), whichever way it moved.
+	// MT2009_PLUS_BOT_FAMILY_GLUT_V1 (the owner, 3 November 2026: "Boty licza sztuki danej rodziny na ladach i schodza
+	// z ceny przy nadmiarze"): the pieces of a weapon's or an armour piece's family (its +0 and every plus of it) on
+	// the bots' counters of this core (the market ledger, rebuilt once a minute) - over PLAYERBOT_FAMILY_GLUT_FREE_UNITS
+	// each one more takes PLAYERBOT_FAMILY_GLUT_STEP_PERCENT off a line of the family, to PLAYERBOT_FAMILY_GLUT_MAX_PERCENT
+	// (72 Skorzana Maska+2 stood on the test world's counters on 3 November at one price). On top of a line's own
+	// markdown, never under its floor (the callers'). Not a piece of really good lines (IsPlayerBotMaxBonusPiece), a
+	// prize, a level-30 weapon or a Stalki.
+	const DWORD PLAYERBOT_FAMILY_GLUT_FREE_UNITS = 10;
+	const int PLAYERBOT_FAMILY_GLUT_STEP_PERCENT = 2;
+	const int PLAYERBOT_FAMILY_GLUT_MAX_PERCENT = 40;
+	unsigned int s_uPlayerBotFamilyGlutPriced = 0;
+	int GetPlayerBotFamilyGlutPercent(LPITEM item)
+	{
+		if (!item || (item->GetType() != ITEM_WEAPON && item->GetType() != ITEM_ARMOR) ||
+				IsPlayerBotMaxBonusPiece(item) || IsPlayerBotPrizeItem(item) ||
+				IsPlayerBotSpecialLevel30Weapon(item) || IsPlayerBotStalkiItem(item))
+			return 0;
+		const DWORD family = GetPlayerBotItemFamily(item);
+		if (family == 0)
+			return 0;
+		DWORD units = 0;
+		for (TPlayerBotMarketLedger::const_iterator it = s_mapMarketLedger.lower_bound(family);
+				it != s_mapMarketLedger.end() && it->first <= family + 9; ++it)
+			units += it->second.dwSupplyUnits;
+		if (units <= PLAYERBOT_FAMILY_GLUT_FREE_UNITS)
+			return 0;
+		return (int)std::min<DWORD>((DWORD)PLAYERBOT_FAMILY_GLUT_MAX_PERCENT,
+				(units - PLAYERBOT_FAMILY_GLUT_FREE_UNITS) * (DWORD)PLAYERBOT_FAMILY_GLUT_STEP_PERCENT);
+	}
+
 	DWORD GetPlayerBotListingPrice(LPITEM item, DWORD asking, int markdownPercent,
 			int* markupOut = NULL)
 	{
@@ -4728,6 +4711,18 @@ namespace
 		}
 		const long long moved = playerbot_price_rules::ApplyListingPercent((long long)asking, listPercent);
 		DWORD price = moved > 0xFFFFFFFFLL ? 0xFFFFFFFFU : (DWORD)std::max(0LL, moved);
+		// MT2009_PLUS_BOT_FAMILY_GLUT_V1: a family the counters hold too many of asks less (GetPlayerBotFamilyGlutPercent).
+		{
+			const int glut = GetPlayerBotFamilyGlutPercent(item);
+			if (glut > 0 && price > 1)
+			{
+				price = (DWORD)std::max<unsigned long long>(1ULL,
+						(unsigned long long)price * (unsigned long long)(100 - glut) / 100ULL);
+				++s_uPlayerBotFamilyGlutPriced;
+				if (IsPlayerBotListingTracing())
+					PlayerBotListingStep(per::STEP_MARKDOWN, price, glut);
+			}
+		}
 		const int markupAsked = markup;
 		if (markup > 0)
 		{
@@ -5027,18 +5022,6 @@ namespace
 				return PlayerBotGoods(PLAYERBOT_SHOP_POLICY_STALL_SCORE, per::GOODS_POLICY_STALL, policy);
 			if (policy != PLAYERBOT_ITEM_POLICY_NONE)
 				return -1;
-		}
-		// MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Auto potions for private shop / counter
-		if (IsPlayerBotAutoPotion(item))
-		{
-			if (IsPlayerBotAutoPotionEmpty(item))
-				return -1;
-			if (item->GetSocket(0) != 0 || item->GetSocket(1) > 0)
-				return -1; // Never sell open or partially used potion
-			const DWORD affect = GetPlayerBotAutoPotionAffect(item->GetVnum());
-			if (ch && CountPlayerBotAutoPotions(ch, affect, false) <= PLAYERBOT_AUTO_POTION_BAG_KEEP)
-				return -1;
-			return PlayerBotGoods(PLAYERBOT_SHOP_RARE_GOODS_SCORE, per::GOODS_RARE_GOODS);
 		}
 		// MT2009_PLUS_BOT_WORKSHOP_V1: nor what a belt maker or a talisman worker keeps for its
 		// craft (playerbot_workshop.h) - the units over the keep are goods as before.
@@ -5837,6 +5820,14 @@ namespace
 	// again when the kind runs short (WithdrawPlayerBotSafebox).
 	int ScorePlayerBotShopStock(LPCHARACTER ch, LPITEM item, bool merchant, bool report)
 	{
+		// MT2009_PLUS_BOT_PLAIN_LOW_GEAR_V1: plain gear under thirty and +6 goes on no counter (playerbot_economy.h) -
+		// whatever the rules below would make of it, the operator's "stall" alone excepted.
+		if (item && IsPlayerBotPlainLowGearPiece(item) && GetPlayerBotItemPolicy(item) != PLAYERBOT_ITEM_POLICY_STALL)
+		{
+			if (report)
+				++s_uPlayerBotPlainLowGearRefused;
+			return -1;
+		}
 		const int score = ScorePlayerBotShopStockRules(ch, item, merchant, report);
 		if (score <= 0 || !item || GetPlayerBotItemPolicy(item) == PLAYERBOT_ITEM_POLICY_STALL ||
 				!IsPlayerBotMarketIndexedVnum(item->GetVnum()))
@@ -5864,7 +5855,6 @@ namespace
 		outScored.clear();
 		if (!ch || !ch->IsItemLoaded())
 			return;
-		ManagePlayerBotPermitExchange(ch);
 		// Once a minute per bot the ledger decisions are counted and the
 		// refusals logged; the other scans of the same bag say nothing.
 		const bool report = ShouldReportPlayerBotMarketDecisions(

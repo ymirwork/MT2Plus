@@ -500,6 +500,23 @@ namespace
 		}
 	}
 
+	// MT2009_PLUS_BOT_MAX_BONUS_VALUE_V1 (the owner, 3 November 2026: "Sprzet z max bonusami trzyma wartosc"): a weapon
+	// or an armour piece of really good lines - PLAYERBOT_MAX_BONUS_TOP_LINES or more at the top of what this world rolls
+	// (IsPlayerBotTopBonusLine). Its counter line takes no markdown of age or of its family's glut, its +0..+5 price
+	// is not cut (GetPlayerBotLowPlusBonusCap), and the bag's family cap and hold time never send it to the merchant.
+	const int PLAYERBOT_MAX_BONUS_TOP_LINES = 2;
+	bool IsPlayerBotMaxBonusPiece(LPITEM item)
+	{
+		if (!item || (item->GetType() != ITEM_WEAPON && item->GetType() != ITEM_ARMOR))
+			return false;
+		int top = 0;
+		for (int i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; ++i)
+			if (item->GetAttributeType(i) != APPLY_NONE &&
+					IsPlayerBotTopBonusLine(item->GetAttributeType(i), item->GetAttributeValue(i)))
+				++top;
+		return top >= PLAYERBOT_MAX_BONUS_TOP_LINES;
+	}
+
 	// MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1 (the owner, 16 October: "Od teraz
 	// boty niech zostawiaja tylko produkty z dwoma bonusami - niech traktuja
 	// je jako drogocenne i wystawiaja na lady zgodnie z cennikiem. Przedmioty
@@ -1430,7 +1447,8 @@ namespace
 	playerbot_bonus_rules::TLimits GetPlayerBotBonusLimits()
 	{
 		const playerbot_bonus_rules::TLimits limits = {
-			PLAYERBOT_BONUS_MAX_LINES, PLAYERBOT_BONUS_CHANGE_MIN_LINES
+			PLAYERBOT_BONUS_MAX_LINES, PLAYERBOT_BONUS_CHANGE_MIN_LINES,
+			PLAYERBOT_BONUS_CHANGE_NO_ADD_LINES	// MT2009_PLUS_BOT_CHANGE_NO_ADD_V1
 		};
 		return limits;
 	}
@@ -1791,6 +1809,25 @@ namespace
 		return n;
 	}
 
+	// MT2009_PLUS_BOT_LOW_GEAR_STONES_V1 (the owner, 3 November 2026: "mniej marnuja kamieni na niski sprzet"): a worn
+	// piece under level PLAYERBOT_BONUS_LOW_GEAR_LEVEL that the bot has outgrown by PLAYERBOT_BONUS_LOW_GEAR_OUTGROWN
+	// levels takes no ordinary add or change stone - it is the next piece's slot, not a project. 318 of the 699
+	// ordinary stones of the test world's 3 November went on pieces thirty to eighty levels under their bots (boots of
+	// twenty on a bot of seventy). Not a level-30 weapon (its own family's rules). Counted: "low gear spared".
+	const int PLAYERBOT_BONUS_LOW_GEAR_LEVEL = 45;
+	const int PLAYERBOT_BONUS_LOW_GEAR_OUTGROWN = 30;
+	unsigned int s_uPlayerBotLowGearStonesSpared = 0;
+	bool IsPlayerBotOutgrownLowStonePiece(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || IsPlayerBotSpecialLevel30Weapon(item))
+			return false;
+		const int level = (int)item->GetLevelLimit();
+		if (level >= PLAYERBOT_BONUS_LOW_GEAR_LEVEL || (int)ch->GetLevel() < level + PLAYERBOT_BONUS_LOW_GEAR_OUTGROWN)
+			return false;
+		++s_uPlayerBotLowGearStonesSpared;
+		return true;
+	}
+
 	void CollectPlayerBotBonusTargets(LPCHARACTER ch, std::vector<TPlayerBotBonusTarget>& out)
 	{
 		out.clear();
@@ -1879,6 +1916,13 @@ namespace
 				plain = playerbot_bonus_rules::PLAIN_NONE;
 			else
 				continue;
+			// MT2009_PLUS_BOT_LOW_GEAR_STONES_V1: no ordinary stone on outgrown low gear (a green one may still fit).
+			if (plain != playerbot_bonus_rules::PLAIN_NONE && IsPlayerBotOutgrownLowStonePiece(ch, item))
+			{
+				if (!CanPlayerBotTakeGreenBonusStone(item))
+					continue;
+				plain = playerbot_bonus_rules::PLAIN_NONE;
+			}
 			if (plainWaits)
 				plain = playerbot_bonus_rules::PLAIN_NONE;
 			const TPlayerBotBonusTarget target = { item, wearCell, (BYTE)PLAYERBOT_BONUS_TARGET_WORN, (BYTE)plain };
@@ -1953,6 +1997,17 @@ namespace
 		else if (number(1, 100) <= aiItemAttributeAddPercent[count])
 			item->AddAttribute();
 		ConsumePlayerBotBonusStoneAt(ch, stoneCell);
+		// MT2009_PLUS_BOT_CHANGE_NO_ADD_V1: a change on a piece short of its four lines (no add stone in the bag) -
+		// counted, the count said once a minute.
+		if (step == PLAYERBOT_BONUS_STEP_CHANGE && count < PLAYERBOT_BONUS_CHANGE_MIN_LINES &&
+				!IsPlayerBotSpecialLevel30Weapon(item))
+		{
+			static unsigned int s_uChangeNoAdd = 0;
+			++s_uChangeNoAdd;
+			PlayerBotLogThrottled("bonus_change_no_add", get_dword_time(),
+					"PLAYERBOT_BONUS: change without add stones pid=%u name=%s vnum=%u lines=%d total=%u",
+					ch->GetPlayerID(), ch->GetName(), item->GetVnum(), count, s_uChangeNoAdd);
+		}
 
 		// The gear history shows the stone spent (PLAYERBOT_BONUS); this names
 		// the piece it was spent on, which is what a player asks - "na jaki
@@ -2115,7 +2170,10 @@ namespace
 				: playerbot_bonus_rules::STEP_CHANGE;
 		for (size_t i = 0; i < pieces.size(); ++i)
 		{
-			if (pieces[i].goods)
+			// MT2009_PLUS_BOT_L30_MIX_BUY_V1 (the owner, 3 November 2026: "Boty mieszaja bron 30 lvl do lepszych
+			// srednich i dokupuja kamienie"): a level-30 weapon mixed for its average is a change stone's need, for sale
+			// or not - the goods' other pieces take only the surplus and buy none.
+			if (pieces[i].goods && !(pieces[i].mixAverage && !add))
 				continue;
 			const playerbot_bonus_rules::TStepChoice c =
 					playerbot_bonus_rules::StepFor(pieces[i], kinds, limits, restOpen, false);
@@ -2316,315 +2374,6 @@ namespace
 				(long long)ch->GetGold() > GetPlayerBotExchangeFee() * 2;
 	}
 
-		// MT2009_PLUS_BOT_M1M2_LIQUIDATION_V2 (Autor: YmirWork / Krystian):
-	// Dynamic simulation of turning excess M1/M2/plus upgrade materials into tradeable adds / changes
-	// (71285 / 71284). Base: 50 units for common, 25 units for rare materials.
-	// Required units scale down dynamically based on market oversupply (down to 25 common / 12 rare).
-	// Buyer participation scales dynamically between 1% and 35% based on total market supply.
-	// The cost is scaled by the world's economy/inflation curve.
-	// =========================================================================
-	// MT2009_PLUS_HARD_ECONOMY: Baza 40 sztuk (zarowno zwykle jak i z plusem),
-	// z rabatem rynkowym do 25 sztuk przy powodzi (>1500 sztuk w sklepach).
-	const int PLAYERBOT_LIQUIDATE_BASE_UNITS = 40;
-	const int PLAYERBOT_LIQUIDATE_MIN_UNITS = 25;
-	const DWORD PLAYERBOT_LIQUIDATE_GAP_MS = 20 * 60 * 1000;
-	std::map<DWORD, DWORD> s_mapPlayerBotLiquidateNext;
-
-	bool IsPlayerBotM1M2RareMaterial(DWORD vnum)
-	{
-		switch (vnum)
-		{
-			case 30005: // Kawalek Zepsutej Zbroi
-			case 30008: // Ezoteryczny Przewodnik
-			case 30009: // Nieznany Lek
-			case 30014: // Futro Yeti
-			case 30022: // Ogon Weza
-			case 30030: // Zardzewiale Ostrze
-			case 30039: // Kawalek Plotna
-			case 30040: // Lisc
-			case 30041: // Shuriken
-			case 30042: // Pazur Tygrysa
-			case 30045: // Igla Skorpiona
-			case 30046: // Ogon Skorpiona
-			case 30050: // Matowy Lod
-			case 30051: // Nieznany Talizman
-			case 30056: // Pajecza Siec
-			// Materialy z plusem (+)
-			case 30069: // Szpon Wilka +
-			case 30070: // Futro Wilka +
-			case 30071: // Zolc Niedzwiedzia +
-			case 30072: // Niedzwiedzia Skora +
-			case 30073: // Biala Wstega +
-			case 30074: // Czarny Uniform +
-			case 30075: // Shuriken +
-			case 30076: // Amulet Orka +
-			case 30077: // Zab Orka +
-			case 30078: // Ezoteryczny Przewodnik +
-			case 30079: // Nieznany Talizman +
-			case 30080: // Ksiega Klatw +
-			case 30081: // Ogon Skorpiona +
-			case 30082: // Ogon Weza +
-			case 30083: // Nieznane Lekarstwo +
-			case 30084: // Nieznany Talizman +
-			case 30085: // Kawalek Plotna +
-			case 30086: // Pamiatka Po Demonie +
-			case 30087: // Klejnot Demona +
-			case 30088: // Kawalek Lodu +
-			case 30089: // Futro Yeti +
-			case 30090: // Matowy Lod +
-			case 35002: // Nieznane Lekarstwo
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	bool IsPlayerBotM1M2CommonMaterial(DWORD vnum)
-	{
-		switch (vnum)
-		{
-			case 30003: // Nos Swini
-			case 30004: // Zab Dzika
-			case 30006: // Zab Orka
-			case 30007: // Amulet Orka
-			case 30010: // Zolc Niedzwiedzia
-			case 30011: // Klab
-			case 30015: // Pamiatka Po Demonie
-			case 30016: // Klejnot Demona
-			case 30017: // Ozdobna Spinka Do Wlosow
-			case 30018: // Czerwona Wstega
-			case 30019: // Plonaca Grzywa
-			case 30021: // Kawalek Klejnotu
-			case 30023: // Futro Bialego Tygrysa
-			case 30025: // Worek Z Pajecza Trucizna
-			case 30027: // Futro Wilka
-			case 30028: // Szpon Wilka
-			case 30031: // Ornament
-			case 30032: // Czarny Uniform
-			case 30033: // Stluczona Porcelana
-			case 30034: // Biala Wstega
-			case 30035: // Krem Do Twarzy
-			case 30037: // Szpon Tygrysa
-			case 30038: // Skora Tygrysa
-			case 30047: // Ksiega Klatw
-			case 30048: // Kawalek Lodu
-			case 30049: // Lodowy Rog Wieloryba
-			case 30052: // Flaga
-			case 30053: // Niedzwiedzia Skora
-			case 30055: // Szpon Skorpiona
-			case 30057: // Oczy Pajaka
-			case 30058: // Worek Z Pajeczymi Jajami
-			case 30059: // Nogi Pajaka
-			case 30060: // Jezyk Zaby
-			case 30061: // Zabie Udka
-			case 30067: // Skora Weza
-			case 30091: // Symbol Wojownika
-			case 30092: // Zdobycz Dzikusa
-			case 30116: // Zabie Udka
-			case 30271: // Ozdobna Spinka Do Wlosow
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	bool IsPlayerBotTier1M1M2Material(DWORD vnum)
-	{
-		switch (vnum)
-		{
-			// M1/M2 i Dzicy Ludzie (Tier 1: wczesna faza gry -> Zielony Czar / Zielona Sila)
-			case 30003: // Nos Swini
-			case 30004: // Zab Dzika
-			case 30005: // Kawalek Zepsutej Zbroi
-			case 30010: // Zolc Niedzwiedzia
-			case 30011: // Klab
-			case 30017: // Ozdobna Spinka Do Wlosow
-			case 30018: // Czerwona Wstega
-			case 30021: // Kawalek Klejnotu
-			case 30027: // Futro Wilka
-			case 30028: // Szpon Wilka
-			case 30030: // Zardzewiale Ostrze
-			case 30031: // Ornament
-			case 30032: // Czarny Uniform
-			case 30033: // Stluczona Porcelana
-			case 30034: // Biala Wstega
-			case 30035: // Krem Do Twarzy
-			case 30039: // Kawalek Plotna
-			case 30041: // Shuriken
-			case 30042: // Pazur Tygrysa
-			case 30052: // Flaga
-			case 30053: // Niedzwiedzia Skora
-			case 30069: // Szpon Wilka +
-			case 30070: // Futro Wilka +
-			case 30071: // Zolc Niedzwiedzia +
-			case 30072: // Niedzwiedzia Skora +
-			case 30073: // Biala Wstega +
-			case 30074: // Czarny Uniform +
-			case 30075: // Shuriken +
-			case 30092: // Zdobycz Dzikusa
-			case 30271: // Ozdobna Spinka Do Wlosow
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	int GetPlayerBotLiquidationRequiredUnits(DWORD vnum)
-	{
-		if (!IsPlayerBotM1M2RareMaterial(vnum) && !IsPlayerBotM1M2CommonMaterial(vnum))
-			return 0;
-
-		const int baseUnits = PLAYERBOT_LIQUIDATE_BASE_UNITS;
-		const int minUnits = PLAYERBOT_LIQUIDATE_MIN_UNITS;
-
-		// Dynamiczne skalowanie progu ulepszaczy zależne od podaży na rynku:
-		// Baza 40 sztuk -> rabat do 25 sztuk przy zasileniu rynku powyzzej 1500 sztuk.
-		const TPlayerBotMarketLedgerEntry* entry = GetPlayerBotMarketLedgerEntry(vnum);
-		const DWORD supply = entry ? entry->dwSupplyUnits : 0;
-
-		int discount = 0;
-		if (supply >= 1500)
-			discount = (baseUnits - minUnits); // maksymalny rabat: 40 -> 25
-		else if (supply > 100)
-			discount = (int)((long long)(supply - 100) * (baseUnits - minUnits) / 1400);
-
-		return std::max(minUnits, baseUnits - discount);
-	}
-
-	const DWORD PLAYERBOT_LIQUIDATE_TIER1_BASE_FEE = 50000;
-	const DWORD PLAYERBOT_LIQUIDATE_TIER2_BASE_FEE = 150000;
-
-	long long GetPlayerBotLiquidationFee(bool isTier1 = false)
-	{
-		return (long long)ScalePlayerBotIwakuraPrice(isTier1 ? PLAYERBOT_LIQUIDATE_TIER1_BASE_FEE : PLAYERBOT_LIQUIDATE_TIER2_BASE_FEE);
-	}
-
-	bool ManagePlayerBotLiquidationM1M2(LPCHARACTER ch)
-	{
-		if (!ch || ch->GetEmptyInventory(1) < 0)
-			return false;
-		const DWORD now = get_dword_time();
-		std::map<DWORD, DWORD>::const_iterator next = s_mapPlayerBotLiquidateNext.find(ch->GetPlayerID());
-		if (next != s_mapPlayerBotLiquidateNext.end() && now < next->second)
-			return false;
-
-		const DWORD commonMats[] = {
-			30003, 30004, 30006, 30007, 30010, 30011, 30015, 30016, 30017, 30018,
-			30019, 30021, 30023, 30025, 30027, 30028, 30031, 30032, 30033, 30034,
-			30035, 30037, 30038, 30047, 30048, 30049, 30052, 30053, 30055, 30057,
-			30058, 30059, 30060, 30061, 30067, 30091, 30092, 30116, 30271
-		};
-		const DWORD rareMats[] = {
-			30005, 30008, 30009, 30014, 30022, 30030, 30039, 30040, 30041, 30042,
-			30045, 30046, 30050, 30051, 30056,
-			30069, 30070, 30071, 30072, 30073, 30074, 30075, 30076, 30077, 30078,
-			30079, 30080, 30081, 30082, 30083, 30084, 30085, 30086, 30087, 30088,
-			30089, 30090, 35002
-		};
-
-		DWORD material = 0;
-		int reqUnits = 0;
-		for (size_t i = 0; i < sizeof(rareMats) / sizeof(rareMats[0]); ++i)
-		{
-			const int needed = GetPlayerBotLiquidationRequiredUnits(rareMats[i]);
-			if (needed > 0 && ch->CountSpecifyItem(rareMats[i]) >= (DWORD)needed)
-			{
-				material = rareMats[i];
-				reqUnits = needed;
-				break;
-			}
-		}
-		if (!material)
-		{
-			for (size_t i = 0; i < sizeof(commonMats) / sizeof(commonMats[0]); ++i)
-			{
-				const int needed = GetPlayerBotLiquidationRequiredUnits(commonMats[i]);
-				if (needed > 0 && ch->CountSpecifyItem(commonMats[i]) >= (DWORD)needed)
-				{
-					material = commonMats[i];
-					reqUnits = needed;
-					break;
-				}
-			}
-		}
-
-		if (!material || reqUnits <= 0)
-			return false;
-
-		const bool isTier1 = IsPlayerBotTier1M1M2Material(material);
-		const long long fee = GetPlayerBotLiquidationFee(isTier1);
-		if ((long long)ch->GetGold() < fee * 2)
-			return false;
-
-		s_mapPlayerBotLiquidateNext[ch->GetPlayerID()] = now + PLAYERBOT_LIQUIDATE_GAP_MS;
-		ch->RemoveSpecifyItem(material, reqUnits);
-		ch->PointChange(POINT_GOLD, -fee);
-
-		// Tier 1 (M1/M2) daje handlowalny Zielony Czar (71151) / Zielona Sile (71152)
-		// Tier 2 (Orki/DT/Pustynia/Sohan) daje handlowalne Zaczarowanie (71284) / Wzmocnienie (71285)
-		const DWORD reward = isTier1
-			? ((number(0, 1) == 0) ? 71151 : 71152)
-			: ((number(0, 1) == 0) ? 71284 : 71285);
-
-		LPITEM made = ch->AutoGiveItem(reward, 1, -1, false);
-		if (made)
-			LogManager::instance().ItemLog(ch, made, "PLAYERBOT_M1M2_LIQUIDATION", made->GetName());
-		sys_log(0, "PLAYERBOT_M1M2_LIQUIDATION: liquidated pid=%u name=%s tier=%d material=%u units=%d fee=%lld reward=%u gold=%lld",
-				ch->GetPlayerID(), ch->GetName(), isTier1 ? 1 : 2, material, reqUnits, fee, reward,
-				(long long)ch->GetGold());
-		return true;
-	}
-
-	const int PLAYERBOT_LIQUIDATE_BUY_PURSE_PERCENT = 20;
-
-	// Dynamiczne wyliczanie odsetka botów skupujących ulepszacze (od 1% do 35%):
-	int GetPlayerBotLiquidationBuyerPercent()
-	{
-		// Sprawdzamy stan nasycenia rynku ulepszaczami na podstawie Ozdoby (30031) i Kłębka (30028)
-		DWORD totalSampleSupply = 0;
-		const DWORD sampleMats[] = { 30031, 30028, 30071, 30004, 30003, 30078 };
-		for (size_t i = 0; i < sizeof(sampleMats)/sizeof(sampleMats[0]); ++i)
-		{
-			const TPlayerBotMarketLedgerEntry* entry = GetPlayerBotMarketLedgerEntry(sampleMats[i]);
-			if (entry)
-				totalSampleSupply += entry->dwSupplyUnits;
-		}
-
-		// Przy małej podaży (<300 sztuk): 1-5% botów
-		// Przy średniej podaży (300 - 3000 sztuk): 10-20% botów
-		// Przy powodzi ulepszaczy (>8000 sztuk): aż do 30-35% botów
-		if (totalSampleSupply < 300)
-			return 3;
-		if (totalSampleSupply >= 8000)
-			return 35;
-
-		// Płynna interpolacja liniowa między 5% a 30%
-		return 5 + (int)((long long)(totalSampleSupply - 300) * 25 / 7700);
-	}
-
-	bool IsPlayerBotM1M2LiquidationBuyer(LPCHARACTER ch)
-	{
-		if (!ch || ch->GetLevel() < PLAYERBOT_BONUS_MIN_LEVEL)
-			return false;
-		const int buyerPercent = GetPlayerBotLiquidationBuyerPercent();
-		return (ch->GetPlayerID() % 100) < (DWORD)buyerPercent;
-	}
-
-	bool IsPlayerBotM1M2LiquidationBuyOffer(LPCHARACTER ch, LPITEM offer)
-	{
-		if (!ch || !offer || !IsPlayerBotM1M2LiquidationBuyer(ch))
-			return false;
-		const DWORD vnum = offer->GetVnum();
-		const int reqUnits = GetPlayerBotLiquidationRequiredUnits(vnum);
-		if (reqUnits <= 0)
-			return false;
-		const int have = (int)ch->CountSpecifyItem(vnum);
-		if (have >= reqUnits)
-			return false;
-		return (have + (int)offer->GetCount() <= reqUnits + 10) &&
-				((long long)ch->GetGold() > GetPlayerBotLiquidationFee(IsPlayerBotTier1M1M2Material(vnum)) * 2);
-	}
-
 	// MT2009_PLUS_PERMIT_EXCHANGE_V1 (Task 2):
 	// Boty wymieniaja Pozwolenia na Zaczarowania/Wzmocnienia (30370, 30368, 30369)
 	// na handlowalne Zaczarowania (71284) i Wzmocnienia (71285).
@@ -2682,8 +2431,6 @@ namespace
 		if (!ManagePlayerBotDustMarble(ch))
 			ManagePlayerBotDustBonusStones(ch);
 		ManagePlayerBotRefinerExchange(ch);
-		ManagePlayerBotLiquidationM1M2(ch);
-		ManagePlayerBotPermitExchange(ch);
 		// Nothing to spend, nothing to weigh: the pass below scores every line
 		// of eight worn pieces, and a bag with no stone and no marble ends here.
 		// Any stone at any level: under PLAYERBOT_BONUS_MIN_LEVEL the green

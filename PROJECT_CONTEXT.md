@@ -30,6 +30,7 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | **Pakowanie paczek klienta** | `Klient/Kompiluj-Paczki.bat` / `Klient/Compile-ClientPack.ps1` | PackMakerLite-RS (klucz `22srh2fgh3`) |
 | **Serwer aktualizacji Patchera (CDN)** | `Server/tools/publish_patcher_web.py` | Generowanie i synchronizacja drzewa patchera na gałąź `gh-pages` (raw CDN) |
 | **Katalog autorskich modyfikacji** | `Server/server-patches/krystian/` | Podfoldery z autorskimi modyfikacjami i systemami |
+| **Grafy wiedzy kodu (Graphify)** | `Server/graphify-out/` \| `Klient/pack/root/graphify-out/` | Mapy zaleznosci C++/Python/Lua: `graph.html`, `graph.json`, `GRAPH_REPORT.md` |
 | **Bufor wydań i higiena dysku** | `dist/` \| `Klient/syserr.txt` | Tymczasowy bufor wydań i logi do okresowego czyszczenia (Zasada nr 14) |
 | **Kopie zapasowe bazy SQL** | `Server/backups/` | Zrzuty bazy przed zmianami w serwerze (retencja: maks. 2 dni, starsze usuwane) |
 | **Panele i serwisy WWW** | Tieru: `http://localhost:7788` \| Seban: `http://localhost:7790` \| IS: `http://localhost:7791` | Login / zarządzanie / rynek |
@@ -111,8 +112,8 @@ Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzglę
 
 ## 1. Wersjonowanie i Identyfikacja
 
-- **Wersja serwera (`Server/VERSION`):** `2.40.0`
-- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-61`
+- **Wersja serwera (`Server/VERSION`):** `2.41.0`
+- **Wersja modyfikacji (`Server/MOD_VERSION`):** `mod-62`
 - **Wersja klienta (`Klient/CLIENT_VERSION`):** `2.0.71`
 - **Baza kodu:** Fork projektu *Metin2 Playerbots Singleplayer* (`mt2009`) autorstwa Tieru, wywodzący się z bazy MartySama r41023 (oraz wczesnych serwerfiles AzzlackSyndicate).
 - **Główni autorzy rozszerzenia SP+:** ZAXEP / SIZOWSKI, Digi Rasta, Vekirion, seban latino, OskarPWA, Iwakura.

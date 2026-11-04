@@ -63,6 +63,9 @@ namespace
 		// The shop management's word on grinding for sale (point 3): off, none.
 		if (IsPlayerBotShopMgmtOn() && GetPlayerBotShopMgmt(PLAYERBOT_SM_L30_SALE_LINES) <= 0)
 			return false;
+		// MT2009_PLUS_BOT_SALE_REFINE_NEAR_LEVEL_V1: near the bot's level only.
+		if (!IsPlayerBotSaleRefineNearLevel(ch, item))
+			return false;
 		return item->GetRefineLevel() < GetPlayerBotLevel30SaleTarget(item);
 	}
 
@@ -114,19 +117,11 @@ namespace
 		if (!ch || ch->GetQuestFlag(PLAYERBOT_LOTTERY30_DAY_FLAG) != GetPlayerBotLottery30Today() ||
 				(DWORD)ch->GetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG) != dwOldId)
 			return;
-
-		if (pkItemAfter && IsPlayerBotLottery30Surplus(ch, pkItemAfter))
+		if (pkItemAfter && pkItemAfter->GetID() != dwOldId)
 		{
 			ch->SetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG, (int)pkItemAfter->GetID());
-			sys_log(0, "PLAYERBOT_SURPLUS: lottery30 updated pid=%u name=%s old_item=%u new_item=%u vnum=%u plus=%u",
-					ch->GetPlayerID(), ch->GetName(), dwOldId, pkItemAfter->GetID(),
-					pkItemAfter->GetVnum(), (unsigned int)pkItemAfter->GetRefineLevel());
-		}
-		else
-		{
-			ch->SetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG, 0);
-			sys_log(0, "PLAYERBOT_SURPLUS: lottery30 finished pid=%u name=%s old_item=%u",
-					ch->GetPlayerID(), ch->GetName(), dwOldId);
+			sys_log(0, "PLAYERBOT_SURPLUS: lottery30 updated item ID pid=%u name=%s old=%u new=%u",
+					ch->GetPlayerID(), ch->GetName(), dwOldId, pkItemAfter->GetID());
 		}
 	}
 

@@ -26,6 +26,51 @@ namespace {
     // Patch 4, whose visits add up to four lines where they added one
     // (PLAYERBOT_OFFLINE_RESTOCK_CHAIN): game1 of m2zip spent 13 to 33 tokens
     // a minute of its 120 on the evening of 25 September.
+    // MT2009_PLUS_BOT_LINE_CLOCK_V1 (the owner, 3 November 2026: "Niesprzedane linie tanieja z czasem" - the old
+    // inflated prices fall slowly): a line's markdown clock (playerbot_offline::ListedLine) lived in this core's memory
+    // only, so every restart clocked the whole counter from the first visit that saw it again - a line of a week stood
+    // at its first step of 10% after each restart and never reached the 40%. The clock is the shop's own now:
+    // player.ikashop_item_meta.since (ikashop_qol.h, the person's "stale" frame) - read once a core for every line, and
+    // a bot's line with no row gets one at its first look (INSERT IGNORE, since = then), so the next core knows it.
+    // At most PLAYERBOT_LINE_CLOCK_MAX_AGE_S back (the dword clock's span).
+    const long long PLAYERBOT_LINE_CLOCK_MAX_AGE_S = 20LL * 24 * 3600;
+    std::unordered_map<uint32_t, long long> s_mapBotOfflineLineSince;
+    bool s_bBotOfflineLineSinceLoaded = false;
+    unsigned int s_uBotOfflineLineClockKnown = 0, s_uBotOfflineLineClockNew = 0;
+
+    // The observed-since a line with no clock in this core gets: its persisted age, else now (and a row for it).
+    uint32_t BotOfflinePersistedObservedSince(uint32_t id, DWORD now) {
+        if (!s_bBotOfflineLineSinceLoaded) {
+            s_bBotOfflineLineSinceLoaded = true;
+            std::unique_ptr<SQLMsg> msg(DBManager::instance().DirectQuery("SELECT item_id, since FROM ikashop_item_meta"));
+            if (msg && msg->Get() && msg->Get()->uiNumRows > 0) {
+                MYSQL_ROW row;
+                while ((row = mysql_fetch_row(msg->Get()->pSQLResult))) {
+                    uint32_t item = 0;
+                    long long since = 0;
+                    str_to_number(item, row[0]);
+                    str_to_number(since, row[1]);
+                    if (item && since > 0) s_mapBotOfflineLineSince[item] = since;
+                }
+            }
+            sys_log(0, "PLAYERBOT_OFFLINE: line clocks loaded rows=%u", (unsigned int)s_mapBotOfflineLineSince.size());
+        }
+        const long long globalNow = (long long)get_global_time();
+        auto known = s_mapBotOfflineLineSince.find(id);
+        if (known == s_mapBotOfflineLineSince.end()) {
+            s_mapBotOfflineLineSince[id] = globalNow;
+            DBManager::instance().Query(
+                "INSERT IGNORE INTO ikashop_item_meta (item_id, owner, since, ap_anchor) VALUES (%u, 0, %lld, %lld)",
+                id, globalNow, globalNow);
+            ++s_uBotOfflineLineClockNew;
+            return now ? now : 1;
+        }
+        ++s_uBotOfflineLineClockKnown;
+        const long long age = std::max(0LL, std::min(PLAYERBOT_LINE_CLOCK_MAX_AGE_S, globalNow - known->second));
+        const uint32_t since = (uint32_t)(now - (uint32_t)(age * 1000LL));
+        return since ? since : 1;
+    }
+
     const DWORD PLAYERBOT_OFFLINE_MUTATION_MS = 350;
     const unsigned PLAYERBOT_OFFLINE_MUTATION_BURST = 8;
     unsigned s_botOfflineTokens = PLAYERBOT_OFFLINE_MUTATION_BURST;
@@ -1341,9 +1386,7 @@ namespace {
         if (!shop) return 0;
         auto& o = state.offlineShop;
         for (const auto& [id, line] : shop->GetItems()) {
-            if (!line) continue;
-            const bool isAutoPot = GetPlayerBotAutoPotionAffect(line->GetInfo().vnum) != 0;
-            if (!isAutoPot && GetPlayerBotRareGoodsKind(line->GetInfo().vnum) == PLAYERBOT_RARE_GOODS_NONE) continue;
+            if (!line || GetPlayerBotRareGoodsKind(line->GetInfo().vnum) == PLAYERBOT_RARE_GOODS_NONE) continue;
             auto listed = o.listed.find(id);
             if (listed == o.listed.end())
                 listed = o.listed.emplace(id, playerbot_offline::ListedLine{
@@ -1351,7 +1394,7 @@ namespace {
             // A line from before this core started is clocked from the first
             // visit that sees it, as the markdown clocks it.
             if (listed->second.when == 0 && listed->second.observedSince == 0)
-                listed->second.observedSince = now;
+                listed->second.observedSince = BotOfflinePersistedObservedSince(id, now);   // MT2009_PLUS_BOT_LINE_CLOCK_V1
             const uint32_t since = listed->second.when ? listed->second.when : listed->second.observedSince;
             if (now - since >= PLAYERBOT_RARE_GOODS_MERCHANT_AFTER_MS) {
                 vnum = line->GetInfo().vnum;
@@ -1392,7 +1435,7 @@ namespace {
                 listed = o.listed.emplace(id, playerbot_offline::ListedLine{
                         line->GetInfo().vnum, 0u, 0u, 0 }).first;
             if (listed->second.when == 0 && listed->second.observedSince == 0)
-                listed->second.observedSince = now;
+                listed->second.observedSince = BotOfflinePersistedObservedSince(id, now);   // MT2009_PLUS_BOT_LINE_CLOCK_V1
             const uint32_t since = listed->second.when ? listed->second.when : listed->second.observedSince;
             if (now - since < PLAYERBOT_GOODS_UNSOLD_MS) continue;
             LPITEM preview = BotOfflinePreview(*line);
@@ -1431,9 +1474,13 @@ namespace {
             if (bagFree < (int)line->GetTable()->bSize + PLAYERBOT_STALL_WEAK_TAKEOFF_BAG_KEEP) continue;
             LPITEM preview = BotOfflinePreview(*line);
             if (!preview) continue;
-            const bool scrap = IsPlayerBotOneWeakBonusPiece(preview) &&
+            // MT2009_PLUS_BOT_PLAIN_LOW_GEAR_V1: and plain gear under thirty and +6 (IsPlayerBotPlainLowGearPiece) - the
+            // lines that went up before the rule come home the same way, for the merchant.
+            const bool plainLow = IsPlayerBotPlainLowGearPiece(preview);
+            const bool scrap = (IsPlayerBotOneWeakBonusPiece(preview) || plainLow) &&
                     GetPlayerBotItemPolicy(preview) == PLAYERBOT_ITEM_POLICY_NONE &&
                     !IsPlayerBotGambleForSale(ch, preview) && ch->GetEmptyInventory(preview->GetSize()) >= 0;
+            if (scrap && plainLow) ++s_uPlayerBotPlainLowGearTakenOff;
             M2_DELETE(preview);
             if (scrap) return id;
         }
@@ -1546,7 +1593,7 @@ namespace {
         if (listed == o.listed.end())
             listed = o.listed.emplace(id, playerbot_offline::ListedLine{ vnum, 0u, 0u, 0 }).first;
         if (listed->second.when == 0 && listed->second.observedSince == 0)
-            listed->second.observedSince = now ? now : 1;
+            listed->second.observedSince = BotOfflinePersistedObservedSince(id, now);   // MT2009_PLUS_BOT_LINE_CLOCK_V1
         const uint32_t since = listed->second.when ? listed->second.when : listed->second.observedSince;
         return now - since;
     }
@@ -1862,16 +1909,6 @@ namespace {
     // or a line cut for the add would stand in the bag unadded.
     bool BotOfflineCounterRefuses(NativeShop shop, LPITEM item) {
         if (!item) return true;
-        // MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: Max lines of auto potions per shop (max 3-4)
-        if (IsPlayerBotAutoPotion(item) && shop) {
-            int autoPotionLines = 0;
-            for (const auto& [lid, l] : shop->GetItems()) {
-                if (l && GetPlayerBotAutoPotionAffect(l->GetInfo().vnum) != 0)
-                    ++autoPotionLines;
-            }
-            if (autoPotionLines >= PLAYERBOT_AUTO_POTION_SHOP_MAX)
-                return true;
-        }
         // MT2009_PLUS_BOT_SHOP_MGMT_V1: nothing but the goods it keeps
         // (IsPlayerBotShopMgmtKept) over the fill target, and a stack kind
         // (point 4) goes up as a new line only once every line of it on the
@@ -2352,6 +2389,9 @@ namespace {
         row.refusedAbove = refused;
         if (refused > 0) row.flags |= per::LFLAG_LOW_RANK;
     }
+#ifdef MT2009_PLUS_BOT_DUST_MARKET_V1
+    bool IsPlayerBotYangRoomHeld(LPCHARACTER ch, DWORD vnum, DWORD now);   // MT2009_PLUS_BOT_DUST_MARKET_V1 (below)
+#endif
     void BotOfflinePrepareVisitLine(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop) {
         auto& o = state.offlineShop;
         o.preparedItem = 0;
@@ -2374,6 +2414,9 @@ namespace {
             ++rank;
             LPITEM item = ch->GetInventoryItem(cell);
             if (!item || BotOfflineSlot(ch, shop, item) < 0) { ++refused; continue; }
+#ifdef MT2009_PLUS_BOT_DUST_MARKET_V1
+            if (IsPlayerBotYangRoomHeld(ch, item->GetVnum(), get_dword_time())) { ++refused; continue; }   // MT2009_PLUS_BOT_DUST_MARKET_V1
+#endif
             if (BotOfflineCounterRefuses(shop, item)) { ++refused; continue; }
             // The explanation is read off the stack before it is cut.
             TPlayerBotListingExplain row;
@@ -2489,6 +2532,11 @@ namespace {
         int discount = 0, markup = 0;
         uint32_t standing = 0;
     };
+    // MT2009_PLUS_BOT_LINE_CLOCK_V1: the slow markdown past the forty (BotOfflineRepriceTarget).
+    const DWORD PLAYERBOT_SHOP_UNSOLD_SLOW_STEP_MS = 24 * 60 * 60 * 1000;
+    const int PLAYERBOT_SHOP_UNSOLD_SLOW_PERCENT = 5;
+    const int PLAYERBOT_SHOP_UNSOLD_SLOW_MAX_TOTAL = 70;
+    unsigned int s_uBotOfflineSlowMarkdown = 0;
     TBotOfflineRepriceTarget BotOfflineRepriceTarget(LPITEM preview, uint32_t id,
             std::map<uint32_t, playerbot_offline::ListedLine>* listedLines, DWORD now,
             TPlayerBotPriceTraceScope& priceTrace, bool generationMoved) {
@@ -2517,7 +2565,7 @@ namespace {
             scratch.observedSince = now; // nobody here holds its clock: unmarked, as a line first seen
         // Unknown age after restart is not the process uptime.
         if (line->when == 0 && line->observedSince == 0)
-            line->observedSince = now;
+            line->observedSince = listedLines ? BotOfflinePersistedObservedSince(id, now) : now;   // MT2009_PLUS_BOT_LINE_CLOCK_V1
         const uint32_t since = line->when ? line->when : line->observedSince;
         const uint32_t standing = now - since;
         int discount = playerbot_price_rules::UnsoldMarkdownPercent(standing,
@@ -2530,6 +2578,25 @@ namespace {
                 (preview->GetType() == ITEM_COSTUME && IsPlayerBotSashVnum(preview->GetVnum()));
         if (operatorPriced)
             discount = 0;
+        // MT2009_PLUS_BOT_LINE_CLOCK_V1 (the owner, 3 November 2026: "Niesprzedane linie tanieja z czasem"): a line past
+        // the markdown's forty (twelve hours) goes on down slowly - PLAYERBOT_SHOP_UNSOLD_SLOW_PERCENT more for every
+        // PLAYERBOT_SHOP_UNSOLD_SLOW_STEP_MS it stands on, to PLAYERBOT_SHOP_UNSOLD_SLOW_MAX_TOTAL - so the inflated
+        // prices of old lines come down to what sells; never under the line's floor (below).
+        // MT2009_PLUS_BOT_MAX_BONUS_VALUE_V1: a piece of really good lines keeps its value - no markdown of age.
+        else if (IsPlayerBotMaxBonusPiece(preview))
+            discount = 0;
+        else if (discount >= PLAYERBOT_SHOP_UNSOLD_DISCOUNT_MAX_TOTAL && PLAYERBOT_SHOP_UNSOLD_DISCOUNT_PERCENT > 0) {
+            const uint32_t fullAt = PLAYERBOT_OFFLINE_UNSOLD_STEP_MS *
+                (uint32_t)(PLAYERBOT_SHOP_UNSOLD_DISCOUNT_MAX_TOTAL / PLAYERBOT_SHOP_UNSOLD_DISCOUNT_PERCENT);
+            if (standing > fullAt) {
+                const int slow = std::min(PLAYERBOT_SHOP_UNSOLD_SLOW_MAX_TOTAL - PLAYERBOT_SHOP_UNSOLD_DISCOUNT_MAX_TOTAL,
+                    (int)((standing - fullAt) / PLAYERBOT_SHOP_UNSOLD_SLOW_STEP_MS) * PLAYERBOT_SHOP_UNSOLD_SLOW_PERCENT);
+                if (slow > 0) {
+                    discount += slow;
+                    ++s_uBotOfflineSlowMarkdown;
+                }
+            }
+        }
         int markup = 0;
         const long long askingNow = (long long)GetPlayerBotShopAskingPrice(preview);
         if (priceTrace.On() && !operatorPriced) {
@@ -2717,6 +2784,71 @@ namespace {
                 ch->GetPlayerID(), ch->GetName(), spareVnum, asking, bestVnum, bestValue, spareLines, clearGoods ? 1 : 0);
         return true;
     }
+
+#ifdef MT2009_PLUS_BOT_DUST_MARKET_V1
+    // MT2009_PLUS_BOT_DUST_MARKET_V1: a bot's counter holds PLAYERBOT_GOLD_MAX (2 000 000 000) of lines at most
+    // (MT2009_PLUS_YANG_LIMITS_V1), and on 31 October on channel 1 game1 the add step refused one line after another
+    // there - 15 970 lines cut an hour (2 115 of them Materialy Rzemieslnicze, about a hundred a minute priced) against
+    // five adds acked, every cut poured back by the next visit's merge, and the ledger's supply of the materials 0.
+    // When a line of the cheap goods (IsPlayerBotDustMarketGoodsVnum - on 2.x Magiczny Pyl and the materials; the
+    // Yohara line's dust market, its Champion buyers and the shell are not here) is refused for the cap, the counter's dearest other line that has stood unsold
+    // PLAYERBOT_DUST_MARKET_ROOM_STAND_MS (or of an unknown age: put up before a restart) comes home, and its kind waits
+    // off this counter PLAYERBOT_DUST_MARKET_ROOM_HOLD_MS - or the restock would put it straight back up first. One line
+    // a step; the next step adds the goods. A line of the goods themselves, an operator-ruled, a slipped or a rare one
+    // (Cor, sash, Dragon Stone) never goes for it.
+    std::map<DWORD, std::map<DWORD, DWORD> > s_mapPlayerBotYangRoomHeld;   // pid -> vnum -> until
+
+    bool IsPlayerBotYangRoomHeld(LPCHARACTER ch, DWORD vnum, DWORD now) {
+        if (!ch || s_mapPlayerBotYangRoomHeld.empty()) return false;
+        auto bot = s_mapPlayerBotYangRoomHeld.find(ch->GetPlayerID());
+        if (bot == s_mapPlayerBotYangRoomHeld.end()) return false;
+        auto held = bot->second.find(vnum);
+        if (held == bot->second.end()) return false;
+        if ((int)(held->second - now) > 0) return true;
+        bot->second.erase(held);
+        if (bot->second.empty()) s_mapPlayerBotYangRoomHeld.erase(bot);
+        return false;
+    }
+
+    bool BotOfflineYangRoom(LPCHARACTER ch, TPlayerBotAIState& state, NativeShop shop, DWORD goodsVnum,
+            long long goodsPrice, DWORD now) {
+        if (!ch || !shop || !IsPlayerBotDustMarketGoodsVnum(goodsVnum)) return false;
+        const long long total = (long long)shop->GetTotalYangValue();
+        const auto& listed = state.offlineShop.listed;
+        DWORD bestId = 0, bestVnum = 0;
+        long long bestValue = 0;
+        for (const auto& [id, line] : shop->GetItems()) {
+            if (!line || !line->GetTable()) continue;
+            const DWORD vnum = line->GetInfo().vnum;
+            if (IsPlayerBotDustMarketGoodsVnum(vnum) || IsPlayerBotCorVnum(vnum) || (vnum >= 110000 && vnum <= 175499) ||
+                    (line->GetTable()->bType == ITEM_COSTUME && IsPlayerBotSashVnum(vnum)) ||
+                    GetPlayerBotRareGoodsKind(vnum) != PLAYERBOT_RARE_GOODS_NONE || s_setPlayerBotPriceSlips.count(id) ||
+                    ch->GetEmptyInventory(line->GetTable()->bSize) < 0)
+                continue;
+            const long long value = (long long)line->GetPrice().GetTotalYangAmount();
+            // The dearest, and dear enough that its going makes the goods' room.
+            if (value <= bestValue || total - value + goodsPrice >= (long long)PLAYERBOT_GOLD_MAX) continue;
+            const auto known = listed.find(id);
+            const uint32_t since = known == listed.end() ? 0
+                    : (known->second.when ? known->second.when : known->second.observedSince);
+            if (since != 0 && now - since < PLAYERBOT_DUST_MARKET_ROOM_STAND_MS) continue;
+            auto preview = BotOfflinePreview(*line);
+            if (!preview) continue;
+            const bool ruled = GetPlayerBotItemPolicy(preview) != PLAYERBOT_ITEM_POLICY_NONE;
+            M2_DELETE(preview);
+            if (ruled) continue;
+            bestId = id;
+            bestVnum = vnum;
+            bestValue = value;
+        }
+        if (!bestId || !BotOfflineTakeOff(ch, state, bestId, 0, now, "yang_room")) return false;
+        s_mapPlayerBotYangRoomHeld[ch->GetPlayerID()][bestVnum] = now + PLAYERBOT_DUST_MARKET_ROOM_HOLD_MS;
+        sys_log(0, "PLAYERBOT_OFFLINE: yang room pid=%u name=%s goods=%u goods_price=%lld total=%lld took_off=%u value=%lld held_h=%u",
+                ch->GetPlayerID(), ch->GetName(), goodsVnum, goodsPrice, total, bestVnum, bestValue,
+                (unsigned int)(PLAYERBOT_DUST_MARKET_ROOM_HOLD_MS / 3600000U));
+        return true;
+    }
+#endif
 
     bool ManagePlayerBotOfflineService(LPCHARACTER ch, TPlayerBotAIState& state, DWORD now) {
         using namespace playerbot_offline;
@@ -3390,6 +3522,10 @@ namespace {
             if (!allowRestock && Due(now, o.nextReprice) && !shop->GetItems().empty()) break;
             ++addRank;
             auto item = ch->GetInventoryItem(cell);
+#ifdef MT2009_PLUS_BOT_DUST_MARKET_V1
+            // MT2009_PLUS_BOT_DUST_MARKET_V1: a kind taken home for the goods' room waits off the counter.
+            if (item && IsPlayerBotYangRoomHeld(ch, item->GetVnum(), now)) { ++addRefused; continue; }
+#endif
             int pos = BotOfflineSlot(ch, shop, item);
             if (pos < 0) { ++addRefused; ++addNoRoom; continue; }
             if (BotOfflineCounterRefuses(shop, item)) { ++addRefused; continue; }
@@ -3447,6 +3583,25 @@ namespace {
                 price.yang = BotOfflineSlipPrice(item, price.yang,
                         (long long)PLAYERBOT_GOLD_MAX - 1 - (long long)shop->GetTotalYangValue()); // MT2009_PLUS_YANG_LIMITS_V1
             const bool slipped = price.yang != meant;
+#ifdef MT2009_PLUS_BOT_DUST_MARKET_V1
+            // MT2009_PLUS_BOT_DUST_MARKET_V1: the yang cap's refusal said (throttled - it was silent, and the line
+            // was cut for nothing), and for the cheap goods (IsPlayerBotDustMarketGoodsVnum) the counter's room made.
+            if (price.yang > 0 && price.yang < PLAYERBOT_GOLD_MAX &&
+                    shop->GetTotalYangValue() >= PLAYERBOT_GOLD_MAX - price.yang) {
+                const DWORD cappedVnum = item->GetVnum();
+                PlayerBotLogThrottled("offline_yang_cap", now,
+                        "PLAYERBOT_OFFLINE: yang cap pid=%u name=%s vnum=%u count=%u price=%lld total=%lld lines=%u",
+                        ch->GetPlayerID(), ch->GetName(), cappedVnum, (unsigned int)item->GetCount(), (long long)price.yang,
+                        (long long)shop->GetTotalYangValue(), (unsigned int)shop->GetItems().size());
+                if (IsPlayerBotDustMarketGoodsVnum(cappedVnum)) {
+                    if (BotOfflineYangRoom(ch, state, shop, cappedVnum, (long long)price.yang, now)) {
+                        BotOfflineFinishVisit(ch, state, now);
+                        BotOfflineChainVisit(state, now);
+                        return false;
+                    }
+                }
+            }
+#endif
             if (price.yang <= 0 || price.yang >= PLAYERBOT_GOLD_MAX || // MT2009_PLUS_YANG_LIMITS_V1
                     shop->GetTotalYangValue() >= PLAYERBOT_GOLD_MAX - price.yang) { ++addRefused; continue; } // MT2009_PLUS_YANG_LIMITS_V1
             if (slipped) {

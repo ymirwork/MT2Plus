@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 apply_custom_restorations.py - Restores all custom MT2Plus modifications to playerbot files
-after upstream v2.40.0 sync.
+after upstream v2.41.0 sync.
 """
 import os
 import shutil
@@ -45,6 +45,15 @@ def main():
 
     # 1. playerbot_town.h
     print("\n1. Patching playerbot_town.h...")
+    town_path = os.path.join(OVERLAYS_DIR, 'playerbot_town.h')
+    with open(town_path, 'r', encoding='utf-8', errors='ignore') as f:
+        town_c = f.read()
+    if '#include "playerbot_custom_prices.h"' not in town_c:
+        town_c = '#include "playerbot_custom_prices.h"\n' + town_c
+        with open(town_path, 'w', encoding='utf-8', newline='') as f:
+            f.write(town_c)
+        print("  [APPLIED] #include \"playerbot_custom_prices.h\"")
+
     town_replacements = [
         # Book price
         (
@@ -106,7 +115,7 @@ def main():
 					? PlayerBotGoods(PLAYERBOT_SHOP_RARE_GOODS_SCORE, per::GOODS_RARE_GOODS) : -1;"""
         )
     ]
-    patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_town.h'), town_replacements)
+    patch_file(town_path, town_replacements)
 
     # 2. playerbot_economy.h
     print("\n2. Patching playerbot_economy.h...")
@@ -171,6 +180,31 @@ def main():
 				return true;
 			return false;
 		}"""
+        ),
+        # OnPlayerBotLottery30Refined declaration
+        (
+            """	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1 (playerbot_upstream_botlogic.h).
+	bool TryPickPlayerBotLottery30(LPCHARACTER ch, LPITEM item);
+
+	bool ManagePlayerBotRefining(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)""",
+            """	// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1 (playerbot_upstream_botlogic.h).
+	bool TryPickPlayerBotLottery30(LPCHARACTER ch, LPITEM item);
+	void OnPlayerBotLottery30Refined(LPCHARACTER ch, DWORD dwOldId, LPITEM pkItemAfter);
+
+	bool ManagePlayerBotRefining(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)"""
+        ),
+        # OnPlayerBotLottery30Refined call in ManagePlayerBotRefining
+        (
+            """			if (attempted)
+			{
+				// The step's fee goes on the level-30 weapon's budget.""",
+            """			// MT2009_PLUS_UPSTREAM_BOTLOGIC_LOTTERY30_V1: track the lottery piece across upgrades
+			// so the bot continues refining the same weapon instead of abandoning it at +1.
+			if (attempted)
+				OnPlayerBotLottery30Refined(ch, idBefore, ch->GetInventoryItem(cellBefore));
+			if (attempted)
+			{
+				// The step's fee goes on the level-30 weapon's budget."""
         )
     ]
     patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_economy.h'), econ_replacements)
@@ -393,17 +427,18 @@ def main():
 	entry.dwPickedAt = dwNow;
 	entry.dwLastSeen = dwNow;
 	s_mapPlayerBotRetiring[dwPID] = entry;"""
-        ),
-        # IsHumanTargetReachable full navigation implementation
-        (
-            """// MT2009_PLUS_REACHABLE_TARGET_V1: Target reachable check for bots in DT and dungeons
-bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, long targetY)
-{
-    if (!ch)
-        return false;
-    return true;
-}""",
-            """// MT2009_PLUS_REACHABLE_TARGET_V1: Target reachable check for bots in DT and dungeons
+        )
+    ]
+    mgr_path = os.path.join(OVERLAYS_DIR, 'playerbot_manager.cpp')
+    patch_file(mgr_path, mgr_replacements)
+
+    # Append IsHumanTargetReachable if missing
+    with open(mgr_path, 'r', encoding='utf-8') as f:
+        mgr_txt = f.read()
+    if 'IsHumanTargetReachable' not in mgr_txt:
+        reachable_block = """
+
+// MT2009_PLUS_REACHABLE_TARGET_V1: Target reachable check for bots in DT and dungeons
 bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, long targetY)
 {
 	if (!ch)
@@ -423,14 +458,168 @@ bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, lon
 		return false;
 
 	return true;
-}"""
+}
+"""
+        mgr_txt = mgr_txt.rstrip() + reachable_block
+        with open(mgr_path, 'w', encoding='utf-8', newline='') as f:
+            f.write(mgr_txt)
+        print("  [APPLIED] IsHumanTargetReachable to playerbot_manager.cpp")
+
+    # 5. playerbot_gear.h
+    print("\n5. Patching playerbot_gear.h...")
+    gear_replacements = [
+        (
+            """	bool IsPlayerBotL30WeaponSeller(LPCHARACTER ch)
+	{
+		return ch && GetPlayerBotPersonalityByPID(ch->GetPlayerID()) == BOT_PERSONALITY_L30_WEAPON_DROPPER;
+	}""",
+            """	bool IsPlayerBotL30WeaponSeller(LPCHARACTER ch)
+	{
+		return ch && GetPlayerBotPersonalityByPID(ch->GetPlayerID()) == BOT_PERSONALITY_L30_WEAPON_DROPPER;
+	}
+
+	// MT2009_PLUS_HARDCORE_L30_RECYCLE_V1:
+	// High value level-30 weapons on a hard server: average damage >= 25%,
+	// skill damage >= 8%, or refined to +7..+9.
+	// These are valuable assets: never vendored to NPC, always preserved for market or scrolls.
+	bool IsPlayerBotHighValueLevel30(LPITEM item)
+	{
+		if (!item || !IsPlayerBotSpecialLevel30Weapon(item))
+			return false;
+		if (item->GetRefineLevel() >= 7)
+			return true;
+		const long avg = SumPlayerBotItemLines(item, APPLY_NORMAL_HIT_DAMAGE_BONUS);
+		const long skill = SumPlayerBotItemLines(item, APPLY_SKILL_DAMAGE_BONUS);
+		return (avg >= 25 || skill >= 8);
+	}"""
         )
     ]
-    patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_manager.cpp'), mgr_replacements)
+    patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_gear.h'), gear_replacements)
 
-    # Sync all modified files to docker game src
-    print("\n5. Syncing overlay files to docker game src...")
-    for filename in ['playerbot_town.h', 'playerbot_economy.h', 'playerbot_offline_shop.h', 'playerbot_manager.cpp', 'playerbot_retirement.h']:
+    # 6. playerbot_upstream_botlogic.h
+    print("\n6. Patching playerbot_upstream_botlogic.h...")
+    botlogic_replacements = [
+        (
+            """	const int PLAYERBOT_LOTTERY30_PER_DAY = 2;""",
+            """	const int PLAYERBOT_LOTTERY30_PER_DAY = 8;"""
+        ),
+        (
+            """	bool IsPlayerBotLottery30Surplus(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || !IsPlayerBotSpecialLevel30Weapon(item) || item->IsEquipped() ||
+				item->GetWindow() != INVENTORY || (int)ch->GetLevel() < 30 ||""",
+            """	bool IsPlayerBotLottery30Surplus(LPCHARACTER ch, LPITEM item)
+	{
+		if (!ch || !item || !IsPlayerBotSpecialLevel30Weapon(item) || item->IsEquipped() ||
+				item->GetWindow() != INVENTORY || (int)ch->GetLevel() < 15 ||"""
+        ),
+        (
+            """		sys_log(0, "PLAYERBOT_SURPLUS: lottery30 takes pid=%u name=%s item=%u vnum=%u plus=%u avg=%ld market_plus0=%d today=%d target=%u",
+				ch->GetPlayerID(), ch->GetName(), item->GetID(), item->GetVnum(), (unsigned int)item->GetRefineLevel(),
+				SumPlayerBotItemLines(item, APPLY_NORMAL_HIT_DAMAGE_BONUS), market, taken,
+				(unsigned int)GetPlayerBotLevel30SaleTarget(item));
+		return true;
+	}""",
+            """		sys_log(0, "PLAYERBOT_SURPLUS: lottery30 takes pid=%u name=%s item=%u vnum=%u plus=%u avg=%ld market_plus0=%d today=%d target=%u",
+				ch->GetPlayerID(), ch->GetName(), item->GetID(), item->GetVnum(), (unsigned int)item->GetRefineLevel(),
+				SumPlayerBotItemLines(item, APPLY_NORMAL_HIT_DAMAGE_BONUS), market, taken,
+				(unsigned int)GetPlayerBotLevel30SaleTarget(item));
+		return true;
+	}
+
+	void OnPlayerBotLottery30Refined(LPCHARACTER ch, DWORD dwOldId, LPITEM pkItemAfter)
+	{
+		if (!ch || ch->GetQuestFlag(PLAYERBOT_LOTTERY30_DAY_FLAG) != GetPlayerBotLottery30Today() ||
+				(DWORD)ch->GetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG) != dwOldId)
+			return;
+		if (pkItemAfter && pkItemAfter->GetID() != dwOldId)
+		{
+			ch->SetQuestFlag(PLAYERBOT_LOTTERY30_ID_FLAG, (int)pkItemAfter->GetID());
+			sys_log(0, "PLAYERBOT_SURPLUS: lottery30 updated item ID pid=%u name=%s old=%u new=%u",
+					ch->GetPlayerID(), ch->GetName(), dwOldId, pkItemAfter->GetID());
+		}
+	}"""
+        )
+    ]
+    patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_upstream_botlogic.h'), botlogic_replacements)
+
+    # 7. playerbot_market.h
+    print("\n7. Patching playerbot_market.h...")
+    market_replacements = [
+        (
+            """		// MT2009_PLUS_TRADEABLE_BONUS_V2: the tradeable change or add
+		// (71284/71285) only for a bot that would spend it on its own gear and
+		// holds none of the kind, plain (71084/71085) or tradeable - never to
+		// sell again.
+		if (IsPlayerBotTradeableBonusVnum(offer->GetVnum()))
+		{
+			if (!PlayerBotCanSpendBonusStoneKind(ch, offer) || offer->GetCount() > 1)
+				return false;
+			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+			{
+				LPITEM held = ch->GetInventoryItem(cell);
+				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
+						!IsPlayerBotGreenBonusStone(held->GetVnum()))
+					return false;
+			}
+			return true;
+		}""",
+            """		// MT2009_PLUS_TRADEABLE_BONUS_V2: the tradeable change or add
+		// (71284/71285) only for a bot that would spend it on its own gear and
+		// holds none of the kind, plain (71084/71085) or tradeable - never to
+		// sell again.
+		if (IsPlayerBotTradeableBonusVnum(offer->GetVnum()))
+		{
+			if (!PlayerBotCanSpendBonusStoneKind(ch, offer) || offer->GetCount() > 1)
+				return false;
+			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+			{
+				LPITEM held = ch->GetInventoryItem(cell);
+				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
+						!IsPlayerBotGreenBonusStone(held->GetVnum()))
+					return false;
+			}
+			return true;
+		}
+		// Zielony Czar (71151) i Zielona Sila (71152) - handel i skup przez boty <= 40 lvl:
+		if (IsPlayerBotGreenTradeableBonusVnum(offer->GetVnum()))
+		{
+			if ((int)ch->GetLevel() > 40 || !PlayerBotCanSpendBonusStoneKind(ch, offer) || offer->GetCount() > 1)
+				return false;
+			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+			{
+				LPITEM held = ch->GetInventoryItem(cell);
+				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
+						IsPlayerBotGreenBonusStone(held->GetVnum()))
+					return false;
+			}
+			return true;
+		}"""
+        ),
+        (
+            """		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()))
+			return price <= (long long)GetPlayerBotShopAskingPrice(item) &&
+					price <= spare * PLAYERBOT_TRADEABLE_BONUS_BUY_PURSE_PERCENT / 100;""",
+            """		if (IsPlayerBotTradeableBonusVnum(item->GetVnum()) || IsPlayerBotGreenTradeableBonusVnum(item->GetVnum()))
+			return price <= (long long)GetPlayerBotShopAskingPrice(item) &&
+					price <= spare * PLAYERBOT_TRADEABLE_BONUS_BUY_PURSE_PERCENT / 100;"""
+        )
+    ]
+    patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_market.h'), market_replacements)
+
+    # 8. Sync all modified files to docker game src
+    print("\n8. Syncing overlay files to docker game src...")
+    sync_files = [
+        'playerbot_town.h',
+        'playerbot_economy.h',
+        'playerbot_offline_shop.h',
+        'playerbot_manager.cpp',
+        'playerbot_retirement.h',
+        'playerbot_gear.h',
+        'playerbot_upstream_botlogic.h',
+        'playerbot_market.h'
+    ]
+    for filename in sync_files:
         src = os.path.join(OVERLAYS_DIR, filename)
         dst = os.path.join(DOCKER_DIR, filename)
         shutil.copy2(src, dst)

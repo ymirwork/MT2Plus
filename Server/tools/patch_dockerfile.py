@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 patch_dockerfile.py - Automatyczne zabezpieczenie i rejestracja autorskich funkcji oraz questow w Dockerfile
-Chroni autorskie systemy MT2Plus (wyplata utargu, recykling, sloty sklepu) przed nadpisaniem podczas aktualizacji z upstream.
+Chroni autorskie systemy MT2Plus (wyplata utargu, recykling, sloty sklepu, cor draconis) przed nadpisaniem podczas aktualizacji z upstream.
 Autor: Krystian (MT2Plus)
 """
 
@@ -14,14 +13,14 @@ CUSTOM_QUEST_FUNCTIONS = [
     "open_guild_payout_dialog",
     "guild.payout_get",
     "guild.payout_withdraw",
-    "guild.payout_add",
+    "guild.payout_add"
 ]
 
 CUSTOM_QUESTS = [
     "recykling_bonusow",
     "shop_unlock_slots",
     "guild_crafter_revenue",
-    "guild_building_npc",
+    "guild_building_npc"
 ]
 
 def patch_dockerfile(repo_dir=None):
@@ -44,7 +43,6 @@ def patch_dockerfile(repo_dir=None):
     # 1. Zabezpieczenie funkcji w petli for fn in ...
     for fn in CUSTOM_QUEST_FUNCTIONS:
         if fn not in content:
-            # Wstrzyknij przed guild.leave_war lub zodiac_temple.starttemple
             target = "guild.treasury_spend"
             if target in content:
                 content = content.replace(target, f"{target} {fn}")
@@ -71,6 +69,19 @@ def patch_dockerfile(repo_dir=None):
                     content = content.replace(target2, f"{q} {target2}")
                     print(f"[+] Dockerfile: dodano brakujacy quest '{q}' (obok {target2})")
                     modified = True
+
+    # 3. Zabezpieczenie receptur w cube.pasy.txt (np. Cor Draconis)
+    cube_pasy_path = os.path.join(os.path.dirname(df_path), "cube.pasy.txt")
+    if os.path.isfile(cube_pasy_path):
+        with open(cube_pasy_path, "r", encoding="utf-8", errors="ignore") as cpf:
+            recipes_count = cpf.read().count("npc\t20082")
+        if recipes_count > 9:
+            old_test = 'test "$(grep -c -E \'^npc[[:blank:]]+20082[[:space:]]*$\' "$C")" -eq 9'
+            new_test = f'test "$(grep -c -E \'^npc[[:blank:]]+20082[[:space:]]*$\' "$C")" -eq {recipes_count}'
+            if old_test in content:
+                content = content.replace(old_test, new_test)
+                print(f"[+] Dockerfile: zaktualizowano licznik receptur 20082 z 9 na {recipes_count}")
+                modified = True
 
     if modified:
         with open(df_path, "w", encoding="utf-8", newline="\n") as f:

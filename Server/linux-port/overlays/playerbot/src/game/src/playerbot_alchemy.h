@@ -40,7 +40,7 @@ namespace
 	const int PLAYERBOT_DS_SHARDS_PER_COR = 10;
 	// Cors a day: the players' event flag ds_cor_day (dragon_soul.quest, the
 	// admin panel's alchemy page; 1-20), this when it is unset or out of range.
-	const int PLAYERBOT_DS_CORS_PER_DAY = 15;
+	const int PLAYERBOT_DS_CORS_PER_DAY = 5;
 	const DWORD PLAYERBOT_COR_ROUGH_VNUM = 50255;
 	const int PLAYERBOT_COR_LINE_MIN_UNITS = 5;
 	const DWORD PLAYERBOT_DS_TIME_ELIXIR_VNUM = 100002;
@@ -170,7 +170,7 @@ namespace
 	int GetPlayerBotDragonCorsPerDay()
 	{
 		const int n = quest::CQuestManager::instance().GetEventFlag("ds_cor_day");
-		return (n >= 1 && n <= 30) ? n : PLAYERBOT_DS_CORS_PER_DAY;
+		return (n >= 1 && n <= 20) ? n : PLAYERBOT_DS_CORS_PER_DAY;
 	}
 
 	// The share scaled by the panel's ALCHEMY will (playerbot_config.h; 100 =
@@ -214,8 +214,9 @@ namespace
 	{
 		if (!ch || ch->GetLevel() < PLAYERBOT_ALCHEMY_MIN_LEVEL || ArePlayerBotAlchemyOff())
 			return;
-		// Odlamki smoczego kamienia: do 30 poziomow roznicy
-		if (!victim || (int)victim->GetLevel() < (int)ch->GetLevel() - 30)
+		// The player's rule (dragon_soul.quest): only a monster at most 15
+		// levels under the killer, or any higher (operator, 27 September 2026).
+		if (!victim || (int)victim->GetLevel() < (int)ch->GetLevel() - 15)
 			return;
 		const int today = (int)(get_global_time() / 86400);
 		if (ch->GetQuestFlag(PLAYERBOT_DS_DAY_FLAG) != today)
@@ -668,6 +669,11 @@ namespace
 	// An expired one stays on until the Alchemist recharges it ("Dobrych
 	// kamieni nie powinien sciagac nigdy ... tylko wtedy, gdy ma lepszy
 	// gotowy do wstawienia na jego miejsce", the operator, 3 October 2026).
+	// MT2009_PLUS_BOT_DS_CLEARLY_BETTER_V1 (EquipPlayerBotBestDragonSouls): grades over the worn stone that put a
+	// stone on at once; counted (the census's "ds_clearly_better").
+	const int PLAYERBOT_DS_CLEARLY_BETTER_GRADES = 2;
+	unsigned int s_uPlayerBotDsClearlyBetter = 0;
+
 	int EquipPlayerBotBestDragonSouls(LPCHARACTER ch)
 	{
 		int changed = 0;
@@ -682,7 +688,17 @@ namespace
 						GetPlayerBotDsGrade(stones[i]) >= PLAYERBOT_DS_MIN_WORN_GRADE &&
 						(!best || RankPlayerBotDs(ch, stones[i]) > RankPlayerBotDs(ch, best)))
 					best = stones[i];
-			if (best && GetPlayerBotDsGrade(best) < PLAYERBOT_DS_MYTH_GRADE)
+			// MT2009_PLUS_BOT_DS_CLEARLY_BETTER_V1 (the owner, 3 November 2026: "Bot wczesniej zaklada Smoczy Kamien
+			// lepszy o min. 2 klasy (zdjecie jak u gracza - stary moze sie zniszczyc)"): a stone of the bag at least
+			// PLAYERBOT_DS_CLEARLY_BETTER_GRADES grades over the worn one goes on now - not after the kind's refine
+			// work, not after the worn one's time ran out (an expired one is kept on only against a stone it matches).
+			// The worn one comes off the player's way (PullOutPlayerBotDs: the engine's odds may destroy it).
+			const bool clearlyBetter = best && worn &&
+					(int)GetPlayerBotDsGrade(best) >= (int)GetPlayerBotDsGrade(worn) + PLAYERBOT_DS_CLEARLY_BETTER_GRADES &&
+					!IsPlayerBotSidekickLockedItem(ch, worn);
+			if (clearlyBetter)
+				++s_uPlayerBotDsClearlyBetter;
+			if (best && !clearlyBetter && GetPlayerBotDsGrade(best) < PLAYERBOT_DS_MYTH_GRADE)
 			{
 				LPITEM a = NULL, b = NULL;
 				if (FindPlayerBotDsRefine(ch, kind, a, b) != 0)	// PLAYERBOT_DS_WORK_NONE

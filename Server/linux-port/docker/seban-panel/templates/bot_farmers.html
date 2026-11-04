@@ -4,136 +4,169 @@
 {#- MT2009_PLUS_FARMER_LINK_V1: every farmer ("dropek") works for a main character of its own (playerbot_farmer_link.h). -#}
 {% macro yang(value) %}{{'{:,}'.format(value or 0).replace(',', ' ')}}{% endmacro %}
 <style>
-/* ===== FARMER PAGE (fm-*) ===== */
-.fm-header { margin-bottom: 24px; }
-.fm-header h1 { margin: 4px 0 8px; }
-.fm-desc { color: var(--muted, #8a94a6); font-size: 13px; line-height: 1.6; max-width: 820px; }
+/* ================================================================
+   FARMER PAGE  —  fm-* namespace
+   ================================================================ */
+
+/* ---- page header ---- */
+.fm-page-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.fm-page-header h1 { margin: 4px 0 8px; display: flex; align-items: center; gap: 10px; }
+.fm-desc { color: var(--muted, #8a94a6); font-size: 13px; line-height: 1.65; max-width: 820px; margin: 0; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted, #8a94a6); margin: 0 0 4px; }
 
 /* ---- stat cards ---- */
-.fm-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
-.fm-stat-card { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 14px 20px; min-width: 150px; flex: 1; }
-.fm-stat-card .val { font-size: 22px; font-weight: 700; color: #fff; margin-top: 2px; white-space: nowrap; }
-.fm-stat-card .lbl { font-size: 11px; color: var(--muted, #8a94a6); text-transform: uppercase; letter-spacing: 0.5px; }
+.fm-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.fm-stat-card {
+  background: var(--bg2, #1a1e29);
+  border: 1px solid var(--border, #2a3246);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.fm-stat-card .sc-icon { font-size: 22px; flex-shrink: 0; line-height: 1; margin-top: 2px; opacity: 0.85; }
+.fm-stat-card .sc-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fm-stat-card .sc-val { font-size: 21px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fm-stat-card .sc-lbl { font-size: 11px; color: var(--muted, #8a94a6); text-transform: uppercase; letter-spacing: 0.5px; }
 
-/* ---- settings card ---- */
-.fm-settings { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 20px 24px; margin-bottom: 24px; }
-.fm-settings h2 { margin: 0 0 16px; font-size: 15px; }
-.fm-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-.fm-settings-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted, #8a94a6); }
-.fm-settings-grid label input[type="number"] { padding: 7px 10px; background: rgba(0,0,0,0.25); border: 1px solid var(--border, #2a3246); border-radius: 4px; color: #fff; font-size: 13px; font-family: monospace; margin-top: 2px; }
-.fm-settings-grid label input[type="number"]:focus { border-color: var(--blue2, #4979ff); outline: none; }
-.fm-toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.fm-toggle-row label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: #fff; }
-.fm-settings-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; gap: 12px; flex-wrap: wrap; }
-.fm-settings-foot .fm-hint { font-size: 11px; color: var(--muted, #8a94a6); max-width: 520px; line-height: 1.5; }
-.fm-btn-save { padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: #39e890; color: #0b1a13; transition: all 0.15s ease; }
-.fm-btn-save:hover { background: #2cd07f; }
+/* ---- info alert ---- */
+.fm-alert { background: rgba(73, 121, 255, 0.08); border-left: 4px solid var(--blue2, #4979ff); padding: 12px 16px; border-radius: 0 6px 6px 0; margin-bottom: 20px; font-size: 13px; line-height: 1.5; color: var(--muted, #8a94a6); }
 
-/* ---- spots summary ---- */
-.fm-spots { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
-.fm-spots h2 { margin: 0 0 12px; font-size: 15px; }
+/* ---- section cards (settings / spots / transfers) ---- */
+.fm-card { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+.fm-card-head { padding: 14px 20px; border-bottom: 1px solid var(--border, #2a3246); display: flex; align-items: center; gap: 8px; }
+.fm-card-head h2 { margin: 0; font-size: 14px; font-weight: 700; }
+.fm-card-body { padding: 20px; }
+
+/* ---- settings ---- */
+.fm-toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.fm-toggle-row label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #fff; }
+.fm-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.fm-field { display: flex; flex-direction: column; gap: 5px; }
+.fm-field-lbl { font-size: 11px; font-weight: 600; color: var(--muted, #8a94a6); text-transform: uppercase; letter-spacing: 0.4px; }
+.fm-field input[type="number"] { padding: 8px 10px; background: rgba(0,0,0,0.25); border: 1px solid var(--border, #2a3246); border-radius: 5px; color: #fff; font-size: 13px; font-family: monospace; transition: border-color 0.15s; }
+.fm-field input[type="number"]:focus { border-color: var(--blue2, #4979ff); outline: none; box-shadow: 0 0 0 3px rgba(73,121,255,0.15); }
+.fm-settings-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 4px; }
+.fm-hint { font-size: 11px; color: var(--muted, #8a94a6); max-width: 520px; line-height: 1.5; }
+.fm-btn-save { padding: 9px 22px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; background: #39e890; color: #0b1a13; transition: all 0.15s ease; letter-spacing: 0.3px; }
+.fm-btn-save:hover { background: #2cd07f; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(57,232,144,0.3); }
+
+/* ---- spots pills ---- */
 .fm-spot-pills { display: flex; flex-wrap: wrap; gap: 8px; }
-.fm-spot-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border, #2a3246); border-radius: 20px; font-size: 12px; color: var(--muted, #8a94a6); white-space: nowrap; }
-.fm-spot-pill b { color: #fff; font-size: 13px; }
+.fm-spot-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border, #2a3246); border-radius: 20px; font-size: 12px; color: var(--muted, #8a94a6); white-space: nowrap; }
+.fm-spot-pill .sp-count { font-weight: 700; color: #fff; font-size: 13px; }
+.fm-spots-detail { margin-top: 14px; }
+.fm-spots-detail summary { cursor: pointer; font-size: 12px; color: var(--muted, #8a94a6); user-select: none; }
+.fm-spots-detail summary:hover { color: #fff; }
+.fm-spots-detail table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+.fm-spots-detail th { padding: 8px 12px; color: var(--muted, #8a94a6); text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+.fm-spots-detail td { padding: 7px 12px; border-top: 1px solid rgba(255,255,255,0.04); }
 
-/* ---- filter bar ---- */
-.fm-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
-.fm-filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.fm-filter-btn { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: var(--muted, #8a94a6); padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s ease; white-space: nowrap; }
+/* ---- filter / search bar ---- */
+.fm-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.fm-filters { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.fm-filter-btn {
+  background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246);
+  color: var(--muted, #8a94a6); padding: 6px 12px; border-radius: 6px; font-size: 12px;
+  cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+  transition: all 0.15s ease; white-space: nowrap;
+}
 .fm-filter-btn:hover { border-color: var(--blue2, #4979ff); color: #fff; }
 .fm-filter-btn.active { background: color-mix(in srgb, var(--blue2, #4979ff) 25%, transparent); border-color: var(--blue2, #4979ff); color: #fff; font-weight: 600; }
-.fm-search-form { display: flex; align-items: center; gap: 8px; position: relative; min-width: 260px; flex-grow: 1; max-width: 400px; }
-.fm-search-box { position: relative; width: 100%; }
-.fm-search-input { width: 100%; padding: 8px 32px 8px 34px; border-radius: 6px; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: #fff; font-size: 13px; box-sizing: border-box; }
+.fm-filter-btn .fb-cnt { font-size: 10px; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1px 6px; }
+.fm-search-box { position: relative; min-width: 260px; flex-grow: 1; max-width: 400px; }
+.fm-search-input { width: 100%; padding: 8px 32px 8px 34px; border-radius: 6px; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); color: #fff; font-size: 13px; box-sizing: border-box; transition: border-color 0.15s; }
 .fm-search-input:focus { border-color: var(--blue2, #4979ff); outline: none; }
-.fm-search-box .icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted, #8a94a6); pointer-events: none; }
-.fm-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted, #8a94a6); text-decoration: none; font-size: 12px; }
+.fm-search-box .fm-s-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted, #8a94a6); pointer-events: none; font-size: 14px; }
+.fm-search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted, #8a94a6); text-decoration: none; font-size: 13px; }
 .fm-search-clear:hover { color: #fff; }
 
-/* ---- table ---- */
-.fm-table-wrap { overflow-x: auto; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; margin-bottom: 24px; }
+/* ---- count info ---- */
+.fm-count-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.fm-count { font-size: 12px; color: var(--muted, #8a94a6); }
+.fm-count strong { color: #fff; }
+
+/* ---- main table ---- */
+.fm-table-wrap { overflow-x: auto; background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; margin-bottom: 20px; }
 .fm-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-.fm-table th { padding: 12px 14px; background: rgba(0, 0, 0, 0.2); color: var(--muted, #8a94a6); font-weight: 600; border-bottom: 1px solid var(--border, #2a3246); white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
-.fm-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
-.fm-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
-.fm-table .fm-name-cell { display: flex; align-items: center; gap: 8px; min-width: 160px; }
-.fm-table .fm-name-cell img { width: 18px; height: 14px; flex-shrink: 0; }
-.fm-table .fm-name-cell a { font-weight: 600; color: #fff; text-decoration: none; }
-.fm-table .fm-name-cell a:hover { text-decoration: underline; }
-.fm-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.fm-badge-medal { background: rgba(245, 184, 61, 0.15); color: #f5b83d; border: 1px solid rgba(245, 184, 61, 0.35); }
-.fm-badge-spot { background: rgba(73, 181, 107, 0.15); color: #49b56b; border: 1px solid rgba(73, 181, 107, 0.35); }
-.fm-badge-guild { background: rgba(73, 121, 255, 0.15); color: #6b9aff; border: 1px solid rgba(73, 121, 255, 0.35); }
-.fm-badge-l30 { background: rgba(200, 80, 255, 0.15); color: #c480ff; border: 1px solid rgba(200, 80, 255, 0.35); }
-.fm-badge-ornament { background: rgba(255, 140, 60, 0.15); color: #ff9e4f; border: 1px solid rgba(255, 140, 60, 0.35); }
-.fm-badge-default { background: rgba(255, 255, 255, 0.06); color: var(--muted, #8a94a6); }
+.fm-table thead th { padding: 11px 14px; background: rgba(0,0,0,0.2); color: var(--muted, #8a94a6); font-weight: 600; border-bottom: 1px solid var(--border, #2a3246); white-space: nowrap; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.fm-table tbody td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.035); vertical-align: middle; }
+.fm-table tbody tr:last-child td { border-bottom: none; }
+.fm-table tbody tr:hover td { background: rgba(255,255,255,0.025); }
+
+/* --- cells --- */
+.fm-name-cell { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.fm-name-cell img { width: 18px; height: 14px; flex-shrink: 0; }
+.fm-name-cell a { font-weight: 600; color: #fff; text-decoration: none; }
+.fm-name-cell a:hover { text-decoration: underline; }
+.fm-name-link a { color: #7fa8ff; font-weight: 600; text-decoration: none; }
+.fm-name-link a:hover { text-decoration: underline; }
+.fm-arrow { color: var(--muted, #8a94a6); }
 .fm-yang { font-family: monospace; white-space: nowrap; }
-.fm-arrow { color: var(--muted, #8a94a6); margin: 0 2px; }
-.fm-count { font-size: 12px; color: var(--muted, #8a94a6); margin-bottom: 8px; }
+.fm-yang-pos { color: #39e890; font-weight: 600; }
+.fm-pending { font-size: 11px; color: var(--muted, #8a94a6); margin-left: 3px; }
+.fm-transfers-cnt { display: inline-block; min-width: 28px; text-align: center; background: rgba(255,255,255,0.06); border-radius: 10px; padding: 1px 6px; font-size: 11px; color: var(--muted, #8a94a6); }
+.fm-date { font-size: 11px; color: var(--muted, #8a94a6); white-space: nowrap; }
+.fm-lv { font-size: 12px; color: var(--muted, #8a94a6); font-variant-numeric: tabular-nums; }
 
-/* ---- transfers ---- */
-.fm-transfers { background: var(--bg2, #1a1e29); border: 1px solid var(--border, #2a3246); border-radius: 8px; padding: 0; overflow: hidden; }
-.fm-transfers h2 { margin: 0; padding: 14px 20px; font-size: 14px; border-bottom: 1px solid var(--border, #2a3246); }
-.fm-transfers table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.fm-transfers th { padding: 10px 14px; background: rgba(0,0,0,0.15); color: var(--muted, #8a94a6); font-weight: 600; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
-.fm-transfers td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-.fm-transfers tr:hover td { background: rgba(255,255,255,0.02); }
+/* ---- kind badges ---- */
+.fm-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.fm-badge-medal   { background: rgba(245,184,61,0.15);  color: #f5b83d; border: 1px solid rgba(245,184,61,0.3); }
+.fm-badge-spot    { background: rgba(73,181,107,0.15);  color: #49b56b; border: 1px solid rgba(73,181,107,0.3); }
+.fm-badge-guild   { background: rgba(73,121,255,0.15);  color: #6b9aff; border: 1px solid rgba(73,121,255,0.3); }
+.fm-badge-l30     { background: rgba(200,80,255,0.15);  color: #c480ff; border: 1px solid rgba(200,80,255,0.3); }
+.fm-badge-ornament{ background: rgba(255,140,60,0.15);  color: #ff9e4f; border: 1px solid rgba(255,140,60,0.3); }
+.fm-badge-m2      { background: rgba(80,180,255,0.15);  color: #50b4ff; border: 1px solid rgba(80,180,255,0.3); }
+.fm-badge-m3      { background: rgba(255,60,120,0.15);  color: #ff5c88; border: 1px solid rgba(255,60,120,0.3); }
+.fm-badge-metin   { background: rgba(255,100,60,0.15);  color: #ff8060; border: 1px solid rgba(255,100,60,0.3); }
+.fm-badge-default { background: rgba(255,255,255,0.06); color: var(--muted, #8a94a6); border: 1px solid rgba(255,255,255,0.08); }
 
-/* ---- spots table (details) ---- */
-.fm-spots-detail { margin-top: 10px; }
-.fm-spots-detail summary { cursor: pointer; font-size: 12px; color: var(--muted, #8a94a6); }
-.fm-spots-detail summary:hover { color: #fff; }
-.fm-spots-detail table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
-.fm-spots-detail th { padding: 8px 12px; color: var(--muted, #8a94a6); text-align: left; font-weight: 600; }
-.fm-spots-detail td { padding: 6px 12px; border-top: 1px solid rgba(255,255,255,0.04); }
+/* ---- transfers log ---- */
+.fm-tr-amount { font-family: monospace; font-weight: 700; color: #39e890; white-space: nowrap; }
 
-/* ========================================================
-   CESARSTWO (EMPIRE) THEME — DROPKI BOTÓW
-   ======================================================== */
-body[data-theme="empire"] .fm-header h1 {
-  font-family: 'Cinzel', Georgia, serif;
-  color: #f6dfa0;
-  text-shadow: 0 0 14px rgba(232, 185, 63, 0.25);
-}
+/* ================================================================
+   CESARSTWO (EMPIRE) THEME
+   ================================================================ */
 body[data-theme="empire"] .eyebrow {
   color: var(--gold, #e8b93f);
-  letter-spacing: 2px;
   font-family: 'Cinzel', serif;
 }
+body[data-theme="empire"] .fm-page-header h1 {
+  font-family: 'Cinzel', Georgia, serif;
+  color: #f6dfa0;
+  text-shadow: 0 0 18px rgba(232, 185, 63, 0.25);
+}
+/* stat cards */
 body[data-theme="empire"] .fm-stat-card {
   background: linear-gradient(160deg, #241a12, #18110a);
   border: 1px solid var(--edge, #4a3520);
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.1), 0 4px 14px rgba(0,0,0,0.4);
+  box-shadow: inset 0 1px 0 rgba(232,185,63,0.1), 0 4px 14px rgba(0,0,0,0.4);
 }
-body[data-theme="empire"] .fm-stat-card .val {
-  color: #f6dfa0;
-  font-family: 'Cinzel', Georgia, serif;
-}
-body[data-theme="empire"] .fm-stat-card .lbl { color: #a89478; }
-body[data-theme="empire"] .fm-settings,
-body[data-theme="empire"] .fm-spots,
-body[data-theme="empire"] .fm-transfers {
+body[data-theme="empire"] .fm-stat-card .sc-val { color: #f6dfa0; font-family: 'Cinzel', Georgia, serif; }
+body[data-theme="empire"] .fm-stat-card .sc-lbl { color: #a89478; }
+/* section cards */
+body[data-theme="empire"] .fm-card {
   background: linear-gradient(160deg, #241a12, #18110a);
   border: 1px solid var(--edge, #4a3520);
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
-  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.08), 0 8px 24px rgba(0,0,0,0.45);
+  box-shadow: inset 0 1px 0 rgba(232,185,63,0.07), 0 8px 24px rgba(0,0,0,0.45);
 }
-body[data-theme="empire"] .fm-settings h2,
-body[data-theme="empire"] .fm-spots h2,
-body[data-theme="empire"] .fm-transfers h2 {
-  font-family: 'Cinzel', Georgia, serif;
-  color: #f6dfa0;
+body[data-theme="empire"] .fm-card-head { border-bottom-color: var(--edge, #4a3520); }
+body[data-theme="empire"] .fm-card-head h2 { font-family: 'Cinzel', Georgia, serif; color: #f6dfa0; }
+/* alert */
+body[data-theme="empire"] .fm-alert {
+  background: linear-gradient(160deg, #241a12, #18110a);
+  border-left-color: var(--gold, #e8b93f);
+  color: #c9b699;
 }
-body[data-theme="empire"] .fm-settings-grid label input[type="number"] {
-  background: #100d0a;
-  border: 1px solid var(--edge, #4a3520);
-  color: #f3e9d8;
+/* inputs */
+body[data-theme="empire"] .fm-field input[type="number"] {
+  background: #100d0a; border-color: var(--edge, #4a3520); color: #f3e9d8;
 }
-body[data-theme="empire"] .fm-settings-grid label input[type="number"]:focus {
-  border-color: var(--gold, #e8b93f);
-  box-shadow: 0 0 8px rgba(232, 185, 63, 0.3);
+body[data-theme="empire"] .fm-field input[type="number"]:focus {
+  border-color: var(--gold, #e8b93f); box-shadow: 0 0 8px rgba(232,185,63,0.3);
 }
+/* save button */
 body[data-theme="empire"] .fm-btn-save {
   background: linear-gradient(135deg, #e8b93f, #c38a21);
   color: #201705;
@@ -141,236 +174,337 @@ body[data-theme="empire"] .fm-btn-save {
 }
 body[data-theme="empire"] .fm-btn-save:hover {
   background: linear-gradient(135deg, #f6ca63, #d3982f);
+  box-shadow: 0 4px 14px rgba(232,185,63,0.35);
 }
+/* spot pills */
 body[data-theme="empire"] .fm-spot-pill {
-  background: rgba(232, 185, 63, 0.08);
-  border-color: var(--edge, #4a3520);
-  color: #c9b699;
+  background: rgba(232,185,63,0.07); border-color: var(--edge, #4a3520); color: #c9b699;
 }
-body[data-theme="empire"] .fm-spot-pill b { color: #f6dfa0; }
-body[data-theme="empire"] .fm-filter-btn {
-  background: #1c140d;
-  border-color: var(--edge, #4a3520);
-  color: #c9b699;
-}
-body[data-theme="empire"] .fm-filter-btn:hover {
-  border-color: var(--gold, #e8b93f);
-  color: #fff;
-  background: color-mix(in srgb, var(--gold, #e8b93f) 18%, transparent);
-}
-body[data-theme="empire"] .fm-filter-btn.active {
-  background: var(--gold, #e8b93f);
-  color: #201705;
-  border-color: var(--gold, #e8b93f);
-  font-weight: 700;
-  box-shadow: 0 0 12px rgba(232, 185, 63, 0.4);
-}
-body[data-theme="empire"] .fm-search-input {
-  background: #100d0a;
-  border: 1px solid var(--edge, #4a3520);
-  color: #f3e9d8;
-}
-body[data-theme="empire"] .fm-search-input:focus {
-  border-color: var(--gold, #e8b93f);
-  box-shadow: 0 0 8px rgba(232, 185, 63, 0.3);
-}
+body[data-theme="empire"] .fm-spot-pill .sp-count { color: #f6dfa0; }
+/* filter buttons */
+body[data-theme="empire"] .fm-filter-btn { background: #1c140d; border-color: var(--edge, #4a3520); color: #c9b699; }
+body[data-theme="empire"] .fm-filter-btn:hover { border-color: var(--gold, #e8b93f); color: #fff; background: color-mix(in srgb, var(--gold, #e8b93f) 15%, transparent); }
+body[data-theme="empire"] .fm-filter-btn.active { background: var(--gold, #e8b93f); color: #201705; border-color: var(--gold, #e8b93f); font-weight: 700; box-shadow: 0 0 12px rgba(232,185,63,0.4); }
+body[data-theme="empire"] .fm-filter-btn .fb-cnt { background: rgba(0,0,0,0.2); }
+body[data-theme="empire"] .fm-filter-btn.active .fb-cnt { background: rgba(0,0,0,0.25); }
+/* search */
+body[data-theme="empire"] .fm-search-input { background: #100d0a; border-color: var(--edge, #4a3520); color: #f3e9d8; }
+body[data-theme="empire"] .fm-search-input:focus { border-color: var(--gold, #e8b93f); box-shadow: 0 0 8px rgba(232,185,63,0.3); }
+/* main table */
 body[data-theme="empire"] .fm-table-wrap {
   background: linear-gradient(160deg, #241a12, #18110a);
   border: 1px solid var(--edge, #4a3520);
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
-  box-shadow: inset 0 1px 0 rgba(232, 185, 63, 0.08), 0 8px 24px rgba(0,0,0,0.45);
+  box-shadow: inset 0 1px 0 rgba(232,185,63,0.07), 0 8px 24px rgba(0,0,0,0.45);
 }
-body[data-theme="empire"] .fm-table th {
-  background: rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid var(--edge, #4a3520);
-  color: #c9b699;
-  font-family: 'Cinzel', Georgia, serif;
+body[data-theme="empire"] .fm-table thead th {
+  background: rgba(0,0,0,0.35); border-bottom-color: var(--edge, #4a3520);
+  color: #a89478; font-family: 'Cinzel', Georgia, serif;
 }
-body[data-theme="empire"] .fm-table td { border-bottom: 1px solid rgba(74, 53, 32, 0.45); }
-body[data-theme="empire"] .fm-table tr:hover td { background: rgba(232, 185, 63, 0.05); }
-body[data-theme="empire"] .fm-transfers th {
-  background: rgba(0,0,0,0.3);
-  color: #c9b699;
-  font-family: 'Cinzel', Georgia, serif;
-}
-body[data-theme="empire"] .fm-transfers td { border-bottom: 1px solid rgba(74, 53, 32, 0.45); }
-body[data-theme="empire"] .fm-transfers tr:hover td { background: rgba(232, 185, 63, 0.05); }
-body[data-theme="empire"] .fm-transfers h2 { border-bottom-color: var(--edge, #4a3520); }
+body[data-theme="empire"] .fm-table tbody td { border-bottom-color: rgba(74,53,32,0.4); }
+body[data-theme="empire"] .fm-table tbody tr:hover td { background: rgba(232,185,63,0.04); }
+body[data-theme="empire"] .fm-transfers-cnt { background: rgba(232,185,63,0.1); color: #c9b699; }
+body[data-theme="empire"] .fm-lv { color: #a89478; }
+body[data-theme="empire"] .fm-date { color: #a89478; }
+body[data-theme="empire"] .fm-arrow { color: var(--edge, #4a3520); }
+body[data-theme="empire"] .fm-yang-pos { color: #6ee8a8; }
+body[data-theme="empire"] .fm-tr-amount { color: #6ee8a8; }
+body[data-theme="empire"] .fm-name-link a { color: #c9b699; }
+body[data-theme="empire"] .fm-spots-detail th { color: #a89478; }
+body[data-theme="empire"] .fm-spots-detail td { border-top-color: rgba(74,53,32,0.4); }
+body[data-theme="empire"] .fm-hint { color: #a89478; }
+body[data-theme="empire"] .fm-count { color: #a89478; }
+body[data-theme="empire"] .fm-count strong { color: #f6dfa0; }
+body[data-theme="empire"] .fm-pending { color: #a89478; }
 </style>
 
 {# ---- HEADER ---- #}
-<div class="fm-header">
-  <p class="eyebrow">GRACZE I BOTY</p>
-  <h1>🌾 Dropki botów</h1>
-  <p class="fm-desc">Każdy dropek pracuje na postać innego bota z tego samego królestwa. Mniejszą część zarobku zostawia sobie na ekwipunek, a resztę co kilkanaście minut przekazuje postaci głównej. Dropki medali, M2, M3, Metinów, surowców i broni 30 lv dostają swoją postać główną od razu — pozostali to „dropki na mapie", trzymane na poziomie łowiska.</p>
+<div class="fm-page-header">
+  <div>
+    <p class="eyebrow">GRACZE I BOTY</p>
+    <h1>🌾 Dropki botów</h1>
+    <p class="fm-desc">Każdy dropek pracuje wyłącznie na jedną postać główną z tego samego królestwa. Mniejszą część zarobku zostawia sobie na mikstury, resztę co kilkanaście minut przekazuje postaci głównej.</p>
+  </div>
 </div>
 
 {% if not tables %}
-<div class="fm-settings" style="border-left: 4px solid rgba(245,184,61,0.6);">
-  <p class="fm-desc">⚠️ Tabele dropków jeszcze nie istnieją — utworzy je migrator (apply.sh) albo rdzeń gry przy pierwszym przebiegu (co minutę).</p>
+<div class="fm-alert">
+  ⚠️ Tabele dropków jeszcze nie istnieją — utworzy je migrator <code>apply.sh</code> albo rdzeń gry przy pierwszym przebiegu (co minutę).
 </div>
 {% endif %}
 
 {# ---- STAT CARDS ---- #}
 <div class="fm-stats">
   <div class="fm-stat-card">
-    <div class="lbl">Aktywnych połączeń</div>
-    <div class="val">{{ totals.links }}</div>
+    <div class="sc-icon">🔗</div>
+    <div class="sc-body">
+      <div class="sc-val">{{ totals.links }}</div>
+      <div class="sc-lbl">Aktywnych połączeń</div>
+    </div>
   </div>
   <div class="fm-stat-card">
-    <div class="lbl">Zarobione łącznie</div>
-    <div class="val">{{ yang(totals.earned) }}</div>
+    <div class="sc-icon">⚡</div>
+    <div class="sc-body">
+      <div class="sc-val">{{ yang(totals.earned) }}</div>
+      <div class="sc-lbl">Zarobione łącznie</div>
+    </div>
   </div>
   <div class="fm-stat-card">
-    <div class="lbl">Zostawione dropkom</div>
-    <div class="val">{{ yang(totals.kept) }}</div>
+    <div class="sc-icon">🎒</div>
+    <div class="sc-body">
+      <div class="sc-val">{{ yang(totals.kept) }}</div>
+      <div class="sc-lbl">Zostawione dropkom</div>
+    </div>
   </div>
   <div class="fm-stat-card">
-    <div class="lbl">Przekazane postaciom</div>
-    <div class="val">{{ yang(totals.transferred) }}</div>
+    <div class="sc-icon">💸</div>
+    <div class="sc-body">
+      <div class="sc-val">{{ yang(totals.transferred) }}</div>
+      <div class="sc-lbl">Przekazane postaciom</div>
+    </div>
   </div>
   {% if totals.pending %}
   <div class="fm-stat-card">
-    <div class="lbl">W drodze</div>
-    <div class="val">{{ yang(totals.pending) }}</div>
+    <div class="sc-icon">⏳</div>
+    <div class="sc-body">
+      <div class="sc-val">{{ yang(totals.pending) }}</div>
+      <div class="sc-lbl">W drodze</div>
+    </div>
   </div>
   {% endif %}
 </div>
 
 {# ---- SETTINGS ---- #}
-<div class="fm-settings">
-  <h2>⚙️ Ustawienia</h2>
-  <form method="post">
-    <input type="hidden" name="farmer_csrf" value="{{ farmer_csrf }}">
-    <div class="fm-toggle-row">
-      <label><input type="checkbox" name="enabled" value="1" {% if config.enabled %}checked{% endif %}> System dropków włączony</label>
-    </div>
-    <div class="fm-settings-grid">
-      <label>Udział botów z dropkiem (%)
-        <input type="number" name="target_pct" min="0" max="100" value="{{ config.target_pct }}" title="50 = połowa pozostałych botów ma swojego dropka">
-      </label>
-      <label>Dropek zostawia sobie (%)
-        <input type="number" name="keep_pct" min="0" max="90" value="{{ config.keep_pct }}">
-      </label>
-      <label>Nowych dropków / godz.
-        <input type="number" name="new_per_hour" min="0" max="120" value="{{ config.new_per_hour }}">
-      </label>
-      <label>Minimalny przelew (yang)
-        <input type="number" name="min_transfer" min="10000" max="1000000000" value="{{ config.min_transfer }}">
-      </label>
-      <label>Rezerwa na mikstury (yang)
-        <input type="number" name="reserve" min="0" max="1000000000" value="{{ config.reserve }}">
-      </label>
-    </div>
-    <div class="fm-settings-foot">
-      <span class="fm-hint">Rdzenie odczytują ustawienia co minutę. Wyłączenie systemu zatrzymuje nowe przypisania i przelewy — istniejące transfery i tak dotrą do postaci głównej.</span>
-      <button class="fm-btn-save" type="submit">💾 Zapisz</button>
-    </div>
-  </form>
+<div class="fm-card">
+  <div class="fm-card-head">
+    <span>⚙️</span>
+    <h2>Ustawienia systemu dropków</h2>
+  </div>
+  <div class="fm-card-body">
+    <form method="post">
+      <input type="hidden" name="farmer_csrf" value="{{ farmer_csrf }}">
+      <div class="fm-toggle-row">
+        <label>
+          <input type="checkbox" name="enabled" value="1" {% if config.enabled %}checked{% endif %}>
+          System dropków włączony
+        </label>
+      </div>
+      <div class="fm-settings-grid">
+        <div class="fm-field">
+          <span class="fm-field-lbl">Udział botów z dropkiem (%)</span>
+          <input type="number" name="target_pct" min="0" max="100" value="{{ config.target_pct }}" title="50 = połowa pozostałych botów ma swojego dropka">
+        </div>
+        <div class="fm-field">
+          <span class="fm-field-lbl">Dropek zostawia sobie (%)</span>
+          <input type="number" name="keep_pct" min="0" max="90" value="{{ config.keep_pct }}">
+        </div>
+        <div class="fm-field">
+          <span class="fm-field-lbl">Nowych dropków / godz.</span>
+          <input type="number" name="new_per_hour" min="0" max="120" value="{{ config.new_per_hour }}">
+        </div>
+        <div class="fm-field">
+          <span class="fm-field-lbl">Minimalny przelew (yang)</span>
+          <input type="number" name="min_transfer" min="10000" max="1000000000" value="{{ config.min_transfer }}">
+        </div>
+        <div class="fm-field">
+          <span class="fm-field-lbl">Rezerwa na mikstury (yang)</span>
+          <input type="number" name="reserve" min="0" max="1000000000" value="{{ config.reserve }}">
+        </div>
+      </div>
+      <div class="fm-settings-foot">
+        <span class="fm-hint">Rdzenie odczytują ustawienia co minutę. Wyłączenie zatrzymuje nowe przypisania i przelewy — istniejące transfery i tak dotrą do postaci głównej.</span>
+        <button class="fm-btn-save" type="submit">💾 Zapisz ustawienia</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 {# ---- SPOTS SUMMARY ---- #}
 {% if spots %}
-<div class="fm-spots">
-  <h2>📍 Łowiska</h2>
-  <div class="fm-spot-pills">
-    {% for label, count in spots %}
-    <span class="fm-spot-pill">{{ label }} <b>{{ count }}</b></span>
-    {% endfor %}
+<div class="fm-card">
+  <div class="fm-card-head">
+    <span>📍</span>
+    <h2>Łowiska dropków</h2>
   </div>
-  <details class="fm-spots-detail">
-    <summary>Tabela łowisk dropków na mapie (poziom wyboru → blokada expa)</summary>
-    <table>
-      <thead><tr><th>Klucz</th><th>Łowisko</th><th>Od poziomu</th><th>Blokada na</th></tr></thead>
-      <tbody>
-      {% for key, label, low, lock in spot_table %}<tr><td><code>{{ key }}</code></td><td>{{ label }}</td><td>{{ low }}</td><td>{{ lock }}</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </details>
+  <div class="fm-card-body">
+    <div class="fm-spot-pills">
+      {% for label, count in spots %}
+      <span class="fm-spot-pill">{{ label }} <span class="sp-count">{{ count }}</span></span>
+      {% endfor %}
+    </div>
+    <details class="fm-spots-detail">
+      <summary>▸ Tabela łowisk (poziomy i blokada EXP)</summary>
+      <table>
+        <thead><tr><th>Klucz</th><th>Łowisko</th><th>Min. poziom</th><th>Blokada EXP na</th></tr></thead>
+        <tbody>
+        {% for key, label, low, lock in spot_table %}
+        <tr><td><code>{{ key }}</code></td><td>{{ label }}</td><td>{{ low }}</td><td>{{ lock }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  </div>
 </div>
 {% endif %}
 
 {# ---- FILTER BAR ---- #}
 <div class="fm-actions">
   <div class="fm-filters">
-    <a class="fm-filter-btn {% if not selected %}active{% endif %}" href="{{url_for('bot_farmers',q=query)}}">Wszystkie <small>{{ kinds|sum(attribute='count') }}</small></a>
-    {% for k in kinds %}<a class="fm-filter-btn {% if selected==k.key %}active{% endif %}" href="{{url_for('bot_farmers',q=query,kind=k.key)}}">{{ k.label }} <small>{{ k.count }}</small></a>{% endfor %}
+    <a class="fm-filter-btn {% if not selected %}active{% endif %}" href="{{ url_for('bot_farmers', q=query) }}">
+      Wszystkie <span class="fb-cnt">{{ kinds|sum(attribute='count') }}</span>
+    </a>
+    {% for k in kinds %}
+    <a class="fm-filter-btn {% if selected == k.key %}active{% endif %}" href="{{ url_for('bot_farmers', q=query, kind=k.key) }}">
+      {{ k.label }} <span class="fb-cnt">{{ k.count }}</span>
+    </a>
+    {% endfor %}
   </div>
-  <div class="fm-search-form">
-    <div class="fm-search-box">
-      <span class="icon">🔍</span>
-      <input type="text" class="fm-search-input" id="fmSearch" placeholder="Szukaj dropka albo postaci głównej…" value="{{query}}" autocomplete="off">
-      {% if query %}<a class="fm-search-clear" href="{{url_for('bot_farmers', kind=selected)}}">✕</a>{% endif %}
-    </div>
+  <div class="fm-search-box">
+    <span class="fm-s-icon">🔍</span>
+    <input type="text" class="fm-search-input" id="fmSearch"
+           placeholder="Szukaj dropka lub postaci głównej…"
+           value="{{ query }}" autocomplete="off">
+    {% if query %}<a class="fm-search-clear" href="{{ url_for('bot_farmers', kind=selected) }}" title="Wyczyść">✕</a>{% endif %}
   </div>
 </div>
 
-<p class="fm-count">{{ shown }} połącze{{ 'nie' if shown==1 else 'ń' }}{% if shown > 500 %} · wyświetlono pierwsze 500{% endif %}</p>
+<div class="fm-count-row">
+  <span class="fm-count"><strong>{{ shown }}</strong> połącze{{ 'nie' if shown == 1 else 'ń' }}{% if shown > 500 %} · wyświetlono pierwsze 500{% endif %}</span>
+</div>
 
 {# ---- MAIN TABLE ---- #}
 <div class="fm-table-wrap">
-<table class="fm-table" id="fmTable">
-<thead><tr>
-  <th>Dropek</th>
-  <th>Lv</th>
-  <th>Rodzaj</th>
-  <th>Łowisko</th>
-  <th style="text-align:right">Zarobił</th>
-  <th style="text-align:right">Przekazał</th>
-  <th>Przelewy</th>
-  <th>→ Postać główna</th>
-  <th>Lv</th>
-  <th>Od</th>
-</tr></thead>
-<tbody>
-{% for link in links %}<tr data-search="{{ (link.farmer_name or '')|lower }} {{ (link.main_name or '')|lower }}">
-  <td><div class="fm-name-cell">{% set kingdom=empire_info(link.empire) %}{% if kingdom.flag %}<img src="{{empire_flag(link.empire)}}" alt="{{kingdom.name}}" title="{{kingdom.name}}">{% endif %}<a href="{{url_for('player',pid=link.farmer_pid)}}">{{ link.farmer_name or ('#' ~ link.farmer_pid) }}</a></div></td>
-  <td>{{ link.farmer_level or '—' }}</td>
-  <td><span class="fm-badge {% if link.kind == 'medal' %}fm-badge-medal{% elif link.kind == 'spot' %}fm-badge-spot{% elif link.kind == 'guild' %}fm-badge-guild{% elif link.kind == 'l30' %}fm-badge-l30{% elif link.kind == 'ornament' %}fm-badge-ornament{% else %}fm-badge-default{% endif %}">{{ link.kind_label }}</span></td>
-  <td style="font-size:12px;color:var(--muted,#8a94a6)">{{ link.spot_label }}</td>
-  <td style="text-align:right" class="fm-yang">{{ yang(link.earned) }}</td>
-  <td style="text-align:right"><span class="fm-yang" style="color:#39e890;font-weight:600">{{ yang(link.transferred) }}</span>{% if link.pending %} <small class="muted" title="wysłane, postać główna odbierze po zalogowaniu">(+{{ yang(link.pending) }})</small>{% endif %}</td>
-  <td style="text-align:center">{{ link.transfers }}</td>
-  <td><div class="fm-name-cell"><span class="fm-arrow">→</span> <a href="{{url_for('player',pid=link.main_pid)}}"><b>{{ link.main_name or ('#' ~ link.main_pid) }}</b></a></div></td>
-  <td>{{ link.main_level or '—' }}</td>
-  <td style="font-size:12px;color:var(--muted,#8a94a6)">{{ link.linked_at.strftime('%d.%m %H:%M') if link.linked_at else '—' }}</td>
-</tr>{% else %}<tr><td colspan="10" style="text-align:center;padding:24px" class="muted">Brak połączeń{% if query or selected %} pasujących do filtra{% endif %}. Rdzeń łączy dropki co minutę.</td></tr>{% endfor %}
-</tbody>
-</table>
+  <table class="fm-table" id="fmTable">
+    <thead>
+      <tr>
+        <th>Dropek</th>
+        <th>Lv</th>
+        <th>Rodzaj</th>
+        <th>Łowisko</th>
+        <th style="text-align:right">Zarobił</th>
+        <th style="text-align:right">Przekazał</th>
+        <th style="text-align:center">Przelewy</th>
+        <th></th>
+        <th>Postać główna</th>
+        <th>Lv</th>
+        <th>Od</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for link in links %}
+    <tr data-search="{{ (link.farmer_name or '')|lower }} {{ (link.main_name or '')|lower }}">
+      {# farmer name + flag #}
+      <td>
+        <div class="fm-name-cell">
+          {% set kingdom = empire_info(link.empire) %}
+          {% if kingdom.flag %}<img src="{{ empire_flag(link.empire) }}" alt="{{ kingdom.name }}" title="{{ kingdom.name }}">{% endif %}
+          <a href="{{ url_for('player', pid=link.farmer_pid) }}">{{ link.farmer_name or ('#' ~ link.farmer_pid) }}</a>
+        </div>
+      </td>
+      {# farmer level #}
+      <td class="fm-lv">{{ link.farmer_level or '—' }}</td>
+      {# kind badge #}
+      <td>
+        <span class="fm-badge
+          {%- if link.kind == 'medal' %} fm-badge-medal
+          {%- elif link.kind == 'spot' %} fm-badge-spot
+          {%- elif link.kind == 'guild' %} fm-badge-guild
+          {%- elif link.kind == 'l30' %} fm-badge-l30
+          {%- elif link.kind == 'ornament' %} fm-badge-ornament
+          {%- elif link.kind == 'm2' %} fm-badge-m2
+          {%- elif link.kind == 'm3' %} fm-badge-m3
+          {%- elif link.kind == 'metin' %} fm-badge-metin
+          {%- else %} fm-badge-default{%- endif %}">
+          {{ link.kind_label }}
+        </span>
+      </td>
+      {# spot #}
+      <td class="fm-date">{{ link.spot_label or '—' }}</td>
+      {# earned #}
+      <td style="text-align:right" class="fm-yang">{{ yang(link.earned) }}</td>
+      {# transferred + pending #}
+      <td style="text-align:right">
+        <span class="fm-yang fm-yang-pos">{{ yang(link.transferred) }}</span>
+        {% if link.pending %}<span class="fm-pending" title="wysłane, postać główna odbierze po zalogowaniu">(+{{ yang(link.pending) }})</span>{% endif %}
+      </td>
+      {# transfers count #}
+      <td style="text-align:center"><span class="fm-transfers-cnt">{{ link.transfers }}</span></td>
+      {# arrow separator #}
+      <td class="fm-arrow" style="text-align:center; padding-left:4px; padding-right:4px">→</td>
+      {# main char #}
+      <td>
+        <div class="fm-name-link">
+          <a href="{{ url_for('player', pid=link.main_pid) }}"><b>{{ link.main_name or ('#' ~ link.main_pid) }}</b></a>
+        </div>
+      </td>
+      {# main level #}
+      <td class="fm-lv">{{ link.main_level or '—' }}</td>
+      {# linked date #}
+      <td class="fm-date">{{ link.linked_at.strftime('%d.%m %H:%M') if link.linked_at else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="11" style="text-align:center; padding:32px; color:var(--muted,#8a94a6)">
+        Brak połączeń{% if query or selected %} pasujących do filtra{% endif %}. Rdzeń łączy dropki co minutę.
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 {# ---- TRANSFERS LOG ---- #}
-<div class="fm-transfers">
-  <h2>💰 Ostatnie przelewy</h2>
-  <table>
-  <thead><tr><th>Kiedy</th><th>Od dropka</th><th>Do postaci</th><th style="text-align:right">Kwota</th></tr></thead>
-  <tbody>
-  {% for t in transfers %}<tr>
-    <td style="font-size:12px;color:var(--muted,#8a94a6)">{{ t.at.strftime('%d.%m %H:%M') if t.at else '—' }}</td>
-    <td><a href="{{url_for('player',pid=t.farmer_pid)}}">{{ t.farmer_name or ('#' ~ t.farmer_pid) }}</a></td>
-    <td><a href="{{url_for('player',pid=t.main_pid)}}"><b>{{ t.main_name or ('#' ~ t.main_pid) }}</b></a></td>
-    <td style="text-align:right" class="fm-yang" style="color:#39e890">{{ yang(t.amount) }} yang</td>
-  </tr>{% else %}<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">Jeszcze nie było przelewów.</td></tr>{% endfor %}
-  </tbody>
-  </table>
+<div class="fm-card">
+  <div class="fm-card-head">
+    <span>💰</span>
+    <h2>Ostatnie przelewy</h2>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="fm-table">
+      <thead>
+        <tr>
+          <th>Kiedy</th>
+          <th>Od dropka</th>
+          <th></th>
+          <th>Do postaci głównej</th>
+          <th style="text-align:right">Kwota</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for t in transfers %}
+      <tr>
+        <td class="fm-date">{{ t.at.strftime('%d.%m %H:%M') if t.at else '—' }}</td>
+        <td><a href="{{ url_for('player', pid=t.farmer_pid) }}" style="color:var(--muted,#8a94a6);text-decoration:none">{{ t.farmer_name or ('#' ~ t.farmer_pid) }}</a></td>
+        <td class="fm-arrow" style="text-align:center; padding:0 4px">→</td>
+        <td><a href="{{ url_for('player', pid=t.main_pid) }}" style="font-weight:600;text-decoration:none;color:#fff">{{ t.main_name or ('#' ~ t.main_pid) }}</a></td>
+        <td style="text-align:right" class="fm-tr-amount">{{ yang(t.amount) }} yang</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align:center; padding:28px; color:var(--muted,#8a94a6)">Jeszcze nie było przelewów.</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 {# ---- CLIENT-SIDE LIVE SEARCH ---- #}
 <script>
 (function(){
-  const input = document.getElementById('fmSearch');
+  var input = document.getElementById('fmSearch');
   if (!input) return;
-  const table = document.getElementById('fmTable');
+  var table = document.getElementById('fmTable');
   if (!table) return;
-  const tbody = table.querySelector('tbody');
-  const allRows = Array.from(tbody.querySelectorAll('tr[data-search]'));
-  let debounce;
+  var tbody = table.querySelector('tbody');
+  var allRows = Array.from(tbody.querySelectorAll('tr[data-search]'));
+  var timer;
   input.addEventListener('input', function(){
-    clearTimeout(debounce);
-    debounce = setTimeout(function(){
-      const q = input.value.trim().toLowerCase();
+    clearTimeout(timer);
+    timer = setTimeout(function(){
+      var q = input.value.trim().toLowerCase();
       allRows.forEach(function(tr){
-        tr.style.display = (q === '' || tr.dataset.search.indexOf(q) >= 0) ? '' : 'none';
+        tr.style.display = (!q || tr.dataset.search.indexOf(q) >= 0) ? '' : 'none';
       });
     }, 150);
   });

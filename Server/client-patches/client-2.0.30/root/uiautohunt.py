@@ -5322,6 +5322,13 @@ class AutoFishWindow(ui.BoardWithTitleBar):
             else:
                 btn.SetUp()
 
+    def Open(self):
+        self.UpdateStatsDisplay()
+        self.Show()
+        self.SetTop()
+        if self.hunter and self.hunter.mainWindow:
+            self.hunter.mainWindow.RefreshFishButton()
+
     def Close(self):
         if self.hunter:
             self.hunter.SaveGlobalConfig()

@@ -122,8 +122,9 @@ results['brak-potek-m2-metiny-bossy'] = bool(c21 and 'MT2009_PLUS_NO_POTIONS_M2_
 results['ceny-bazowe-botow'] = os.path.exists(os.path.join(repo, 'Server/linux-port/docker/seban-panel/templates/economy_bot_prices.html'))
 
 # 23. fix-emerytura-botow
-c23 = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_retirement.h'))
-results['fix-emerytura-botow'] = bool(c23 and 'IsPlayerBotHumanLedParty' in c23)
+c23_ret = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_retirement.h'))
+c23_mgr = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_manager.cpp'))
+results['fix-emerytura-botow'] = bool(c23_ret and 'IsPlayerBotHumanLedParty' in c23_ret and 'PlayerBotChangeGold' in c23_ret and c23_mgr and 'BOT_RETIREMENT_FIX_V4' in c23_mgr)
 
 # 24. itemshop-panel
 results['itemshop-panel'] = os.path.exists(os.path.join(repo, 'Server/linux-port/docker/seban-panel/templates/economy_itemshop.html'))

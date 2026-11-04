@@ -427,6 +427,85 @@ def main():
 	entry.dwPickedAt = dwNow;
 	entry.dwLastSeen = dwNow;
 	s_mapPlayerBotRetiring[dwPID] = entry;"""
+        ),
+        # MT2009_PLUS_BOT_RETIREMENT_FIX_V4: allow retiring bots with active shops and window timeout
+        (
+            """		if (candidates.empty())
+			candidates.swap(masters);
+		bForcedPick = !candidates.empty();
+	}
+	if (candidates.empty())
+	{
+		s_dwPlayerBotRetireNextPickTime = dwNow + 60000;""",
+            """		if (candidates.empty())
+			candidates.swap(masters);
+		if (candidates.empty())
+		{
+			// MT2009_PLUS_BOT_RETIREMENT_FIX_V4: If almost all bots have active offline shops,
+			// allow retiring bots that already keep a stall. Their existing shop will serve as
+			// their retirement stall (monitored by MonitorPlayerBotRetirementStall).
+			for (size_t i = 0; i < live.size(); ++i)
+			{
+				const DWORD pid = live[i].second;
+				if (m_mapBots.find(pid) == m_mapBots.end() ||
+						s_setPlayerBotRetireBatchPIDs.find(pid) != s_setPlayerBotRetireBatchPIDs.end())
+					continue;
+				LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
+				if (!ch || !ch->IsItemLoaded())
+					continue;
+				if (ch->GetLevel() < s_bPlayerBotRetireMinLevel)
+					continue;
+				if (IsPlayerBotShouterPID(pid) || IsPlayerBotMedalShouterPID(pid) ||
+						IsPlayerBotLegendTier(GetPlayerBotLegendTier(pid)) || GetPlayerBotLegendNameSlot(ch->GetName()) >= 0 ||
+						IsPlayerBotSidekickPID(pid) || IsPlayerBotArezzoCohortPID(pid) ||
+						IsPlayerBotArezzoDungeonCohortPID(pid) || IsPlayerBotTakeoverHold(pid))
+					continue;
+				if (ch->GetParty() && IsPlayerBotHumanLedParty(ch->GetParty()))
+					continue;
+				CGuild* guild = ch->GetGuild();
+				if (guild && guild->GetMasterPID() == pid)
+					continue;
+				candidates.push_back(pid);
+			}
+		}
+		bForcedPick = !candidates.empty();
+	}
+	if (candidates.empty())
+	{
+		// MT2009_PLUS_BOT_RETIREMENT_FIX_V4: If the allocated window has expired,
+		// conclude the pick phase rather than retrying indefinitely every minute.
+		const DWORD elapsed = dwNow - s_dwPlayerBotRetireBatchWindowStart;
+		if (elapsed >= s_dwPlayerBotRetireWindowMs)
+		{
+			sys_log(0, \"PLAYERBOT_RETIRE: batch id=%u window expired (%u ms elapsed, window %u ms), finishing pick phase with %u bots\",
+					s_dwPlayerBotRetireBatchId, (unsigned int)elapsed,
+					(unsigned int)s_dwPlayerBotRetireWindowMs, (unsigned int)s_uPlayerBotRetireBatchQueued);
+			s_bPlayerBotRetireBatchDone = true;
+			s_dwPlayerBotRetireCount = s_uPlayerBotRetireBatchQueued;
+			char syncControl[256];
+			snprintf(syncControl, sizeof(syncControl),
+					\"UPDATE common.playerbot_retire_control SET bot_count=%u WHERE id=1 AND batch_id=%u\",
+					(unsigned int)s_uPlayerBotRetireBatchQueued, s_dwPlayerBotRetireBatchId);
+			AccountDB::instance().AsyncQuery(syncControl);
+			return;
+		}
+
+		s_dwPlayerBotRetireNextPickTime = dwNow + 60000;"""
+        ),
+        # MT2009_PLUS_BOT_RETIREMENT_FIX_V4: don't wipe forced pick if shop stands
+        (
+            """	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V1: a forced pick sells nothing - its game
+	// ends at once (wiped and logged out by ProcessRetirementResets).
+	if (bForcedPick)
+		BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], \"forced: no bot could go to a market\");""",
+            """	// MT2009_PLUS_BOT_RETIREMENT_FIX_V4: If the bot already has an offline shop standing,
+	// let MonitorPlayerBotRetirementStall monitor its sales instead of immediately wiping it.
+	if (bForcedPick && !ikashop::GetManager().GetShopByOwnerID(dwPID))
+	{
+		CGuild* pGuild = pickedCh->GetGuild();
+		if (pGuild && pGuild->GetMasterPID() == dwPID)
+			BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], \"forced: guild master\");
+	}"""
         )
     ]
     mgr_path = os.path.join(OVERLAYS_DIR, 'playerbot_manager.cpp')

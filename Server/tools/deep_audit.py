@@ -106,7 +106,8 @@ checks['22. ceny-bazowe-botow'] = 'playerbot_custom_prices::GetCustomItemPrice' 
 
 # 23. fix-emerytura-botow
 c_ret = read(f'{pb_overlay}/playerbot_retirement.h')
-checks['23. fix-emerytura-botow'] = 'IsPlayerBotHumanLedParty' in c_ret
+c_mgr = read(f'{pb_overlay}/playerbot_manager.cpp')
+checks['23. fix-emerytura-botow'] = ('IsPlayerBotHumanLedParty' in c_ret and 'PlayerBotChangeGold' in c_ret and 'BOT_RETIREMENT_FIX_V4' in c_mgr)
 
 # 24. itemshop-panel
 checks['24. itemshop-panel'] = '/economy/itemshop' in c_app

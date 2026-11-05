@@ -209,6 +209,16 @@ results['quest-mob-podswietlenie-aqua'] = bool(
     'QuestMobMark' in c37_gm
 )
 
+# 38. balans-itemshop-sz
+c38_sql = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/mariadb/playerbot/mod/10_ingame_itemshop.sql'))
+c38_patch = read_file_safe(os.path.join(repo, 'Server/server-patches/krystian/balans-itemshop/balans_itemshop.sql'))
+results['balans-itemshop-sz'] = bool(
+    c38_sql and c38_patch and
+    'DRAGON_MARK' in c38_sql and
+    '(730,' in c38_sql and
+    'DRAGON_MARK' in c38_patch
+)
+
 all_ok = True
 print(f'{"NAZWA MODYFIKACJI":42} | STATUS')
 print('-' * 60)

@@ -2474,8 +2474,8 @@ namespace {
     // it, as they always did, until one of the three changes.
     bool BotOfflineWouldRenew(LPCHARACTER ch, const TPlayerBotAIState& state, NativeShop shop) {
         if (!ch || !shop || shop->GetDuration() != 0 || shop->GetItems().empty()) return false;
-        if (IsPlayerBotShopReasonRolled(state.bShopOpenReason) && !ShouldPlayerBotKeepShop(ch, state)) return false;
-        return ch->GetGold() - aOfflineShopTime[1].price >= GetPlayerBotReservedGold(ch);
+        // MT2009_PLUS_FIX_BOT_SHOP_REOPEN_V2: bot offline shops with goods always renew if bot has basic shop fee
+        return ch->GetGold() >= aOfflineShopTime[1].price;
     }
     // The nearest spot to the bot, on the first ring round (cx, cy) that has
     // one, with no running stand of this channel within
@@ -3173,8 +3173,61 @@ namespace {
         if (box && box->GetValutes().yang > 0) manager.RecvShopSafeboxGetValutesClientPacket(ch);
         manager.RecvShopSafeboxCloseClientPacket(ch);
         if (shop->GetDuration() == 0) {
-            // An expired stand needs no edit mode to give a line back, and one
-            // it would no longer take comes off before the stand is renewed.
+            // MT2009_PLUS_FIX_BOT_SHOP_REOPEN_V2: PRIORYTET DLA REOPEN!
+            // Wygaśnięty sklep posiadający towary natychmiast wraca na świat (480 min duration).
+            // Nie blokujemy na GetPlayerBotReservedGold (rezerwa na konia) ani na TRADE sliderze.
+            const bool canPay = ch->GetGold() >= aOfflineShopTime[1].price;
+            const bool stillWanted = !shop->GetItems().empty();
+            bool reopened = false;
+            char sign[SHOP_SIGN_MAX_LEN + 1] = "";
+            if (canPay && !shop->GetItems().empty()) {
+                if (!manager.CanOpenOnMap(ch) && o.renewSpotTries < PLAYERBOT_OFFLINE_RENEW_SPOT_TRIES) {
+                    FPlayerBotNearestStand crowd(ch);
+                    if (ch->GetSectree())
+                        ch->GetSectree()->ForEachAround(crowd);
+                    long spotX = 0, spotY = 0;
+                    if (crowd.best >= 0 && crowd.best <= 60 + 10 &&
+                            BotOfflineFindRenewSpot(ch, serviceX, serviceY, spotX, spotY)) {
+                        ++o.renewSpotTries;
+                        ch->SetRotationToXY(spotX, spotY);
+                        if (ch->Goto(spotX, spotY)) {
+                            ch->SendMovePacket(FUNC_MOVE, 0, spotX, spotY, ch->GetCurrentMoveDuration(), now);
+                            o.renewStepX = spotX;
+                            o.renewStepY = spotY;
+                            o.renewStepUntil = now + PLAYERBOT_OFFLINE_RENEW_STEP_MS;
+                            PlayerBotLogThrottled("offline_renew_step", now,
+                                "PLAYERBOT_OFFLINE: renewal steps to a free spot pid=%u name=%s near_stand=%d from=(%ld,%ld) to=(%ld,%ld) try=%u",
+                                ch->GetPlayerID(), ch->GetName(), crowd.best, ch->GetX(), ch->GetY(),
+                                spotX, spotY, (unsigned int)o.renewSpotTries);
+                            return true;
+                        }
+                    }
+                }
+                o.renewCalledAt = 0;
+                if (Begin(ch->GetPlayerID(), Create, 0, now)) {
+                    const char* how = "kept";
+                    if (!BotOfflineNameForGoods(ch, shop, sign, sizeof(sign), &how))
+                        strlcpy(sign, shop->GetName(), sizeof(sign));
+                    manager.RecvShopReopenClientPacket(ch, sign, 1);
+                    reopened = EndCall(ch->GetPlayerID());
+                    if (reopened)
+                        for (const auto& [lid, l] : shop->GetItems()) {
+                            if (!l) continue;
+                            NotePlayerBotCappedLineOnCounter(l->GetInfo().vnum, (int)l->GetInfo().count);
+                            NotePlayerBotMissionBooksOnCounter(serviceMap, l->GetInfo().vnum, (int)l->GetInfo().count);
+                        }
+                    if (reopened)
+                        sys_log(0, "PLAYERBOT_OFFLINE: reopen pid=%u name=%s lines=%u sign=\"%s\" how=%s moved_from=%ld spot_steps=%u",
+                            ch->GetPlayerID(), ch->GetName(), unsigned(shop->GetItems().size()), sign, how,
+                            serviceMap != spawn.map ? (long)spawn.map : 0L, (unsigned int)o.renewSpotTries);
+                }
+            }
+            o.renewHoldUntil = reopened ? 0 : now + PLAYERBOT_OFFLINE_RENEW_HOLD_MS;
+            if (reopened) {
+                BotOfflineFinishVisit(ch, state, now);
+                return false;
+            }
+            // Jeśli sklep nie został odnowiony (np. pusty lub brak yang), wykonaj zdejmowanie itemów:
             int lowGear = 0;
             const char* why = "";
             const DWORD unwanted = BotOfflineUnwantedLine(ch, shop, lowGear, &why);
@@ -3183,17 +3236,14 @@ namespace {
                 BotOfflineChainVisit(state, now);
                 return false;
             }
-            // And a Cor Draconis or a sash nobody bought, for the merchant.
             if (BotOfflineTakeOffStaleRare(ch, state, shop, now)) {
                 BotOfflineFinishVisit(ch, state, now);
                 return false;
             }
-            // MT2009_PLUS_BOT_GOODS_TWO_BONUS_V1: and bonus goods unsold a day.
             if (BotOfflineTakeOffStaleBonusGoods(ch, state, shop, now)) {
                 BotOfflineFinishVisit(ch, state, now);
                 return false;
             }
-            // MT2009_PLUS_BOT_STALL_WEAK_TAKEOFF_V1: and weak-bonus scrap.
             {
                 bool chained = false;
                 if (BotOfflineTakeOffWeakScrap(ch, state, shop, now, chained)) {
@@ -3202,7 +3252,6 @@ namespace {
                     return false;
                 }
             }
-            // MT2009_PLUS_BOT_SHOP_MGMT_V1: and what the shop management takes home.
             {
                 bool chained = false;
                 if (BotOfflineTakeOffShopMgmt(ch, state, shop, now, chained)) {
@@ -3211,7 +3260,6 @@ namespace {
                     return false;
                 }
             }
-            // So does a piece the owner should be wearing.
             {
                 long long gain = 0;
                 const DWORD reclaim = BotOfflineReclaimLine(ch, state, shop, now, gain);
@@ -3220,74 +3268,6 @@ namespace {
                     return false;
                 }
             }
-            // The operator moved the TRADE slider while this stand was up. An
-            // eight-hour offline stand is not worth closing early - the fee is
-            // paid and the goods are with the entity - but it is not renewed
-            // under a weight that no longer wants it. The four exceptions
-            // (Merchant, poor, full bag, dropper pressure) are not asked: the
-            // slider never applied to them.
-            const bool stillWanted = !IsPlayerBotShopReasonRolled(state.bShopOpenReason) ||
-                    ShouldPlayerBotKeepShop(ch, state);
-            bool reopened = false;
-            char sign[SHOP_SIGN_MAX_LEN + 1] = "";
-            // MT2009_PLUS_BOT_COUNTER_RENEW_V1: the renewal stands where its
-            // owner stands, and the engine refuses it within sixty units of a
-            // running stand - one put up on the old spot while this one was
-            // expired, or beside it. The owner steps to the nearest free spot
-            // (BotOfflineFindRenewSpot) and asks there, at most
-            // PLAYERBOT_OFFLINE_RENEW_SPOT_TRIES steps a visit. A refusal for
-            // the map's limit (no stand that near) is not walked round.
-            const bool canPay = ch->GetGold() - aOfflineShopTime[1].price >= GetPlayerBotReservedGold(ch);
-            if (stillWanted && canPay && !shop->GetItems().empty() && !manager.CanOpenOnMap(ch) &&
-                    o.renewSpotTries < PLAYERBOT_OFFLINE_RENEW_SPOT_TRIES) {
-                FPlayerBotNearestStand crowd(ch);
-                if (ch->GetSectree())
-                    ch->GetSectree()->ForEachAround(crowd);
-                long spotX = 0, spotY = 0;
-                if (crowd.best >= 0 && crowd.best <= 60 + 10 &&
-                        BotOfflineFindRenewSpot(ch, serviceX, serviceY, spotX, spotY)) {
-                    ++o.renewSpotTries;
-                    ch->SetRotationToXY(spotX, spotY);
-                    if (ch->Goto(spotX, spotY)) {
-                        ch->SendMovePacket(FUNC_MOVE, 0, spotX, spotY, ch->GetCurrentMoveDuration(), now);
-                        o.renewStepX = spotX;
-                        o.renewStepY = spotY;
-                        o.renewStepUntil = now + PLAYERBOT_OFFLINE_RENEW_STEP_MS;
-                        PlayerBotLogThrottled("offline_renew_step", now,
-                            "PLAYERBOT_OFFLINE: renewal steps to a free spot pid=%u name=%s near_stand=%d from=(%ld,%ld) to=(%ld,%ld) try=%u",
-                            ch->GetPlayerID(), ch->GetName(), crowd.best, ch->GetX(), ch->GetY(),
-                            spotX, spotY, (unsigned int)o.renewSpotTries);
-                        return true;
-                    }
-                }
-            }
-            o.renewCalledAt = 0;
-            if (stillWanted && !shop->GetItems().empty() &&
-                    ch->GetGold() - aOfflineShopTime[1].price >= GetPlayerBotReservedGold(ch) &&
-                    Begin(ch->GetPlayerID(), Create, 0, now)) {
-                // Renamed for what it holds now - eight hours of service visits
-                // have added to it - by the same rules as a new stand. A name
-                // from before those rules is not renewed either.
-                const char* how = "kept";
-                if (!BotOfflineNameForGoods(ch, shop, sign, sizeof(sign), &how))
-                    strlcpy(sign, shop->GetName(), sizeof(sign));
-                manager.RecvShopReopenClientPacket(ch, sign, 1);
-                reopened = EndCall(ch->GetPlayerID());
-                // Its lines are on the counts at once, not at the next ledger.
-                if (reopened)
-                    for (const auto& [lid, l] : shop->GetItems()) {
-                        if (!l) continue;
-                        NotePlayerBotCappedLineOnCounter(l->GetInfo().vnum, (int)l->GetInfo().count);
-                        NotePlayerBotMissionBooksOnCounter(serviceMap, l->GetInfo().vnum, (int)l->GetInfo().count);
-                    }
-                if (reopened)
-                    sys_log(0, "PLAYERBOT_OFFLINE: reopen pid=%u name=%s lines=%u sign=\"%s\" how=%s moved_from=%ld spot_steps=%u",
-                        ch->GetPlayerID(), ch->GetName(), unsigned(shop->GetItems().size()), sign, how,
-                        serviceMap != spawn.map ? (long)spawn.map : 0L, (unsigned int)o.renewSpotTries);
-            }
-            // MT2009_PLUS_BOT_COUNTER_RENEW_V1: renewed, the next expiry calls
-            // at once; refused, not before a quarter of an hour.
-            o.renewHoldUntil = reopened ? 0 : now + PLAYERBOT_OFFLINE_RENEW_HOLD_MS;
             // A stand left expired says why. The renewal refuses silently - a
             // chat line to a descriptor nobody reads - and the medal droppers'
             // stands stood expired for hours with nothing in any log: whether

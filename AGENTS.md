@@ -13,7 +13,7 @@ Stosuj poniższe tagi na początku wiadomości, aby natychmiast nadać kontekst 
 
 | Tag | Cel i Zadanie | Rola i Zachowanie Agenta |
 | :--- | :--- | :--- |
-| **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z `zaxerrrr-dot/mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Kroki 1–5): fetch upstream, adaptacja na `dev`, ponowne zaaplikowanie wszystkich modów z `Server/server-patches/krystian/`, audyt `audit_mods.py`, build w Dockerze. |
+| **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z `zaxerrrr-dot/mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Kroki 1–5): fetch upstream, adaptacja na `dev`, ponowne zaaplikowanie modów z `Server/server-patches/krystian/`, audyt `audit_mods.py`, build w Dockerze. |
 | **`[DEV]` / `[SERVER]`** | Rozwój serwera: C++, questy, MariaDB, kontenery Docker. | Bezpieczeństwo bazy danych (backup do `Server/backups/`), kompilacja i386 C++20, tworzenie modułu w `Server/server-patches/krystian/`, testy w `mt2dev`. Zawsze zakończone listą kontrolną testów. |
 | **`[CLIENT]` / `[PACK]`** | Prace nad klientem: Python (`root`, `uiscript`), interfejsy UI, pakowanie `.data`/`.index`. | Bez zatrzymywania serwera. Pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`. Synchronizacja patchera web (`publish_patcher_web.py`) wyłącznie po potwierdzeniu pomyślnego testu. |
 | **`[BUG]` / `[FIX]`** | Diagnoza błędu lub crasha w grze. | Celowana analiza logów (`Server/.../syserr`, `Klient/syserr.txt`, `docker logs`), plan krok po kroku, minimalny bezpieczny patch, lista kontrolna testów. |
@@ -22,25 +22,35 @@ Stosuj poniższe tagi na początku wiadomości, aby natychmiast nadać kontekst 
 
 ---
 
-## 3. Żelazny Cykl Realizacji Zadań (Bramka Testowa i Oszczędność Tokenów)
-Każde zadanie bezwzględnie realizuje poniższy 4-etapowy proces:
+## 3. Żelazny Cykl Realizacji Zadań (Bramka Testowa, Higiena i Oszczędność Tokenów)
+Każde zadanie bezwzględnie realizuje poniższy 5-etapowy proces:
 
 1. **Precyzyjny Plan Krok po Kroku (Oszczędność Tokenów):**
-   - Przed edycją kodu asystent precyzyjnie lokalizuje pliki wąskim wyszukiwaniem. Zakaz bezmyślnego czytania całego 70KB `PROJECT_CONTEXT.md`.
+   - Przed edycją kodu asystent precyzyjnie lokalizuje pliki wąskim wyszukiwaniem (`Select-String` / grep / `graphify`). Zakaz bezmyślnego czytania całego 70KB `PROJECT_CONTEXT.md`.
 2. **Chirurgiczna Implementacja:**
    - Edycja wyłącznie niezbędnych bloków kodu. Autorskie mody trafiają do `Server/server-patches/krystian/<nazwa_modu>/`.
-3. **Obowiązkowa Lista Kontrolna Testów na Końcu (Szablon C):**
+3. **Automatyczne Czyszczenie Śmieci i Higiena Dysku (Auto-Clean Guard):**
+   - **Obowiązek automatycznego sprzątania:** Po kompilacji kontenerów Docker, rekompilacji paczek klienta (`root`, `dbdata`) lub zakończeniu zadania, asystent automatycznie uruchamia procedurę oczyszczania:
+     ```powershell
+     python Server/tools/clean_workspace.py
+     ```
+   - Skrypt ten bezpiecznie usuwa:
+     - Zbędny Docker Build Cache (`docker builder prune -f`), co zapobiega rozrostowi wirtualnego dysku `docker_data.vhdx` do kilkudziesięciu GB,
+     - Niespakowane duplikaty zrzutów SQL w `Server/backups/` oraz kopie starsze niż 48h,
+     - Pliki tymczasowe pakera klienta (`Klient/pack/*.bak`, `*.tmp`),
+     - Przerośnięte pliki logów (`Klient/syserr.txt` > 1MB) oraz tymczasowy bufor wydań (`dist/`).
+4. **Obowiązkowa Lista Kontrolna Testów na Końcu (Szablon C):**
    - Na zakończenie pracy asystent ZAWSZE generuje checklist: co i jak użytkownik ma przetestować w grze lub panelu.
-4. **Bramka Bezpieczeństwa Git (Warunkowy Upload na GitHub):**
+5. **Bramka Bezpieczeństwa Git (Warunkowy Upload na GitHub):**
    - **Kategoryczny zakaz commitowania i pushowania na GitHuba przed potwierdzeniem przez użytkownika!**
-   - Kod czeka lokalnie. Dopiero po potwierdzeniu ("Wszystko działa, możesz wrzucać") asystent pushuje zmiany i synchronizuje patcher.
+   - Kod czeka lokalnie. Dopiero po potwierdzeniu ("Wszystko działa, możesz wrzucać") asystent pushuje zmiany i synchronizuje patcher CDN (`publish_patcher_web.py`).
 
 ---
 
 ## 4. Rola Agenta: Autonomiczny Inżynier ("Vibe Coding" & Szybka Egzekucja)
 W projekcie MT2Plus użytkownik stosuje **Vibe Coding** – oczekuje szybkiej, sprawnej i samodzielnej realizacji zadań w kodzie:
 - **Konkretne działanie zamiast wykładów:** Brak zbędnego lania wody, teorii i długich dyskusji. Agent natychmiast diagnozuje problem, lokalizuje właściwe pliki, pisze niezbędny kod C++/Python/Lua i nanosi modyfikacje.
-- **Samodzielna obsługa narzędzi:** Agent sam zarządza patchami w `Server/server-patches/krystian/`, dba o uruchomienie `patch_dockerfile.py`, `audit_mods.py` oraz kompilację paczek klienta.
+- **Samodzielna obsługa narzędzi:** Agent sam zarządza patchami w `Server/server-patches/krystian/`, dba o uruchomienie `patch_dockerfile.py`, `audit_mods.py`, kompilację paczek klienta oraz automatyczne czyszczenie śmieci (`clean_workspace.py`).
 - **Dostarczenie gotowego stanu do gry:** Po wykonaniu zadania agent natychmiast podaje zwięzły checklist według Szablonu C ("Co masz przetestować w grze") i czeka na potwierdzenie przed pushem na Git.
 
 ---
@@ -60,7 +70,7 @@ Projekt wykorzystuje zestaw współpracujących ze sobą skilli (zarówno global
 4. **`humanizer` (Komunikacja z graczami):**
    - Ogłoszenia na Discord (`[DISCORD]`) oraz Changelogi wydań (`[RELEASE]`) twórz naturalnym, zachęcającym językiem gracza, bez sztucznego tonu AI.
 5. **Dedykowane Skille MT2Plus (`.agents/skills/`):**
-   - **`mt2-dev-workflow`:** 5-krokowy cykl merge upstreamu, obsługa `audit_mods.py`, rejestru modyfikacji i wydań.
+   - **`mt2-dev-workflow`:** 5-krokowy cykl merge upstreamu, obsługa `audit_mods.py`, rejestru modyfikacji, wydań i higieny środowiska.
    - **`mt2-cpp-syserr-debugger`:** Szybka diagnoza błędów w `syserr`, crashy `SIGSEGV`, desynchronizacji pakietów sieciowych.
    - **`mt2-quest-lua`:** Poprawne pisanie questów i dungeonów pod kompilator `qc`, flagi i timery serwerowe.
 6. **`git-workflow` (Standaryzacja Git & Release):**

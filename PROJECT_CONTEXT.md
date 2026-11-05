@@ -33,6 +33,7 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | **Grafy wiedzy kodu (Graphify)** | `Server/graphify-out/` \| `Klient/pack/root/graphify-out/` | Mapy zaleznosci C++/Python/Lua: `graph.html`, `graph.json`, `GRAPH_REPORT.md` |
 | **Bufor wydań i higiena dysku** | `dist/` \| `Klient/syserr.txt` | Tymczasowy bufor wydań i logi do okresowego czyszczenia (Zasada nr 14) |
 | **Kopie zapasowe bazy SQL** | `Server/backups/` | Zrzuty bazy przed zmianami w serwerze (retencja: maks. 2 dni, starsze usuwane) |
+| **Automatyczna higiena i czyszczenie śmieci** | `Server/tools/clean_workspace.py` | Jedno-klikowe usuwanie Docker build cache, starych backupów >48h, duplikatów SQL, plików `.bak` i bufora `dist/` |
 | **Panele i serwisy WWW** | Tieru: `http://localhost:7788` \| Seban: `http://localhost:7790` \| IS: `http://localhost:7791` | Login / zarządzanie / rynek |
 
 ---
@@ -91,24 +92,28 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 
 ---
 
-### 0.3. Żelazny Cykl Realizacji Zadań (Oszczędność Tokenów AI & Bramka Testowa)
+### 0.3. Żelazny Cykl Realizacji Zadań (Oszczędność Tokenów AI, Higiena & Bramka Testowa)
 
-Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzględnie realizuje poniższy 4-etapowy proces:
+Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzględnie realizuje poniższy 5-etapowy proces:
 
 1. **Precyzyjny Plan Krok po Kroku (Oszczędność Tokenów AI):**
    - Przed dotknięciem kodu asystent precyzyjnie lokalizuje docelowe pliki (wąskim, celowanym wyszukiwaniem) i układa dla siebie zwięzłą instrukcję krok po kroku (które pliki, które funkcje, jaka zmiana logiczna).
    - Zakaz bezmyślnego przeglądania całych katalogów czy wielkich plików po omacku. Maksymalna precyzja ("chirurgiczne cięcie") ogranicza zużycie tokenów AI i eliminuje halucynacje.
 2. **Chirurgiczna Implementacja:**
    - Edycja wyłącznie niezbędnych bloków kodu z zachowaniem pełnej integralności projektu i bez naruszania istniejącej logiki upstreamu.
-3. **Obowiązkowa Lista Kontrolna Testów na Samym Końcu:**
+3. **Automatyczne Czyszczenie Śmieci i Higiena Dysku (Auto-Clean Guard):**
+   - Po każdej kompilacji Docker (`docker compose build`), rekompilacji paczek klienta (`root`, `dbdata`) lub zakończeniu prac, asystent automatycznie uruchamia procedurę higieny:
+     ```powershell
+     python Server/tools/clean_workspace.py
+     ```
+   - Skrypt ten bezpiecznie usuwa: zbędny Docker Build Cache (`docker builder prune -f`), niespakowane duplikaty SQL, backupy starsze niż 48h, pliki tymczasowe `.bak` oraz przerośnięte logi `syserr.txt`.
+4. **Obowiązkowa Lista Kontrolna Testów na Samym Końcu:**
    - Na zakończenie każdej pracy asystent ZAWSZE generuje czytelną listę kontrolną według **Szablonu C**: co i jak użytkownik ma przetestować w grze lub panelu.
-4. **Bramka Bezpieczeństwa Git (Warunkowy Upload na GitHub):**
+5. **Bramka Bezpieczeństwa Git (Warunkowy Upload na GitHub):**
    - **Kategoryczny zakaz commitowania i pushowania na GitHuba przed potwierdzeniem przez użytkownika!**
    - Kod i spakowane paczki czekają lokalnie. Dopiero gdy użytkownik przetestuje grę i potwierdzi („Wszystko działa, możesz wrzucać”), asystent zatwierdza commity, pushuje na GitHub, tworzy wydania GitHub Release oraz wykonuje synchronizację patchera (`publish_patcher_web.py`).
-```
 
 ---
-
 
 ## 1. Wersjonowanie i Identyfikacja
 
@@ -306,7 +311,7 @@ Wszystkie usługi backendowe pracują w kontenerach Docker w sieci mostkowej (`b
 - **Recykling Broni 30 lvl & Ulepszanie u Kowala (Filar 1 - Hardcore Item & Gold Sink):** Eliminacja zjawiska chomikowania broni 30 lvl (Koziki, Antyki, Wachlarze Jesienne, Rogowe Łuki) w plecakach botów. Elitarne bronie (Średnie >= 25% lub Umiejętności >= 8% lub +7..+9) są chronione jako zasób strategiczny i nigdy nie trafiają do NPC (`IsPlayerBotHighValueLevel30`). Zwykły złom (<= 10% śr na niskim plusie +0..+3) lub nadmiar zapychający ekwipunek jest sprzedawany u Handlarki, a nadmiary od 15 poziomu są ulepszane "na czysto" u wiejskiego kowala bez zwojów (limit 8 prób dziennie, co stanowi naturalny pochłaniacz przedmiotów i Yangów). Moduł w [`Server/server-patches/krystian/recykling-broni-30/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/recykling-broni-30).
 - **Sesja Farmienia (Farming Session Tracker & Valuation):** Nowoczesne okno analityki pod klawiszem `F6` (rebindowalne w menu skrotow). Sledzi czas sesji ze stoperem (pauza/wznowienie/reset), zniszczone Kamienie Metin, pokonanych Bossow, wszystkie zrodla oraz zdobyty EXP i tempo (`EXP / godz.`). Zlicza surowe Yang z ziemi oraz dokladna liczbe i szacowana wartosc zebranych przedmiotow z mozliwoscia przelaczania trybu wyceny: **Rynkowa** (baza ponad 3250 sugerowanych cen z rynku botow i sklepow offline, np. Klejnot Demona = 140k) vs **NPC** (wartosc sprzedazy u handlarza po odliczeniu 3% podatku handlowego). Umozliwia wlasna edycje cen (przycisk Cena z obsluga k/kk/m/b), wykluczanie z sumy (przycisk Wyklucz / Wlicz), dynamiczne tempo dochodu (`~Yang / godz.`, `~Metin / godz.`), udostepnianie raportu na czat oraz kompaktowy, ruchomy mini-widzet HUD. Modul w [`Server/server-patches/krystian/sesja-farmienia/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/sesja-farmienia).
 - **Automatyczny Drop do Magazynu Kolekcjonera przy Pełnym Ekwipunku (Kolekcjoner Auto-Drop):** Checkbox pod przyciskiem "Rozbuduj" w oknie Magazynu Kolekcjonera (`uicollector.py`). Gdy opcja jest zaznaczona i gracz ma zapełniony ekwipunek (`full EQ`), zbierany drop z ziemi (`PickupItem`) oraz przedmioty z zadań/skrzynek (`AutoGiveItem`) automatycznie trafiają do Magazynu Kolekcjonera zamiast leżeć na ziemi. Obsługuje łączenie stosów (stack merge) do 2 mld sztuk dla ulepszaczy i kamieni, uwzględnia limit pojemności magazynu (`Capacity(tier)` do 10 000 slotów), blokuje przedmioty specjalne (szarfy, alchemia smoczych kamieni, pasy, zablokowane) oraz trwale zapamiętuje ustawienie na koncie gracza (`collector_autodrop`). Moduł w [`Server/server-patches/krystian/kolekcjoner-autodrop/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-autodrop).
-- **Naprawa i Odblokowanie Odnawiania Sklepów Botów (4 Strony / 320 Slotów):** Usunięcie błędu silnika C++ w `char_shop.cpp` (`CanPlaceOnShopSlot`, `CanPlaceItemOnShopSlot`) oraz `ikarus_shop_manager.cpp` (`RecvShopReopenClientPacket`), który blokował wznawianie wygasłych po 8h sklepów offline botów po powiększeniu ich stoisk do 4 stron w 2.36.0 (`slots_ok=0` / `SHOP_NO_PREMIUM`). Zapewnia automatyczne odnawianie stoisk botów na CH1 i utrzymanie stałej puli ~1800 aktywnych sklepów na rynku. Moduł w [`Server/server-patches/krystian/odnawianie-sklepow-botow/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow).
+- **Naprawa i Odblokowanie Odnawiania Sklepów Botów (4 Strony / 320 Slotów & Fix V2 Reopen):** Usunięcie błędu silnika C++ w `char_shop.cpp` (`CanPlaceOnShopSlot`, `CanPlaceItemOnShopSlot`) oraz `ikarus_shop_manager.cpp` (`RecvShopReopenClientPacket`), który blokował wznawianie wygasłych po 8h sklepów offline botów po powiększeniu ich stoisk do 4 stron w 2.36.0 (`slots_ok=0` / `SHOP_NO_PREMIUM`). W wersji V2 (dla 2.41.0): usunięcie fałszywej blokady opłaty 6 000 Yang przez rezerwę konia bojowego (`BotOfflineWouldRenew`), priorytetowe odnawianie stoisk przed ściąganiem itemów w `ManagePlayerBotOfflineService` oraz przeniesienie 419 botów z martwego CH2 na CH1. Utrzymanie stałej puli ~1800 aktywnych sklepów na rynku. Moduł w [`Server/server-patches/krystian/odnawianie-sklepow-botow/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow).
 - **Szarfy – Szansa na Ulepszenie oraz Naprawa Pustego Tooltipa:** Wyświetlanie szansy procentowej na pomyślne ulepszenie w oknie łączenia szarf (uiacce.py, cce_combinewindow.py) w formacie identycznym jak u kowala (Szansa na Ulepszenie X%), dynamicznie dopasowanym do stopnia szarfy (80% / 70% / 50% / 30%). Naprawa błędu pustego dymka/tooltipa (AttributeError: _ItemToolTip__AdjustAttrMaxWidth w uitooltip.py), wdrożenie brakujących metod dynamicznego dostosowywania szerokości tooltipa na podstawie bonusów i opisu oraz zabezpieczenie wczesnych wyjść z HideToolTip(). Moduł w [Server/server-patches/krystian/szarfy-szansa-tooltip/](file:///d:/Github/MT2Plus/Server/server-patches/krystian/szarfy-szansa-tooltip).
 - **Brak Czerwonych i Niebieskich Mikstur z Metinów i Bossów (od M2 w górę):** Całkowite wyczyszczenie i zablokowanie dropu Czerwonych i Niebieskich Mikstur (PŻ i PE) z Kamieni Metin, Bossów oraz potworów począwszy od M2 aż po mapy końcowe. Obejmuje: (1) 76 grup w `mob_drop_item.txt` oraz appendy `dropedit`, `ochao`, `arezzo`, `yohara_zaklety`; (2) tabelę dropu ogólnego `common_drop_item.txt` (skrócenie niebieskich mikstur z 1–120 do 1–18 lvl, usunięcie czerwonych 20–120 lvl); (3) silnikową blokadę C++ `MT2009_PLUS_NO_POTIONS_M2_UP_V1` w `item_manager.cpp` (blokada w pętli common drop oraz post-filtr usuwający mikstury poza mapami M1). Mikstury w M1 (8001–8004, bossy 191–194, moby M1 dla lvl 1–18) oraz pożądane Zielone i Fioletowe Mikstury Szybkości (27100–27115) zostały w 100% zachowane. Moduł w [`Server/server-patches/krystian/brak-potek-m2-metiny-bossy/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/brak-potek-m2-metiny-bossy).
 - **Pobieranie Ulepszaczy z Magazynu Kolekcjonera u Kowala i przy Zwojach (Refine Collector Fallback):** Inteligentne pobieranie ulepszaczy z Magazynu Kolekcjonera podczas ulepszania u kowala (`CHARACTER::DoRefine`) oraz przy użyciu zwojów (`CHARACTER::DoRefineWithScroll`). Bezwzględny priorytet ekwipunku postaci (materiały pobierane najpierw z `INVENTORY`, a brakująca różnica z magazynu). W pełni atomowa walidacja (sprawdzenie łącznej dostępności wszystkich składników przed pobraniem czegokolwiek). Cicha synchronizacja w tle przy logowaniu postaci (`CInputLogin::Entergame` z flagą `silent = 1`), dzięki czemu okno ulepszania (`uirefine.py`) natychmiast pokazuje dostępność materiałów na zielono w formacie `Nazwa x 02 (1 + 5 mag.)`, a gracz otrzymuje powiadomienie informacyjne na czacie o pobraniu ulepek z magazynu. Moduł w [`Server/server-patches/krystian/kolekcjoner-refine/`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-refine).
@@ -337,7 +342,7 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
 | [`recykling-broni-30`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/recykling-broni-30) | Serwer (C++) | `playerbot_gear.h`, `playerbot_economy.h`, `playerbot_upstream_botlogic.h` (ochrona perełek L30 >=25% śr, kowal sink do +6, sprzedaż śmieci u handlarki) | **Aktywny** |
 | [`kolekcjoner-autodrop`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-autodrop) | Serwer (C++) + Klient (Python) | `playerbot_collector.cpp/h`, `char_item.cpp`, `char.cpp`, `input_login.cpp`, `uicollector.py` (checkbox auto-dropu do magazynu kolekcjonera przy pełnym EQ, stack merge, account flag) | **Aktywny** |
 | [`sesja-farmienia`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/sesja-farmienia) | Klient (Python) | `farmsession.py`, `farmsession_prices.py`, `uifarmsession.py`, `keybind.py`, `interfacemodule.py`, `game.py`, `uiinventory.py` (okno Sesji Farmienia, wycena Rynkowa z baza 3250 cen / NPC -3%, liczniki Metinow/Bossow/Yang, tempo /h, mini-HUD) | **Aktywny** |
-| [`odnawianie-sklepow-botow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow) | Serwer (C++) | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `playerbot_offline_shop.h` (zdjęcie ograniczeń slotów/premium gracza dla botów przy reopenie, automatyczne odnawianie 4-stronicowych sklepów offline botów) | **Aktywny** |
+| [`odnawianie-sklepow-botow`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/odnawianie-sklepow-botow) | Serwer (C++) | `char_shop.cpp`, `ikarus_shop_manager.cpp`, `playerbot_offline_shop.h` (V2: zdjęcie limitów gracza, usunięcie blokady rezerwy konia, priorytet reopen nad take-off, stałe ~1800 stoisk) | **Aktywny** |
 | [`dom-aukcyjny-historia`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/dom-aukcyjny-historia) | Klient (Python) | `Klient/pack/root/uiauctionhouse.py` (Przycisk "Historia" obok Reset, okno historii zakupów, tooltip z bonusami/KD, wyszukiwanie 1-klik, czyszczenie, bufor JSON) | **Aktywny** |
 | [`kolekcjoner-refine`](file:///d:/Github/MT2Plus/Server/server-patches/krystian/kolekcjoner-refine) | Serwer (C++) + Klient (Python) | `playerbot_collector.cpp/h`, `char_item.cpp`, `input_login.cpp`, `uirefine.py`, `uicollector.py` (pobieranie ulepszaczy z magazynu kolekcjonera u kowala i zwojami z priorytetem EQ, silent sync, zielony licznik w UI) | **Aktywny** |
 | [szarfy-szansa-tooltip](file:///d:/Github/MT2Plus/Server/server-patches/krystian/szarfy-szansa-tooltip) | Klient (Python) | uiacce.py, uitooltip.py, uicube.py, uiscript/acce_combinewindow.py (wyświetlanie % szansy ulepszenia szarf jak u kowala, fix pustego dymka/tooltipa przez brakujące metody __AdjustAttrMaxWidth i __AdjustDescMaxWidth, zabezpieczenia ClearToolTip w kliencie) | **Aktywny** |
@@ -430,6 +435,19 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
           ```
       - **C. Czyszczenie bufora wydań (`dist/`):** Katalog `dist/` służy wyłącznie jako tymczasowy bufor roboczy skryptu `build_release_packages.py`. Po pomyślnej publikacji paczek na GitHub Releases, cała zawartość `dist/` może zostać bezpiecznie wyczyszczona do zera (~1.4 GB oszczędności).
       - **D. Tymczasowe kopie pakerów i modułów (`Klient/pack/*.bak` oraz `Klient/backup-*`):** Automatyczne kopie `.bak` tworzone przez paker przy zapisie paczek (`root.data.bak` itp.) oraz foldery tymczasowe po testach modułów można bezpiecznie usuwać po zweryfikowaniu stabilności gry.
+      - **E. Pamięć podręczna kompilacji Docker (Build Cache) i wirtualny dysk VHDX:**
+        - Wielokrotne budowanie kontenerów serwera i paneli generuje dziesiątki gigabajtów pamięci podręcznej kompilacji (*build cache*), która powoduje niekontrolowany rozrost wirtualnego dysku Docker Desktop (`docker_data.vhdx`) nawet do 60-70+ GB.
+        - **Żelazna Reguła Czyszczenia Cache:** Po każdej kompilacji w kontenerach (`docker compose build`) należy bezwzględnie wyczyścić build cache:
+          ```powershell
+          docker builder prune -f
+          ```
+        - W przypadku rozrostu pliku `docker_data.vhdx` na dysku Windowsa, fizyczne odzyskanie miejsca wymaga zatrzymania Dockera/WSL (`wsl --shutdown`) i wykonania kompaktowania dysku (`diskpart` -> `compact vdisk` lub skrypt `D:\MT2\Docker\odchudz_docker_vhdx.bat`).
+      - **F. Zautomatyzowane narzędzie higieny (`Server/tools/clean_workspace.py`):**
+        - Wszystkie powyższe kroki higieny (czyszczenie Docker build cache, usuwanie zrzutów >48h, eliminacja plików `.bak`, zerowanie przerośniętego `syserr.txt`) są zintegrowane w jednym uniwersalnym skrypcie:
+          ```powershell
+          python Server/tools/clean_workspace.py
+          ```
+        - Skrypt ten asystent ma obowiązek uruchamiać automatycznie po większych pracach budowania i kompilacji.
 
 15. **Żelazna Zasada Bezwzględnej Synchronizacji Patchera po Nowych Modyfikacjach / Zmianach (Patcher Guard Rule):**
     - Patcher gry (`MT2009-Patcher.exe`) weryfikuje sumy kontrolne MD5 wszystkich plików klienta z listą `patchlist.json` na serwerze CDN (`gh-pages`).

@@ -5020,9 +5020,10 @@ void CPlayerBotManager::TryScheduleRetirement(DWORD dwNow)
 	entry.dwLastSeen = dwNow;
 	s_mapPlayerBotRetiring[dwPID] = entry;
 	AuditPlayerBotRetireEvent(entry.dwBatchId, dwPID, "picked", pickedCh->GetName());
-	// MT2009_PLUS_BOT_RETIREMENT_FIX_V4: If the bot already has an offline shop standing,
-	// let MonitorPlayerBotRetirementStall monitor its sales instead of immediately wiping it.
-	if (bForcedPick && !ikashop::GetManager().GetShopByOwnerID(dwPID))
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6:
+	// Guild master cannot open retirement stall, close immediately;
+	// All other bots (including forced picks) proceed to AdvancePlayerBotRetirementStall to sell their worn gear.
+	if (bForcedPick)
 	{
 		CGuild* pGuild = pickedCh->GetGuild();
 		if (pGuild && pGuild->GetMasterPID() == dwPID)

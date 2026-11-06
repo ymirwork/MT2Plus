@@ -1,43 +1,43 @@
 #!/usr/bin/env python3
 """
-Patch: fix-emerytura-botow (MT2009_PLUS_BOT_RETIREMENT_FIX_V2)
-Naprawa zapętlenia losowania emerytury botów oraz losowania postaci o poziomie 1.
+Patch: fix-emerytura-botow (MT2009_PLUS_BOT_RETIREMENT_FIX_V6)
+Naprawa zapętlenia losowania emerytury botów, losowania postaci o poziomie 1,
+obsługi botów z otwartym sklepem offline (prawdziwe wystawianie noszonego eq)
+oraz eliminacja zawieszania partii.
 """
 import os
 import sys
 
-def patch_file(path, old_text, new_text):
+def patch_file(path, old_text, new_text, marker=None):
     if not os.path.exists(path):
         print(f"BŁĄD: Plik {path} nie istnieje!")
         return False
-    with open(path, "rb") as f:
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
     
-    # Try with raw bytes (handling \r\n vs \n)
-    old_bytes = old_text.encode("utf-8")
-    new_bytes = new_text.encode("utf-8")
+    if marker and marker in content:
+        print(f"Informacja: Wzorzec już zaaplikowany w {path} ({marker})")
+        return True
+
+    old_clean = old_text.replace("\r\n", "\n")
+    content_clean = content.replace("\r\n", "\n")
+    new_clean = new_text.replace("\r\n", "\n")
     
-    # Normalize CRLF to LF for comparison if needed
-    if old_bytes not in content:
-        old_bytes_crlf = old_text.replace("\n", "\r\n").encode("utf-8")
-        new_bytes_crlf = new_text.replace("\n", "\r\n").encode("utf-8")
-        if old_bytes_crlf in content:
-            content = content.replace(old_bytes_crlf, new_bytes_crlf, 1)
+    if old_clean in content_clean:
+        if "\r\n" in content:
+            old_in_file = old_clean.replace("\n", "\r\n")
+            new_in_file = new_clean.replace("\n", "\r\n")
         else:
-            old_bytes_lf = old_text.replace("\r\n", "\n").encode("utf-8")
-            new_bytes_lf = new_text.replace("\r\n", "\n").encode("utf-8")
-            if old_bytes_lf in content:
-                content = content.replace(old_bytes_lf, new_bytes_lf, 1)
-            else:
-                print(f"BŁĄD: Nie znaleziono wzorca w {path}!")
-                return False
+            old_in_file = old_clean
+            new_in_file = new_clean
+        content = content.replace(old_in_file, new_in_file, 1)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"Pomyślnie zmodyfikowano: {path}")
+        return True
     else:
-        content = content.replace(old_bytes, new_bytes, 1)
-    
-    with open(path, "wb") as f:
-        f.write(content)
-    print(f"Pomyślnie zmodyfikowano: {path}")
-    return True
+        print(f"BŁĄD: Nie znaleziono wzorca w {path}!")
+        return False
 
 def main():
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
@@ -223,7 +223,7 @@ void LoadPlayerBotRetireConfig()
 		s_setPlayerBotRetireBatchPIDs.insert(pid); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2
 		++recovered;"""
 
-    # Target 4: IsPlayerBotRetirementCandidateInner
+    # Target 4: IsPlayerBotRetirementCandidateInner level & pid guard
     old_retire_4 = """bool IsPlayerBotRetirementCandidateInner(LPCHARACTER ch, BYTE bLevelLo, BYTE bLevelHi)
 {
 	if (!ch || ch->IsDead() || ch->IsStun() || !ch->IsItemLoaded())
@@ -241,15 +241,92 @@ void LoadPlayerBotRetireConfig()
 	if (s_setPlayerBotRetireBatchPIDs.find(ch->GetPlayerID()) != s_setPlayerBotRetireBatchPIDs.end())
 		return false;"""
 
+    # Target 5: IsPlayerBotRetirementCandidateInner allow bots with offline shops (V6)
+    old_retire_5 = """	if (CGuild* guild = ch->GetGuild())
+		if (guild->GetMasterPID() == ch->GetPlayerID())
+			return false;
+	if (HasPlayerBotOfflineShop(ch))
+		return false;
+	return true;"""
+
+    new_retire_5 = """	if (CGuild* guild = ch->GetGuild())
+		if (guild->GetMasterPID() == ch->GetPlayerID())
+			return false;
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: bots with ordinary offline shops can retire;
+	// their drop shop is cleanly closed so they can open a retirement stall with worn gear.
+	// if (HasPlayerBotOfflineShop(ch)) return false;
+	return true;"""
+
+    # Target 6: AdvancePlayerBotRetirementStall close pre-existing offline shop (V6)
+    old_retire_6 = """EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
+		TPlayerBotAIState& state, TPlayerBotRetireEntry& entry, DWORD dwNow)
+{
+	const DWORD pid = ch->GetPlayerID();
+
+	// 1. A town of the bot's own kingdom, with a stall ring, on this core."""
+
+    new_retire_6 = """EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
+		TPlayerBotAIState& state, TPlayerBotRetireEntry& entry, DWORD dwNow)
+{
+	const DWORD pid = ch->GetPlayerID();
+
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: If the bot has an existing offline shop from normal drop activities,
+	// close it so the bot can open its dedicated retirement stall with its worn equipment.
+	if (HasPlayerBotOfflineShop(ch))
+	{
+		if (dwNow >= entry.dwNextAttempt)
+		{
+			entry.dwNextAttempt = dwNow + 2000;
+			ikashop::GetManager().SendShopForceHardCloseDBPacket(pid);
+			if (auto oldShop = ikashop::GetManager().GetShopByOwnerID(pid))
+				ikashop::GetManager().DestroyShopEntity(oldShop);
+			sys_log(0, "PLAYERBOT_RETIRE: pid=%u closing pre-existing drop shop for retirement stall", pid);
+		}
+		return PLAYERBOT_RETIRE_STALL_WAIT;
+	}
+
+	// 1. A town of the bot's own kingdom, with a stall ring, on this core."""
+
+    # Target 7: ManagePlayerBotRetirement only wait if retirement stall was seen (V6)
+    old_retire_7 = """	// A standing stall needs nothing from the bot; when it closes is decided by
+	// MonitorPlayerBotRetirementStall, which does not depend on the bot being
+	// steerable at that moment.
+	if (entry.bStallSeen || ikashop::GetManager().GetShopByOwnerID(pid))
+		return true;"""
+
+    new_retire_7 = """	// A standing stall needs nothing from the bot; when it closes is decided by
+	// MonitorPlayerBotRetirementStall, which does not depend on the bot being
+	// steerable at that moment.
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: only skip bot steering once the retirement stall has actually been seen
+	if (entry.bStallSeen)
+		return true;"""
+
+    # Target 8: MonitorPlayerBotRetirementStall only adopt stall if dwSubmittedAt > 0 (V6)
+    old_retire_8 = """void MonitorPlayerBotRetirementStall(DWORD pid, TPlayerBotRetireEntry& entry, DWORD dwNow)
+{
+	NativeShop shop = ikashop::GetManager().GetShopByOwnerID(pid);
+	if (shop)
+	{
+		if (!entry.bStallSeen)"""
+
+    new_retire_8 = """void MonitorPlayerBotRetirementStall(DWORD pid, TPlayerBotRetireEntry& entry, DWORD dwNow)
+{
+	NativeShop shop = ikashop::GetManager().GetShopByOwnerID(pid);
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: only monitor the stall once the retirement listing was submitted (dwSubmittedAt > 0),
+	// never falsely adopt a pre-existing drop shop as the retirement stall.
+	if (shop && entry.dwSubmittedAt > 0)
+	{
+		if (!entry.bStallSeen)"""
+
     for f in target_files_retire:
-        if not patch_file(f, old_retire_1, new_retire_1):
-            sys.exit(1)
-        if not patch_file(f, old_retire_2, new_retire_2):
-            sys.exit(1)
-        if not patch_file(f, old_retire_3, new_retire_3):
-            sys.exit(1)
-        if not patch_file(f, old_retire_4, new_retire_4):
-            sys.exit(1)
+        patch_file(f, old_retire_1, new_retire_1, "s_bPlayerBotRetireMinLevel = 10")
+        patch_file(f, old_retire_2, new_retire_2, "GREATEST(level, VALUES(level))")
+        patch_file(f, old_retire_3, new_retire_3, "s_setPlayerBotRetireBatchPIDs.insert(pid)")
+        patch_file(f, old_retire_4, new_retire_4, "s_bPlayerBotRetireMinLevel || ch->GetLevel() < bLevelLo")
+        patch_file(f, old_retire_5, new_retire_5, "BOT_RETIREMENT_FIX_V6: bots with ordinary offline shops can retire")
+        patch_file(f, old_retire_6, new_retire_6, "BOT_RETIREMENT_FIX_V6: If the bot has an existing offline shop")
+        patch_file(f, old_retire_7, new_retire_7, "BOT_RETIREMENT_FIX_V6: only skip bot steering once")
+        patch_file(f, old_retire_8, new_retire_8, "BOT_RETIREMENT_FIX_V6: only monitor the stall once the retirement listing was submitted")
 
     # 2. playerbot_manager.cpp
     target_files_manager = [
@@ -507,21 +584,6 @@ void LoadPlayerBotRetireConfig()
 
 		s_dwPlayerBotRetireNextPickTime = dwNow + 60000;"""
 
-    # Target 6: don't wipe forced pick if shop stands
-    old_mgr_6 = """	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V1: a forced pick sells nothing - its game
-	// ends at once (wiped and logged out by ProcessRetirementResets).
-	if (bForcedPick)
-		BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: no bot could go to a market");"""
-
-    new_mgr_6 = """	// MT2009_PLUS_BOT_RETIREMENT_FIX_V4: If the bot already has an offline shop standing,
-	// let MonitorPlayerBotRetirementStall monitor its sales instead of immediately wiping it.
-	if (bForcedPick && !ikashop::GetManager().GetShopByOwnerID(dwPID))
-	{
-		CGuild* pGuild = pickedCh->GetGuild();
-		if (pGuild && pGuild->GetMasterPID() == dwPID)
-			BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: guild master");
-	}"""
-
     # Target 5: RecordPlayerBotRetirePick insert dwPID into s_setPlayerBotRetireBatchPIDs
     old_mgr_5 = """	TPlayerBotRetireEntry entry;
 	entry.dwBatchId = s_dwPlayerBotRetireBatchId;
@@ -536,19 +598,39 @@ void LoadPlayerBotRetireConfig()
 	entry.dwLastSeen = dwNow;
 	s_mapPlayerBotRetiring[dwPID] = entry;"""
 
+    # Target 6: don't wipe forced pick if shop stands (V4 / V6)
+    old_mgr_6 = """	// MT2009_PLUS_BOT_RETIREMENT_FORCE_V1: a forced pick sells nothing - its game
+	// ends at once (wiped and logged out by ProcessRetirementResets).
+	if (bForcedPick)
+		BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: no bot could go to a market");"""
+
+    old_mgr_6_v4 = """	// MT2009_PLUS_BOT_RETIREMENT_FIX_V4: If the bot already has an offline shop standing,
+	// let MonitorPlayerBotRetirementStall monitor its sales instead of immediately wiping it.
+	if (bForcedPick && !ikashop::GetManager().GetShopByOwnerID(dwPID))
+	{
+		CGuild* pGuild = pickedCh->GetGuild();
+		if (pGuild && pGuild->GetMasterPID() == dwPID)
+			BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: guild master");
+	}"""
+
+    new_mgr_6 = """	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6:
+	// Guild master cannot open retirement stall, close immediately;
+	// All other bots (including forced picks) proceed to AdvancePlayerBotRetirementStall to sell their worn gear.
+	if (bForcedPick)
+	{
+		CGuild* pGuild = pickedCh->GetGuild();
+		if (pGuild && pGuild->GetMasterPID() == dwPID)
+			BeginPlayerBotRetirementClose(dwPID, s_mapPlayerBotRetiring[dwPID], "forced: guild master");
+	}"""
+
     for f in target_files_manager:
-        if not patch_file(f, old_mgr_1, new_mgr_1):
-            sys.exit(1)
-        if not patch_file(f, old_mgr_2, new_mgr_2):
-            sys.exit(1)
-        if not patch_file(f, old_mgr_3, new_mgr_3):
-            sys.exit(1)
-        if not patch_file(f, old_mgr_4, new_mgr_4):
-            sys.exit(1)
-        if not patch_file(f, old_mgr_5, new_mgr_5):
-            sys.exit(1)
-        if not patch_file(f, old_mgr_6, new_mgr_6):
-            sys.exit(1)
+        patch_file(f, old_mgr_1, new_mgr_1, "s_setPlayerBotRetireBatchPIDs.clear()")
+        patch_file(f, old_mgr_2, new_mgr_2, "SELECT pid FROM common.playerbot_retire_pick WHERE batch_id=")
+        patch_file(f, old_mgr_3, new_mgr_3, "level < s_bPlayerBotRetireMinLevel")
+        patch_file(f, old_mgr_4, new_mgr_4, "conclude the pick phase rather than retrying indefinitely every minute")
+        patch_file(f, old_mgr_5, new_mgr_5, "s_setPlayerBotRetireBatchPIDs.insert(dwPID); // MT2009_PLUS_BOT_RETIREMENT_FIX_V2")
+        if not patch_file(f, old_mgr_6_v4, new_mgr_6, "BOT_RETIREMENT_FIX_V6:"):
+            patch_file(f, old_mgr_6, new_mgr_6, "BOT_RETIREMENT_FIX_V6:")
 
     print("Wszystkie pliki zostały pomyślnie zaktualizowane!")
 

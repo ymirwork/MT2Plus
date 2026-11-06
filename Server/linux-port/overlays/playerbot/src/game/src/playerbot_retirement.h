@@ -857,6 +857,21 @@ EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
 {
 	const DWORD pid = ch->GetPlayerID();
 
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: If the bot has an existing offline shop from normal drop activities,
+	// close it so the bot can open its dedicated retirement stall with its worn equipment.
+	if (HasPlayerBotOfflineShop(ch))
+	{
+		if (dwNow >= entry.dwNextAttempt)
+		{
+			entry.dwNextAttempt = dwNow + 2000;
+			ikashop::GetManager().SendShopForceHardCloseDBPacket(pid);
+			if (auto oldShop = ikashop::GetManager().GetShopByOwnerID(pid))
+				ikashop::GetManager().DestroyShopEntity(oldShop);
+			sys_log(0, "PLAYERBOT_RETIRE: pid=%u closing pre-existing drop shop for retirement stall", pid);
+		}
+		return PLAYERBOT_RETIRE_STALL_WAIT;
+	}
+
 	// 1. A town of the bot's own kingdom, with a stall ring, on this core. The
 	// Ikarus shop opens only on maps CShopManager::CanOpenOnMap knows.
 	const long mapIndex = ch->GetMapIndex();
@@ -1185,8 +1200,9 @@ bool IsPlayerBotRetirementCandidateInner(LPCHARACTER ch, BYTE bLevelLo, BYTE bLe
 	if (CGuild* guild = ch->GetGuild())
 		if (guild->GetMasterPID() == ch->GetPlayerID())
 			return false;
-	if (HasPlayerBotOfflineShop(ch))
-		return false;
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: bots with ordinary offline shops can retire;
+	// their drop shop is cleanly closed so they can open a retirement stall with worn gear.
+	// if (HasPlayerBotOfflineShop(ch)) return false;
 	return true;
 }
 
@@ -1244,7 +1260,8 @@ bool ManagePlayerBotRetirement(LPCHARACTER ch, TPlayerBotAIState& state, DWORD d
 	// A standing stall needs nothing from the bot; when it closes is decided by
 	// MonitorPlayerBotRetirementStall, which does not depend on the bot being
 	// steerable at that moment.
-	if (entry.bStallSeen || ikashop::GetManager().GetShopByOwnerID(pid))
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: only skip bot steering once the retirement stall has actually been seen
+	if (entry.bStallSeen)
 		return true;
 	if (inFlight)
 	{
@@ -1268,7 +1285,9 @@ bool ManagePlayerBotRetirement(LPCHARACTER ch, TPlayerBotAIState& state, DWORD d
 void MonitorPlayerBotRetirementStall(DWORD pid, TPlayerBotRetireEntry& entry, DWORD dwNow)
 {
 	NativeShop shop = ikashop::GetManager().GetShopByOwnerID(pid);
-	if (shop)
+	// MT2009_PLUS_BOT_RETIREMENT_FIX_V6: only monitor the stall once the retirement listing was submitted (dwSubmittedAt > 0),
+	// never falsely adopt a pre-existing drop shop as the retirement stall.
+	if (shop && entry.dwSubmittedAt > 0)
 	{
 		if (!entry.bStallSeen)
 		{

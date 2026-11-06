@@ -441,6 +441,92 @@ namespace
 		return plus;
 	}
 
+	// MT2009_PLUS_BOT_LAW_NO_BETTER_V1 (the owner, 6 November 2026: "helm
+	// dowolnego poziomu tam, gdzie gra nie ma lepszego"): the law's level window
+	// (twenty levels) asked a bot of 62 for a helmet of 42 or more where the
+	// files of the supporters' world have none between 41 and 80 - a demand no
+	// bot could meet, so the lock held it for good (2.x: 649 bots of 50-79 with
+	// a helmet of 41, the next one of 80). A piece counts as of the
+	// bot's level when the game has nothing better for its slot: no piece of
+	// the slot the bot may wear (class, sex), with a refine path (a gear
+	// family, not an event one-off), above this one's level and at or under the
+	// bot's. The switch: PLAYERBOT_LAW_NO_BETTER=0 in the environment puts the
+	// plain window back.
+	bool IsPlayerBotLawNoBetterOn()
+	{
+		static int s_iOn = -1;
+		if (s_iOn < 0)
+		{
+			const char* v = std::getenv("PLAYERBOT_LAW_NO_BETTER");
+			s_iOn = v && *v == '0' ? 0 : 1;
+			sys_log(0, "PLAYERBOT_LAW: no-better rule %s", s_iOn ? "on" : "off (PLAYERBOT_LAW_NO_BETTER=0)");
+		}
+		return s_iOn == 1;
+	}
+
+	// Whether a proto belongs to a wear slot, for the scan below.
+	bool IsPlayerBotProtoOfWearSlot(LPCHARACTER ch, const TItemTable* proto, int wearCell)
+	{
+		if (!proto)
+			return false;
+		if (wearCell == WEAR_WEAPON)
+			return proto->bType == ITEM_WEAPON && proto->bSubType != WEAPON_ARROW &&
+					IsPlayerBotWeaponSubTypeFor(ch, proto->bSubType);
+		if (proto->bType != ITEM_ARMOR)
+			return false;
+		switch (wearCell)
+		{
+			case WEAR_BODY: return proto->bSubType == ARMOR_BODY;
+			case WEAR_HEAD: return proto->bSubType == ARMOR_HEAD;
+			case WEAR_SHIELD: return proto->bSubType == ARMOR_SHIELD;
+			case WEAR_FOOTS: return proto->bSubType == ARMOR_FOOTS;
+			case WEAR_WRIST: return proto->bSubType == ARMOR_WRIST;
+			case WEAR_NECK: return proto->bSubType == ARMOR_NECK;
+			case WEAR_EAR: return proto->bSubType == ARMOR_EAR;
+			default: return false;
+		}
+	}
+
+	// The highest level limit of a +0 piece of the slot the game has for this
+	// bot at or under its level, -1 for none. Kept by class, sex, skill group
+	// (the weapons), slot and level: item_proto does not change while the
+	// world runs.
+	int GetPlayerBotBestSlotLevelInGame(LPCHARACTER ch, int wearCell)
+	{
+		if (!ch)
+			return -1;
+		static std::map<DWORD, int> s_cache;
+		const DWORD key = (DWORD)ch->GetJob() | ((DWORD)GET_SEX(ch) << 3) | ((DWORD)ch->GetSkillGroup() << 4) |
+				((DWORD)(wearCell & 0xff) << 8) | ((DWORD)std::min<int>(255, ch->GetLevel()) << 16);
+		std::map<DWORD, int>::const_iterator it = s_cache.find(key);
+		if (it != s_cache.end())
+			return it->second;
+		const int level = (int)ch->GetLevel();
+		int best = -1;
+		for (DWORD vnum = 0; vnum < 40000; vnum += 10)
+		{
+			const TItemTable* proto = ITEM_MANAGER::instance().GetTable(vnum);
+			if (!proto || proto->dwVnum != vnum || proto->dwRefinedVnum == 0 ||
+					!IsPlayerBotProtoOfWearSlot(ch, proto, wearCell) || !IsPlayerBotProtoForCharacter(ch, proto))
+				continue;
+			const int limit = GetPlayerBotProtoLevelLimit(proto);
+			if (limit <= level && limit > best)
+				best = limit;
+		}
+		s_cache[key] = best;
+		return best;
+	}
+
+	// The piece of `levelLimit` in this slot is as good as the game has for the
+	// bot (MT2009_PLUS_BOT_LAW_NO_BETTER_V1).
+	bool IsPlayerBotSlotNoBetter(LPCHARACTER ch, int wearCell, int levelLimit)
+	{
+		if (!ch || !IsPlayerBotLawNoBetterOn())
+			return false;
+		const int best = GetPlayerBotBestSlotLevelInGame(ch, wearCell);
+		return best >= 0 && levelLimit >= best;
+	}
+
 	// A body armour or a helmet under the law's level window (IsPieceCurrent):
 	// whatever its plus, it never meets the law. Such a piece is outdated
 	// (IsPlayerBotOutdatedGear), so the equipment pass puts on the piece of
@@ -454,12 +540,16 @@ namespace
 			return false;
 		if (GetPlayerBotLawPlusForSlot(ch, item->GetSubType() == ARMOR_BODY ? WEAR_BODY : WEAR_HEAD) == 0)
 			return false;
-		return (int)item->GetLevelLimit() + (int)playerbot_persona::AWANS_LEVEL_WINDOW < (int)ch->GetLevel();
+		return (int)item->GetLevelLimit() + (int)playerbot_persona::AWANS_LEVEL_WINDOW < (int)ch->GetLevel() &&
+				!IsPlayerBotSlotNoBetter(ch, item->GetSubType() == ARMOR_BODY ? WEAR_BODY : WEAR_HEAD,
+						(int)item->GetLevelLimit());	// MT2009_PLUS_BOT_LAW_NO_BETTER_V1
 	}
 
 	// How far the anvil has to take a worn piece for the law: the slot's plus
 	// when the piece is of the law's level and under it, zero otherwise. Such
 	// a step goes to the anvil ahead of the rest (ManagePlayerBotRefining).
+	// MT2009_PLUS_BOT_CHEAP_NPC_CEILING_V1 (playerbot_economy.h): a cheap merchant shield / helmet stops at +5.
+	BYTE CapPlayerBotCheapNpcTarget(LPITEM item, BYTE target);
 	BYTE GetPlayerBotLawRefinePlus(LPCHARACTER ch, LPITEM item, int wearCell)
 	{
 		if (!ch || !item || wearCell < 0 || IsPlayerBotLawStaleGear(ch, item))
@@ -467,7 +557,9 @@ namespace
 		if (wearCell == WEAR_WEAPON && (item->GetType() != ITEM_WEAPON ||
 				(int)item->GetLevelLimit() + (int)playerbot_persona::AWANS_PREMIUM_LEVEL_WINDOW < (int)ch->GetLevel()))
 			return 0;
-		const BYTE plus = GetPlayerBotLawPlusForSlot(ch, wearCell);
+		BYTE plus = GetPlayerBotLawPlusForSlot(ch, wearCell);
+		if (plus != 0 && (wearCell == WEAR_SHIELD || wearCell == WEAR_HEAD))
+			plus = CapPlayerBotCheapNpcTarget(item, plus);
 		return item->GetRefineLevel() < plus ? plus : 0;
 	}
 
@@ -480,24 +572,36 @@ namespace
 		return false;
 	}
 
-	// MT2009_PLUS_BOT_SHIELD41_V1 (IsPlayerBotOutdatedGear): a level-41 shield in the bag this bot can put on.
+	// MT2009_PLUS_BOT_SHIELD41_V1 (IsPlayerBotOutdatedGear): a level-41 shield this bot owns and can wear, other than
+	// `piece` - worn or in the bag.
+	// MT2009_PLUS_BOT_GEAR_FLIPFLOP_V1: the first version answered for a worn `piece` only and looked in the bag only,
+	// so once the 41 went on, the +8/+9 shield under 41 in the bag was no longer outdated, the equipment pass's guard
+	// against putting an outdated piece back (ManagePlayerBotEquipment) never fired, the old shield outscored the new
+	// one and went back on - and the rule took it off again: 38 bots of 41-52 on the Yohara test world changed
+	// shields every 1-3 s from 4 November (~1080 swaps an hour each). Worn and bag count alike, for any piece asked.
 	const int PLAYERBOT_SHIELD41_LEVEL = 41;
 	unsigned int s_uPlayerBotShield41Steps = 0;
-	bool PlayerBotOwnsShield41(LPCHARACTER ch, LPITEM worn)
+	bool PlayerBotIsShield41For(LPCHARACTER ch, LPITEM held, LPITEM piece)
 	{
-		if (!ch || !ch->IsItemLoaded() || (worn && !worn->IsEquipped()))
+		return held && held != piece && held->GetType() == ITEM_ARMOR && held->GetSubType() == ARMOR_SHIELD &&
+				(int)held->GetLevelLimit() == PLAYERBOT_SHIELD41_LEVEL && held->CanUsedBy(ch);
+	}
+
+	bool PlayerBotOwnsShield41(LPCHARACTER ch, LPITEM piece)
+	{
+		if (!ch || !ch->IsItemLoaded())
 			return false;
-		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		bool owns = PlayerBotIsShield41For(ch, ch->GetWear(WEAR_SHIELD), piece);
+		for (WORD cell = 0; !owns && cell < PLAYERBOT_BAG_CELLS; ++cell)
 		{
 			LPITEM held = ch->GetInventoryItem(cell);
-			if (held && held->GetCell() == cell && held->GetType() == ITEM_ARMOR && held->GetSubType() == ARMOR_SHIELD &&
-					(int)held->GetLevelLimit() == PLAYERBOT_SHIELD41_LEVEL && IsPlayerBotEquipmentCandidate(ch, held))
-			{
-				++s_uPlayerBotShield41Steps;
-				return true;
-			}
+			owns = held && held->GetCell() == cell && !held->IsEquipped() && PlayerBotIsShield41For(ch, held, piece) &&
+					IsPlayerBotEquipmentCandidate(ch, held);
 		}
-		return false;
+		// Counted as before: a worn shield under 41 giving way to the step (section F census).
+		if (owns && piece && piece->IsEquipped())
+			++s_uPlayerBotShield41Steps;
+		return owns;
 	}
 
 	bool IsPlayerBotOutdatedGear(LPCHARACTER ch, LPITEM item)
@@ -2103,6 +2207,65 @@ namespace
 		return itemScore * 100 > oldScore * (100 + margin);
 	}
 
+	// MT2009_PLUS_BOT_GEAR_FLIPFLOP_V1: the same memory for every other wear slot, with a hard stop. What the
+	// equipment pass took off a slot goes back on within PLAYERBOT_GEAR_FLIP_WINDOW_MS only when it scores
+	// PLAYERBOT_GEAR_FLIP_MARGIN_PERCENT over the worn piece's own score (not the score a rule set to nothing - the
+	// rules were what took turns), and never after PLAYERBOT_GEAR_FLIP_MAX_RETURNS such returns in the slot until the
+	// window passes with no swap there. Two rules (or a rule and the score) that disagree about a pair of pieces
+	// cannot make them take turns any more: the level-41 shield (PlayerBotOwnsShield41) changed hands every 1-3 s on
+	// 38 bots of the Yohara test world and on 74 bots of 41-48 on the 2.41 supporters' world (72 400 "equipped
+	// upgrade wear=10" lines an hour), and smaller loops of the kind ran on the earrings and the armour.
+	// The weapon keeps its own rule above (the Archer's stone swap is meant to flip). Keyed by pid and wear slot.
+	const DWORD PLAYERBOT_GEAR_FLIP_WINDOW_MS = 15 * 60 * 1000;
+	const int PLAYERBOT_GEAR_FLIP_MARGIN_PERCENT = 10;
+	const int PLAYERBOT_GEAR_FLIP_MAX_RETURNS = 2;
+	struct TPlayerBotGearTakenOff
+	{
+		DWORD dwItemID;
+		DWORD dwAt;
+		int iReturns;
+		TPlayerBotGearTakenOff() : dwItemID(0), dwAt(0), iReturns(0) {}
+	};
+	std::map<std::pair<DWORD, int>, TPlayerBotGearTakenOff> s_mapPlayerBotGearTakenOff;
+	unsigned int s_uPlayerBotGearFlipsBlocked = 0;
+
+	bool PlayerBotGearFlipBlocked(LPCHARACTER ch, int wearCell, LPITEM item, long long itemScore, LPITEM worn, DWORD dwNow)
+	{
+		if (!ch || !item || !worn || wearCell == WEAR_WEAPON)
+			return false;
+		std::map<std::pair<DWORD, int>, TPlayerBotGearTakenOff>::const_iterator it =
+				s_mapPlayerBotGearTakenOff.find(std::make_pair(ch->GetPlayerID(), wearCell));
+		if (it == s_mapPlayerBotGearTakenOff.end() || it->second.dwItemID != item->GetID() ||
+				dwNow - it->second.dwAt >= PLAYERBOT_GEAR_FLIP_WINDOW_MS)
+			return false;
+		// Event flag m2_bot_gear_flip_guard_off=1 turns the guard off (the level-41 shield fix stays).
+		if (quest::CQuestManager::instance().GetEventFlag("m2_bot_gear_flip_guard_off") > 0)
+			return false;
+		const long long wornScore = GetPlayerBotEquipmentScore(worn, ch);
+		const bool tooMany = it->second.iReturns >= PLAYERBOT_GEAR_FLIP_MAX_RETURNS;
+		if (!tooMany && itemScore * 100 > wornScore * (100 + PLAYERBOT_GEAR_FLIP_MARGIN_PERCENT))
+			return false;
+		++s_uPlayerBotGearFlipsBlocked;
+		PlayerBotLogThrottled("gear_flip_guard", dwNow,
+				"PLAYERBOT_GEAR: flip guard keeps the worn piece pid=%u name=%s lv=%d wear=%d worn_vnum=%u back_vnum=%u worn_score=%lld back_score=%lld returns=%d off_ago_ms=%u reason=%s blocked_total=%u",
+				ch->GetPlayerID(), ch->GetName(), (int)ch->GetLevel(), wearCell, worn->GetVnum(), item->GetVnum(),
+				wornScore, itemScore, it->second.iReturns, (unsigned int)(dwNow - it->second.dwAt),
+				tooMany ? "returns" : "margin", s_uPlayerBotGearFlipsBlocked);
+		return true;
+	}
+
+	// After the pass took `off` off `wearCell` for `on`.
+	void NotePlayerBotGearTakenOff(LPCHARACTER ch, int wearCell, LPITEM on, LPITEM off, DWORD dwNow)
+	{
+		if (!ch || !on || !off || wearCell == WEAR_WEAPON)
+			return;
+		TPlayerBotGearTakenOff& memo = s_mapPlayerBotGearTakenOff[std::make_pair(ch->GetPlayerID(), wearCell)];
+		const bool recent = memo.dwAt != 0 && dwNow - memo.dwAt < PLAYERBOT_GEAR_FLIP_WINDOW_MS;
+		memo.iReturns = !recent ? 0 : memo.iReturns + (memo.dwItemID == on->GetID() ? 1 : 0);
+		memo.dwItemID = off->GetID();
+		memo.dwAt = dwNow ? dwNow : 1;
+	}
+
 	bool ManagePlayerBotEquipment(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 	{
 		if (!ch || !ch->IsItemLoaded() || IsPlayerBotGearFrozen(ch))
@@ -2285,6 +2448,9 @@ namespace
 					: 0;
 			if (oldItem && itemScore <= oldScore)
 				continue;
+			// MT2009_PLUS_BOT_GEAR_FLIPFLOP_V1: not what this pass just took off this slot, but by a clear margin.
+			if (oldItem && PlayerBotGearFlipBlocked(ch, wearCell, item, itemScore, oldItem, dwNow))
+				continue;
 			if (oldItem && wearCell == WEAR_WEAPON && !stoneMode &&
 					!PlayerBotWeaponSwapClears(ch, item, itemScore, oldScore, dwNow))
 				continue;
@@ -2376,10 +2542,34 @@ namespace
 
 		if (swapped || PlayerBotEquipItem(ch, bestItem))
 		{
-			sys_log(0, "PLAYERBOT_AI: equipped upgrade pid=%u name=%s wear=%d old_vnum=%u new_vnum=%u old_score=%lld new_score=%lld",
-					ch->GetPlayerID(), ch->GetName(), bestWearCell, oldVnum, newVnum, oldScore, bestScore);
+			// MT2009_PLUS_BOT_LOG_QUIET_V1: a swap straight back to what the slot held before (within half an hour) is
+			// churn - counted and said once a minute for the population; any other swap one a bot every gap
+			// (PlayerBotLogPerBot). The swap's row in log.log below stays whole.
+			{
+				static std::map<std::pair<DWORD, int>, std::pair<std::pair<DWORD, DWORD>, DWORD> > s_mapLastSwap;	// (pid, wear) -> ((old, new), when)
+				static unsigned int s_uChurn = 0;
+				if (s_mapLastSwap.size() > 200000)
+					s_mapLastSwap.clear();
+				std::pair<std::pair<DWORD, DWORD>, DWORD>& last = s_mapLastSwap[std::make_pair(ch->GetPlayerID(), (int)bestWearCell)];
+				const bool churn = last.second != 0 && dwNow - last.second < 30U * 60U * 1000U &&
+						last.first.first == newVnum && last.first.second == oldVnum;
+				last = std::make_pair(std::make_pair(oldVnum, newVnum), dwNow ? dwNow : 1);
+				if (churn && IsPlayerBotLogQuiet())
+				{
+					++s_uChurn;
+					PlayerBotLogThrottled("equip_churn", dwNow,
+							"PLAYERBOT_AI: equip churn pid=%u name=%s wear=%d back_to=%u from=%u churn_total=%u",
+							ch->GetPlayerID(), ch->GetName(), bestWearCell, newVnum, oldVnum, s_uChurn);
+				}
+				else
+					PlayerBotLogPerBot("equip", ch->GetPlayerID(), dwNow,
+							"PLAYERBOT_AI: equipped upgrade pid=%u name=%s wear=%d old_vnum=%u new_vnum=%u old_score=%lld new_score=%lld",
+							ch->GetPlayerID(), ch->GetName(), bestWearCell, oldVnum, newVnum, oldScore, bestScore);
+			}
 			if (bestWearCell == WEAR_WEAPON && bestOldItem)
 				s_mapPlayerBotWeaponTakenOff[ch->GetPlayerID()] = std::make_pair(bestOldItem->GetID(), dwNow);
+			else if (!pinned)
+				NotePlayerBotGearTakenOff(ch, bestWearCell, bestItem, bestOldItem, dwNow);	// MT2009_PLUS_BOT_GEAR_FLIPFLOP_V1
 			// The one line a player asks about first - "why is my top Sura
 			// suddenly without her +8" - is the swap, so it goes to log.log
 			// with what came off.
@@ -3755,9 +3945,14 @@ namespace
 	// back rather than burn it (IsPlayerBotSafeRefineScroll): the Blessing
 	// Scroll and the kinds better than it; never the War God's, which stops at
 	// +3, nor a Gwarancja. The policy is playerbot_refine_rules.h's.
+	// MT2009_PLUS_BOT_REFINE_POLICY_V1 (playerbot_economy.h): a step of good odds of a piece under level 75 is the
+	// plain anvil's - the rule claims neither the step nor the scrolls for it.
+	bool IsPlayerBotPlainAnvilPolicyStep(LPITEM item);
 	bool IsPlayerBotScrollRuleWeapon(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item || item->GetType() != ITEM_WEAPON || item->GetSubType() == WEAPON_ARROW)
+			return false;
+		if (IsPlayerBotPlainAnvilPolicyStep(item))
 			return false;
 		const int level = (int)item->GetLevelLimit();
 		const int plus = (int)item->GetRefineLevel();
@@ -3788,6 +3983,8 @@ namespace
 	bool IsPlayerBotScrollRuleArmour(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item || item->GetType() != ITEM_ARMOR || item->GetSubType() != ARMOR_BODY)
+			return false;
+		if (IsPlayerBotPlainAnvilPolicyStep(item))	// MT2009_PLUS_BOT_REFINE_POLICY_V1
 			return false;
 		const int level = (int)item->GetLevelLimit();
 		const int plus = (int)item->GetRefineLevel();
@@ -4154,7 +4351,18 @@ namespace
 	// (FindPlayerBotLinesProject) - is taken at least to the hand's plus, where
 	// it hits harder and the equipment pass puts it on. An aim under the hand's
 	// plus left it in the bag for good.
+	// MT2009_PLUS_BOT_CHEAP_NPC_CEILING_V1: every target of a cheap merchant shield / helmet stops at its ceiling.
+	BYTE GetPlayerBotRefineTargetUncapped(LPCHARACTER ch, LPITEM item);
 	BYTE GetPlayerBotRefineTarget(LPCHARACTER ch, LPITEM item)
+	{
+		const BYTE target = GetPlayerBotRefineTargetUncapped(ch, item);
+		if (!item || item->GetType() != ITEM_ARMOR ||
+				(item->GetSubType() != ARMOR_SHIELD && item->GetSubType() != ARMOR_HEAD))
+			return target;
+		return CapPlayerBotCheapNpcTarget(item, target);
+	}
+
+	BYTE GetPlayerBotRefineTargetUncapped(LPCHARACTER ch, LPITEM item)
 	{
 		// The sash's grail goes to PLAYERBOT_SASH_GRAIL_PLUS; the anvil's
 		// table and scrolls decide how (playerbot_sash.h).
@@ -4348,6 +4556,9 @@ namespace
 	// (FindPlayerBotBackupWeapon, FindPlayerBotBackupArmour) nor a project for
 	// the anvil (IsPlayerBotHigherTierSpare), and the box gives it back to the
 	// counter (WithdrawPlayerBotSafebox).
+	// MT2009_PLUS_BOT_SURVIVE_V1: a body armour of the 61 / 66 tier over the worn one's level (playerbot_survive.h).
+	bool IsPlayerBotSurviveTierProject(LPCHARACTER ch, LPITEM item, LPITEM worn);
+
 	bool IsPlayerBotFinishedSpareGoods(LPCHARACTER ch, LPITEM item)
 	{
 		if (!ch || !item || item->IsEquipped() || item->GetRefineLevel() < PLAYERBOT_SPARE_GOODS_MIN_PLUS ||
@@ -4361,6 +4572,9 @@ namespace
 		else if (item->GetType() == ITEM_ARMOR && item->GetSubType() == ARMOR_SHIELD)
 			worn = ch->GetWear(WEAR_SHIELD);
 		if (!worn || worn == item)
+			return false;
+		// MT2009_PLUS_BOT_SURVIVE_V1: "zbroja 61/66 dla botow 60+" - the tier's armour goes on to +9 and on the bot.
+		if (IsPlayerBotSurviveTierProject(ch, item, worn))
 			return false;
 		return GetPlayerBotEquipmentScore(worn, ch) >= GetPlayerBotEquipmentScore(item, ch);
 	}
@@ -6025,7 +6239,7 @@ namespace
 				const DWORD potionVnum = item->GetVnum();
 				if (ch->UseItem(TItemPos(INVENTORY, cell)))
 				{
-					sys_log(0, "PLAYERBOT_AI: used health potion pid=%u name=%s vnum=%u hp=%d/%d",
+					PlayerBotLogPerBot("hp_potion", ch->GetPlayerID(), get_dword_time(), "PLAYERBOT_AI: used health potion pid=%u name=%s vnum=%u hp=%d/%d",
 							ch->GetPlayerID(), ch->GetName(), potionVnum, ch->GetHP(), ch->GetMaxHP());
 					NotePlayerBotStrongMapHardship(ch, 2); // MT2009_PLUS_BOT_GUILD_SHAMAN_V1
 					return true;
@@ -6079,7 +6293,7 @@ namespace
 				const DWORD potionVnum = item->GetVnum();
 				if (ch->UseItem(TItemPos(INVENTORY, cell)))
 				{
-					sys_log(0, "PLAYERBOT_AI: used mana potion pid=%u name=%s vnum=%u sp=%d/%d",
+					PlayerBotLogPerBot("sp_potion", ch->GetPlayerID(), get_dword_time(), "PLAYERBOT_AI: used mana potion pid=%u name=%s vnum=%u sp=%d/%d",
 							ch->GetPlayerID(), ch->GetName(), potionVnum, ch->GetSP(), ch->GetMaxSP());
 					return true;
 				}

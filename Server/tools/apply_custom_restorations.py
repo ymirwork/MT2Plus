@@ -5,6 +5,7 @@ apply_custom_restorations.py - Restores all custom MT2Plus modifications to play
 after upstream v2.41.0 sync.
 """
 import os
+import sys
 import shutil
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -212,6 +213,14 @@ def main():
     # 3. playerbot_offline_shop.h
     print("\n3. Patching playerbot_offline_shop.h...")
     shop_replacements = [
+        # Forward declare IsPlayerBotRetiring
+        (
+            """namespace {
+    using NativeShop = ikashop::CShopManager::SHOP_HANDLE;""",
+            """namespace {
+    bool IsPlayerBotRetiring(DWORD dwPlayerID);
+    using NativeShop = ikashop::CShopManager::SHOP_HANDLE;"""
+        ),
         # Retiring bot bypasses 120s spawn delay and reserved gold
         (
             """        if (now - state.dwSpawnTime < 120000) return false;
@@ -686,6 +695,13 @@ bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, lon
     ]
     patch_file(os.path.join(OVERLAYS_DIR, 'playerbot_market.h'), market_replacements)
 
+    # 7b. zielone-kamienie-m1m2-drop
+    print("\n7b. Applying zielone-kamienie-m1m2-drop patches...")
+    import subprocess
+    zk_patch = os.path.join(REPO, 'Server', 'server-patches', 'krystian', 'zielone-kamienie-m1m2-drop', 'apply_patch.py')
+    if os.path.exists(zk_patch):
+        subprocess.run([sys.executable, zk_patch], check=True)
+
     # 8. Sync all modified files to docker game src
     print("\n8. Syncing overlay files to docker game src...")
     sync_files = [
@@ -696,7 +712,8 @@ bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, lon
         'playerbot_retirement.h',
         'playerbot_gear.h',
         'playerbot_upstream_botlogic.h',
-        'playerbot_market.h'
+        'playerbot_market.h',
+        'playerbot_targeting.h'
     ]
     for filename in sync_files:
         src = os.path.join(OVERLAYS_DIR, filename)

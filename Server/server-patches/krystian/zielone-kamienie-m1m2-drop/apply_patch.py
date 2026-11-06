@@ -262,10 +262,8 @@ def apply():
 \t\t\t\t\t\t}
 \t\t\t\t\t}"""
 
-            pt_content = pt_content.replace(target_pt_stone.replace('\r\n', '\n').replace('\n', '\r\n'),
-                                            replacement_pt_stone.replace('\r\n', '\n').replace('\n', '\r\n'))
-            pt_content = pt_content.replace(target_pt_boss.replace('\r\n', '\n').replace('\n', '\r\n'),
-                                            replacement_pt_boss.replace('\r\n', '\n').replace('\n', '\r\n'))
+            pt_content = pt_content.replace(target_pt_stone, replacement_pt_stone)
+            pt_content = pt_content.replace(target_pt_boss, replacement_pt_boss)
 
             with open(pt_path, "wb") as f:
                 f.write(pt_content.encode("utf-8"))

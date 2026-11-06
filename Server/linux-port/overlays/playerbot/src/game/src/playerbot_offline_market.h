@@ -549,7 +549,6 @@ namespace {
     bool FindPlayerBotRareGamblerBasePick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotStalkiPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotBookPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
-    bool FindPlayerBotAutoPotionPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotOutdatedGearPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now);
     bool FindPlayerBotWeaponUpgradePick(LPCHARACTER ch, TPlayerBotAIState& state, DWORD now); // MT2009_PLUS_BOT_GEAR_UPGRADE_V1
     bool FindPlayerBotArmourUpgradePick(LPCHARACTER ch, TPlayerBotAIState& state, DWORD now); // MT2009_PLUS_BOT_GEAR_UPGRADE_V2
@@ -682,13 +681,6 @@ namespace {
                     return RunPlayerBotOfflinePick(ch, state, now);
                 }
             }
-            // MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: buy needed auto potions from counters
-            if (FindPlayerBotAutoPotionPick(ch, state, budget, now)) {
-                sys_log(0, "PLAYERBOT_MARKET: goes for auto potion pid=%u name=%s owner=%u item=%u",
-                    ch->GetPlayerID(), ch->GetName(), o.buyOwner, o.buyItem);
-                return RunPlayerBotOfflinePick(ch, state, now);
-            }
-
             // What the piece under Iwakura's scroll rule lacks for its next
             // step - the weapon, or the armour once the weapon is at +8 - is
             // looked for on every stand of the map, the gambler's way, before
@@ -1273,57 +1265,6 @@ namespace {
     // cheapest book a unit on a stand of its map the buyer would take on
     // arrival, the purchase's own tests asked of the line, for no more than
     // `cap`. Only a line whose proto is a skill book is built into an item.
-    // MT2009_PLUS_BOT_AUTOPOTION_ECO_V1: bots needing auto potions buy full ones from offline shops
-    bool FindPlayerBotAutoPotionPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now) {
-        using namespace playerbot_offline;
-        if (!ch || cap <= 0) return false;
-        const bool needHP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_HP_RECOVERY, false) == 0;
-        const bool needSP = CountPlayerBotAutoPotions(ch, AFFECT_AUTO_SP_RECOVERY, false) == 0;
-        if (!needHP && !needSP) return false;
-
-        const int shopChannel = CPlayerBotManager::instance().IsChannelTableMode()
-                ? playerbot_channel_rules::SHOP_CHANNEL : (int)g_bChannel;
-        DWORD bestOwner = 0, bestItem = 0;
-        long long bestPrice = 0;
-
-        for (const auto& [pid, shop] : ikashop::GetManager().GetPlayerBotOfflineShops()) {
-            if (!shop || pid == ch->GetPlayerID() || shop->GetDuration() == 0 || shop->IsEditMode()) continue;
-            const auto spawn = shop->GetSpawn();
-            if (spawn.map != ch->GetMapIndex() || (int)spawn.channel != shopChannel) continue;
-            for (const auto& [id, line] : shop->GetItems()) {
-                if (!line || !line->GetTable() || IsPlayerBotLineClaimedByOther(id, ch->GetPlayerID(), now))
-                    continue;
-                const DWORD vnum = line->GetInfo().vnum;
-                const DWORD affect = GetPlayerBotAutoPotionAffect(vnum);
-                if (affect == 0) continue;
-                if (affect == AFFECT_AUTO_HP_RECOVERY && !needHP) continue;
-                if (affect == AFFECT_AUTO_SP_RECOVERY && !needSP) continue;
-
-                // Socket 1 is used amount: 0 means 100% full!
-                if (line->GetInfo().alSockets[1] != 0) continue;
-
-                const long long price = (long long)line->GetPrice().GetTotalYangAmount();
-                if (price <= 0 || price > cap) continue;
-
-                const long long asking = GetPlayerBotAutoPotionRefillCost(vnum, line->GetInfo().alSockets[2]) * 130LL / 100LL;
-                if (price > asking * 2LL) continue; // Skip overpriced listings
-
-                if (bestOwner == 0 || price < bestPrice) {
-                    bestOwner = pid;
-                    bestItem = id;
-                    bestPrice = price;
-                }
-            }
-        }
-        if (!bestOwner) return false;
-        state.offlineShop.buyOwner = bestOwner;
-        state.offlineShop.buyItem = bestItem;
-        state.offlineShop.buyQuantity = 1;
-        state.offlineShop.buyUntil = now + PLAYERBOT_MARKET_FAR_PICK_WALK_MS;
-        ClaimPlayerBotFarLine(bestItem, ch->GetPlayerID(), now);
-        return true;
-    }
-
     bool FindPlayerBotBookPick(LPCHARACTER ch, TPlayerBotAIState& state, long long cap, DWORD now) {
         using namespace playerbot_offline;
         if (!ch || cap <= 0 || !PlayerBotWantsOwnBooks(ch)) return false;
@@ -1574,6 +1515,8 @@ namespace {
         if (cap <= 0) return false;
         TPlayerBotOwnedArmour owned;
         ReadPlayerBotBestOwnedArmour(ch, owned);
+        int ownedLevels[PLAYERBOT_ARMOUR_UPGRADE_SLOTS];   // MT2009_PLUS_BOT_SURVIVE_V1
+        ReadPlayerBotSurviveOwnedLevels(ch, ownedLevels);
         const int shopChannel = CPlayerBotManager::instance().IsChannelTableMode()
                 ? playerbot_channel_rules::SHOP_CHANNEL : (int)g_bChannel;
         struct TCandidate { long long value; int slot; long long price; DWORD owner; DWORD item; long x; long y; };
@@ -1601,6 +1544,9 @@ namespace {
                 if (score <= 0) continue;
                 const int slot = GetPlayerBotArmourUpgradeSlot(table->bSubType);
                 const long long ownedScore = owned.item[slot] ? owned.score[slot] : 0;
+                // MT2009_PLUS_BOT_SURVIVE_V1: the 60+ tier's piece weighed as an upgrade of the owned one
+                score = GetPlayerBotSurviveTierScore(ch, slot, GetPlayerBotProtoLevelLimit(table), score, ownedScore,
+                        ownedLevels[slot]);
                 if ((owned.item[slot] && score * 100 < ownedScore * (100 + PLAYERBOT_ARMOUR_UPGRADE_MIN_GAIN_PERCENT)) ||
                         price > GetPlayerBotArmourUpgradeShare(spare, GetPlayerBotArmourGainPercent(score, ownedScore)) ||
                         IsPlayerBotLineClaimedByOther(id, ch->GetPlayerID(), now))
@@ -1633,7 +1579,11 @@ namespace {
                     WantsPlayerBotStallItem(ch, preview) &&
                     CanPlayerBotPayForOffer(ch, preview, c.price, c.owner) &&
                     ch->GetEmptyInventory(preview->GetSize()) >= 0;
-            const long long score = buyable ? GetPlayerBotEquipmentScore(preview, ch) : 0;
+            long long score = buyable ? GetPlayerBotEquipmentScore(preview, ch) : 0;
+            // MT2009_PLUS_BOT_SURVIVE_V1: and its value a yang as the tier's upgrade
+            if (buyable && owned.item[c.slot])
+                score = GetPlayerBotSurviveTierScore(ch, c.slot, (int)preview->GetLevelLimit(), score,
+                        owned.score[c.slot], ownedLevels[c.slot]);
             const DWORD vnum = preview->GetVnum();
             M2_DELETE(preview);
             if (!buyable) continue;
@@ -1659,6 +1609,14 @@ namespace {
         ClaimPlayerBotLineUntil(bestItem, ch->GetPlayerID(), now, o.buyUntil);
         ++s_dwPlayerBotArmourUpgradePicks;
         LPITEM ownedItem = owned.item[bestSlot];
+        // MT2009_PLUS_BOT_SURVIVE_V1: a pick of the 60+ tier counted and said
+        {
+            const TItemTable* picked = ITEM_MANAGER::instance().GetTable(bestVnum);
+            if (picked && ownedItem && GetPlayerBotProtoLevelLimit(picked) > (int)ownedItem->GetLevelLimit() &&
+                    GetPlayerBotSurviveTierScore(ch, bestSlot, GetPlayerBotProtoLevelLimit(picked), 0, 1,
+                            ownedLevels[bestSlot]) > 0)
+                NotePlayerBotSurviveTierPick(ch, bestVnum, bestSlot, bestPrice);
+        }
         sys_log(0, "PLAYERBOT_GEAR_UPGRADE: goes for armour pid=%u name=%s level=%u slot=%s owned=%u score=%lld vnum=%u line=%u owner=%u score=%lld gain=%lld%% price=%lld gold=%lld",
             ch->GetPlayerID(), ch->GetName(), (unsigned int)ch->GetLevel(), PLAYERBOT_ARMOUR_UPGRADE_SLOT_NAMES[bestSlot],
             ownedItem ? ownedItem->GetVnum() : 0, owned.score[bestSlot], bestVnum, bestItem, bestOwner, bestScore,
@@ -1979,6 +1937,9 @@ namespace {
                 }
                 if (!slip) {
                     AddPlayerBotMarketSupply(item->GetVnum(), item->GetInfo().count, shop->GetSpawn().map);
+                    // MT2009_PLUS_BOT_MARKET_CLEARING_V1: what the counters ask for it (the clearing's start and census).
+                    NotePlayerBotClearingAsk(item->GetVnum(), item->GetInfo().count,
+                        (long long)item->GetPrice().GetTotalYangAmount());
                     // MT2009_PLUS_BOT_GEAR_UPGRADE_V1: the cheapest line of each
                     // weapon by map, for the bots' look from the frontier.
                     NotePlayerBotWeaponLinePrice(shop->GetSpawn().map, item->GetTable(), item->GetInfo().count,

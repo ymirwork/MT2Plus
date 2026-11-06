@@ -187,7 +187,7 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     dist_dir = os.path.join(repo_root, 'dist')
     
-    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.41.0.zip')
+    srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.42.0.zip')
     cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.71.zip')
 
     if not os.path.exists(srv_zip) or not os.path.exists(cli_zip):
@@ -197,12 +197,12 @@ def publish_release(srv_size, srv_hash, cli_size, cli_hash):
     token = get_github_token()
     print("GitHub token acquired successfully.")
 
-    tag = "v2.41.0-mod62"
-    release_name = "MT2009 PLUS v2.41.0-mod62 - Serwer 2.41.0 & Klient 2.0.71"
+    tag = "v2.42.0-mod63"
+    release_name = "MT2009 PLUS v2.42.0-mod63 - Serwer 2.42.0 & Klient 2.0.71"
 
-    body = f"""# 📦 MT2Plus Wydanie v2.41.0-mod62
+    body = f"""# 📦 MT2Plus Wydanie v2.42.0-mod63
 
-Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.41.0, mod-62 oraz Klient 2.0.71) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
+Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT2009 PLUS** (Serwer 2.42.0, mod-63 oraz Klient 2.0.71) z pełnym zachowaniem autorskich rozszerzeń (YmirWork / Krystian).
 
 ---
 
@@ -210,19 +210,19 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 
 | Paczka | Nazwa Pliku | Rozmiar (bajty) | Suma kontrolna SHA-256 |
 | :--- | :--- | :--- | :--- |
-| **Serwer MT2Plus** | `metin2-server-update-2.41.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
+| **Serwer MT2Plus** | `metin2-server-update-2.42.0.zip` | `{srv_size:,} B` | `{srv_hash}` |
 | **Klient MT2Plus** | `metin2-client-update-2.0.71.zip` | `{cli_size:,} B` | `{cli_hash}` |
 
 ---
 
 ### 🌟 Najważniejsze Zmiany i Autorskie Modyfikacje (MT2Plus):
 
-1. **Baza Upstream v2.41.0 (mod-62, Klient 2.0.71):**
-   - **Grota Wygnańców V2:** Zagęszczenie potworów (1409 spawnów zamiast 638), 5 Dowódców Yonghan zamiast 1, 3 nowe spoty expa dla botów 90-95.
-   - **Mniej lagów i optymalizacja MariaDB:** Pamięć podręczna 1 GB (zamiast 128 MB), bezblokujące czyszczenie botów w nocy, indeksy logów serwera.
-   - **Inteligentne migawki Seban Panel:** Nowa retencja snapshotów świata bez blokowania tabel przedmiotów (snapshot_retention.py).
-   - **Mądrzejsze zachowanie i handel botów:** Spacery po rynku M1, optymalizacja ulepszania i alchemii, dynamiczne schodzenie z cen na straganach.
-   - **Fix UI Auto-Wędkowania:** Dedykowany podgląd i start wędkowania z nowego panelu Auto Łowów.
+1. **Baza Upstream v2.42.0 (mod-63, Klient 2.0.71):**
+   - **Rozwój i odblokowania expa botów:** Koniec wiecznych blokad expa (zwolnienie po 3h gry na progu), 3h spokoju po odblokowaniu, Prawo Awansu nie wymaga nieistniejących przedmiotów.
+   - **Przeżywalność botów (Anti-Deathloop):** Automatyczne wskrzeszanie z 50% HP i niewidzialna ucieczka w bezpieczne miejsce przed powrotem na spot (playerbot_deathloop.h, playerbot_survive.h).
+   - **Mądrzejsze ulepszanie:** Zwoje Błogosławieństwa tylko na trudnych krokach lub drogich itemach (75+), tanie hełmy/tarcze ulepszane bez zwojów do +5 z natychmiastowym odkupem po spaleniu.
+   - **Wiedza o dropie i przepływ materiałów:** Boty wiedzą, skąd zdobyć brakujące ulepszacze (playerbot_dropknow.h), wymiana u Dozorcy na brakujące ulepszacze do 75 lvl (playerbot_mats_flow.h).
+   - **Zdrowy rynek i ciche logi:** Schodzenie z cen przy nadmiarze towaru na straganach (playerbot_market_clearing.h), inflacja liczona wyłącznie z yang botów, redukcja spamu logów o 80-90%.
 
 2. **Autorskie Rozszerzenia MT2Plus (Wszystkie 34 w 100% zachowane i aktywne):**
    - **Ceny Bazowe Botów:** Nowy moduł konfiguracji i dynamicznego przeliczania cen skupu/sprzedaży botów w panelu (`/economy/bot-prices`).
@@ -239,7 +239,7 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
 ---
 
 📥 **Instrukcja Uruchomienia (Ready-to-Play):**
-1. Pobierz paczkę serwera `metin2-server-update-2.41.0.zip` oraz klienta `metin2-client-update-2.0.71.zip`.
+1. Pobierz paczkę serwera `metin2-server-update-2.42.0.zip` oraz klienta `metin2-client-update-2.0.71.zip`.
 2. Wypakuj serwer i uruchom `start.bat` (wymagany Docker Desktop).
 3. Wypakuj klienta i uruchom grę przez `metin2client.exe` (lub zaktualizuj automatycznie przez `MT2009-Patcher.exe`).
 """
@@ -251,8 +251,8 @@ Oficjalne wydanie zintegrowanych paczek instalacyjnych i aktualizacyjnych **MT20
     html_url = rel['html_url']
     print(f"Release {rel_id}: {html_url}")
 
-    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.41.0.zip", srv_size):
-        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.41.0.zip")
+    if delete_existing_asset_if_exists(token, rel_id, "metin2-server-update-2.42.0.zip", srv_size):
+        upload_asset(token, upload_url, srv_zip, "metin2-server-update-2.42.0.zip")
     if delete_existing_asset_if_exists(token, rel_id, "metin2-client-update-2.0.71.zip", cli_size):
         upload_asset(token, upload_url, cli_zip, "metin2-client-update-2.0.71.zip")
 
@@ -265,7 +265,7 @@ if __name__ == '__main__':
     else:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         dist_dir = os.path.join(repo_root, 'dist')
-        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.41.0.zip')
+        srv_zip = os.path.join(dist_dir, 'metin2-server-update-2.42.0.zip')
         cli_zip = os.path.join(dist_dir, 'metin2-client-update-2.0.71.zip')
         import hashlib
         def h(p):

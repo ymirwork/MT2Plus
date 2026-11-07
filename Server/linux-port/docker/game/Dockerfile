@@ -341,7 +341,7 @@ RUN set -eux; \
     # is gone (MT2009_PLUS_PASS69_OFF_V1) - their objects replace the stock ones.
     # event_halloween_hair is Owsap's Halloween event (MT2009_PLUS_HALLOWEEN_V1, Autor: Owsap) in
     # place of the package's copy, whose handlers the runtime stage removes first.
-    for q in web_admin speed_boost starter_chest starter_kit konie horse_inventory gm_profile new_quest_lv19 teleport_ring pony_buy horse_upgrade horse_upgrade2 deviltower_zone fishing_pass_shop collect_quest_lv85 collect_quest_lv70 towarzysz devilcatacomb_zone check_trans_ticket heavens_cave_keyquest tanaka_ears acce_costume_uriel ah_yu_shop costume_bonus_transfer dragon_soul dragon_soul_refine dragon_soul_shop autohunt_time antiexp_ring seon_pyeong wytwarzanie_jae_seon_kim flea_market temple_of_the_ochao razador_dungeon nemere_dungeon blue_dragon_lair goblin_skarbow biblioteka_wiedzy map_warp dungeon_panel wzgorze_wukonga ruiny_skorpiona starozytna_dzungla ruiny_atlantydy seonhae minigame_rumi minigame_catchking minigame_yutnori tp_bookmarks ksiegi_seonhae usun_misje guild_building kolekcjoner_item pasy energia_alchemik zywioly mapa_tab zodiac_temples zodiac_milbon zodiac_prism_mission zodiac_emergency_mission guild_war_join zaklety_las erebu recykling_bonusow shop_unlock_slots guild_crafter_revenue guild_building_npc labirynth black_steel_crafting event_halloween_hair; do \
+    for q in web_admin speed_boost starter_chest starter_kit konie horse_inventory gm_profile new_quest_lv19 teleport_ring pony_buy horse_upgrade horse_upgrade2 deviltower_zone fishing_pass_shop collect_quest_lv85 collect_quest_lv70 towarzysz devilcatacomb_zone check_trans_ticket heavens_cave_keyquest tanaka_ears acce_costume_uriel ah_yu_shop costume_bonus_transfer dragon_soul dragon_soul_refine dragon_soul_shop autohunt_time antiexp_ring seon_pyeong wytwarzanie_jae_seon_kim flea_market temple_of_the_ochao razador_dungeon nemere_dungeon blue_dragon_lair goblin_skarbow biblioteka_wiedzy map_warp dungeon_panel wzgorze_wukonga ruiny_skorpiona starozytna_dzungla ruiny_atlantydy seonhae minigame_rumi minigame_catchking minigame_yutnori tp_bookmarks ksiegi_seonhae usun_misje guild_building kolekcjoner_item pasy energia_alchemik zywioly mapa_tab zodiac_temples zodiac_milbon zodiac_prism_mission zodiac_emergency_mission guild_war_join zaklety_las erebu recykling_bonusow shop_unlock_slots guild_crafter_revenue guild_building_npc glass_of_trade heuk_young_craft labirynth black_steel_crafting event_halloween_hair; do \
       [ -f "/quest-add/$q.quest" ] || continue; \
       sed 's/\r$//' "/quest-add/$q.quest" > "/tmp/qc-work/$q.quest"; \
       ( cd /tmp/qc-work && /src/Server/game/src/quest/qc "$q.quest" ); \
@@ -1807,6 +1807,10 @@ RUN set -eu; O=/opt/metin2/share/locale/poland/quest/object \
 # The three quests compiled in the quests stage, as a pure addition on top of
 # the package's own object tree (new files under quest/object/, the sources
 # beside the stock ones). Empty when web_admin.quest was left out.
+# MT2Plus: Remove flea_market chat trigger from 9003 and crafting_manage from 20090
+RUN set -eu; O=/opt/metin2/share/locale/poland/quest/object \
+ && rm -f "$O/9003/chat/flea_market."* "$O/20090/chat/crafting_manage."*
+
 COPY --from=quests /out-quest/ /opt/metin2/share/locale/
 
 # Seed for a core's mark/ directory (guild symbols): copied into the state

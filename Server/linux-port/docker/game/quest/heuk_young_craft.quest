@@ -1,0 +1,8 @@
+quest heuk_young_craft begin
+	state start begin
+		when 20090.click begin
+			setskin(NOWINDOW)
+			crafting.open(104)
+		end
+	end
+end

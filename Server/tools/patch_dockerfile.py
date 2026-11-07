@@ -20,7 +20,9 @@ CUSTOM_QUESTS = [
     "recykling_bonusow",
     "shop_unlock_slots",
     "guild_crafter_revenue",
-    "guild_building_npc"
+    "guild_building_npc",
+    "glass_of_trade",
+    "heuk_young_craft"
 ]
 
 def patch_dockerfile(repo_dir=None):

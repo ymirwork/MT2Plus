@@ -7,7 +7,7 @@ Group	MT2009_dropedit_9706
 {
 	mob	9706	-- Baronowna Pajakow
 	Type	drop
-	1	50255	3	20	-- Cor Draconis (Rough) x3, 5%
+	1	50255	5	40	-- Cor Draconis (Rough) x5, 10%
 	2	25040	2	40	-- Zwoj Blogoslawienstwa x2, 10%
 }
 
@@ -25,7 +25,7 @@ Group	MT2009_dropedit_9694
 	Type	drop
 	1	27987	5	40	-- Malz x5, 10%
 	2	50513	1	20	-- Kamien Duchowy, 5%
-	3	50255	10	20	-- Cor Draconis (Rough) x10, 5%
+	3	50255	10	40	-- Cor Draconis (Rough) x10, 10%
 	4	25040	3	40	-- Zwoj Blogoslawienstwa x3, 10%
 	5	71084	1	40	-- Zaczarowanie Przedmiotu, 10%
 	6	72065	1	280	-- Sredni Suplement (6/7), 70%
@@ -272,4 +272,106 @@ Group	MT2009_jewels75_2495
 	10	14520	1	0.87	-- Granatowa Bransoleta+0
 	11	16520	1	0.87	-- Granatowy Naszyjnik+0
 	12	17520	1	0.43	-- Granatowe Kolczyki+0
+}
+
+// MT2009_PLUS_MIDLEVEL_DROPS_V1: Magiczny Metal (71026), Podrecznik Kowala (70039), Cor Draconis (50255)
+// Drop z bossow i metinow sredniego szczebla (Dolina Orkow, Pustynia, Sohan, Swiatynia, Wieza Demonow)
+
+Group	MT2009_midboss_691
+{
+	mob	691	-- Wodz Orkow
+	Type	drop
+	1	71026	1	8	-- Magiczny Metal, 2%
+	2	70039	1	8	-- Podrecznik Kowala, 2%
+	3	50255	3	60	-- Cor Draconis (Surowy) x3, 15%
+}
+
+Group	MT2009_midboss_2191
+{
+	mob	2191	-- Pustynny Zolw
+	Type	drop
+	1	71026	1	8	-- Magiczny Metal, 2%
+	2	70039	1	8	-- Podrecznik Kowala, 2%
+	3	50255	3	60	-- Cor Draconis (Surowy) x3, 15%
+}
+
+Group	MT2009_midboss_1901
+{
+	mob	1901	-- Dziewiec Ogonow
+	Type	drop
+	1	71026	1	12	-- Magiczny Metal, 3%
+	2	70039	1	12	-- Podrecznik Kowala, 3%
+	3	50255	5	80	-- Cor Draconis (Surowy) x5, 20%
+}
+
+Group	MT2009_midboss_1304
+{
+	mob	1304	-- Zjawa Zoltego Tygrysa
+	Type	drop
+	1	71026	1	12	-- Magiczny Metal, 3%
+	2	70039	1	12	-- Podrecznik Kowala, 3%
+	3	50255	5	80	-- Cor Draconis (Surowy) x5, 20%
+}
+
+Group	MT2009_midboss_1091
+{
+	mob	1091	-- Krol Demonow
+	Type	drop
+	1	71026	1	12	-- Magiczny Metal, 3%
+	2	70039	1	12	-- Podrecznik Kowala, 3%
+	3	50255	5	80	-- Cor Draconis (Surowy) x5, 20%
+}
+
+Group	MT2009_midmetin_8008
+{
+	mob	8008	-- Metin Cienia (45 lvl)
+	Type	drop
+	1	71026	1	4	-- Magiczny Metal, 1%
+	2	70039	1	4	-- Podrecznik Kowala, 1%
+	3	50255	3	40	-- Cor Draconis (Surowy) x3, 10%
+}
+
+Group	MT2009_midmetin_8009
+{
+	mob	8009	-- Metin Twardosci (50 lvl)
+	Type	drop
+	1	71026	1	4	-- Magiczny Metal, 1%
+	2	70039	1	4	-- Podrecznik Kowala, 1%
+	3	50255	3	40	-- Cor Draconis (Surowy) x3, 10%
+}
+
+Group	MT2009_midmetin_8010
+{
+	mob	8010	-- Metin Diabla (55 lvl)
+	Type	drop
+	1	71026	1	6	-- Magiczny Metal, 1.5%
+	2	70039	1	6	-- Podrecznik Kowala, 1.5%
+	3	50255	3	48	-- Cor Draconis (Surowy) x3, 12%
+}
+
+Group	MT2009_midmetin_8011
+{
+	mob	8011	-- Metin Upadku (60 lvl)
+	Type	drop
+	1	71026	1	6	-- Magiczny Metal, 1.5%
+	2	70039	1	6	-- Podrecznik Kowala, 1.5%
+	3	50255	4	48	-- Cor Draconis (Surowy) x4, 12%
+}
+
+Group	MT2009_midmetin_8012
+{
+	mob	8012	-- Metin Smierci (65 lvl)
+	Type	drop
+	1	71026	1	8	-- Magiczny Metal, 2%
+	2	70039	1	8	-- Podrecznik Kowala, 2%
+	3	50255	4	60	-- Cor Draconis (Surowy) x4, 15%
+}
+
+Group	MT2009_midmetin_8013
+{
+	mob	8013	-- Metin Morderstwa (70 lvl)
+	Type	drop
+	1	71026	1	8	-- Magiczny Metal, 2%
+	2	70039	1	8	-- Podrecznik Kowala, 2%
+	3	50255	5	60	-- Cor Draconis (Surowy) x5, 15%
 }

@@ -219,6 +219,45 @@ results['balans-itemshop-sz'] = bool(
     'DRAGON_MARK' in c38_patch
 )
 
+# 39. szklo-handlu
+c39_inv = read_file_safe(os.path.join(repo, 'Klient/pack/root/uiinventory.py'))
+c39_sql = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/mariadb/playerbot/item_proto.mt2009plus.sql'))
+results['szklo-handlu'] = bool(
+    c39_inv and c39_sql and
+    '72161' in c39_inv and
+    'OpenFleaMarket' in c39_inv and
+    'Szklo Handlu' in c39_sql
+)
+
+# 40. zdalne-npc
+c40_cg = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/cmd_general.cpp'))
+c40_ui = read_file_safe(os.path.join(repo, 'Klient/pack/root/uiremotenpc.py'))
+results['zdalne-npc'] = bool(
+    c40_cg and c40_ui and
+    'do_remote_npc' in c40_cg and
+    'RemoteNPCWindow' in c40_ui
+)
+
+# 41. auto-dungeon-dt
+c41_cg = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/cmd_general.cpp'))
+c41_pb = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/playerbot_manager.cpp'))
+results['auto-dungeon-dt'] = bool(
+    c41_cg and c41_pb and
+    'GetAutoHuntTowerTarget' in c41_cg and
+    'PickPlayerBotTowerObjective' in c41_pb
+)
+
+# 42. zielone-dodanie-bizuteria
+c42_ci = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/char_item.cpp'))
+results['zielone-dodanie-bizuteria'] = bool(
+    c42_ci and
+    'ARMOR_SHIELD' in c42_ci and
+    'ARMOR_WRIST' in c42_ci and
+    'ARMOR_NECK' in c42_ci and
+    'ARMOR_EAR' in c42_ci and
+    'ARMOR_PENDANT' in c42_ci
+)
+
 all_ok = True
 print(f'{"NAZWA MODYFIKACJI":42} | STATUS')
 print('-' * 60)

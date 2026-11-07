@@ -1,0 +1,7 @@
+quest glass_of_trade begin
+	state start begin
+		when 72161.use begin
+			cmdchat("FleaMarketOpen")
+		end
+	end
+end

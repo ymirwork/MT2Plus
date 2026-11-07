@@ -125,6 +125,12 @@ SELECT (SELECT COALESCE(MAX(id), 0) + 1 FROM (SELECT id FROM itemshop.ishop_item
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM itemshop.ishop_items WHERE vnum = 70037);
 
+INSERT INTO itemshop.ishop_items (id, category, name_item, `desc`, price, currency, vnum, count, vnum_icon)
+SELECT (SELECT COALESCE(MAX(id), 0) + 1 FROM (SELECT id FROM itemshop.ishop_items) AS ids), 3,
+   'Szkło Handlu (30 dni)', 'Umożliwia zdalny dostęp do Domu Aukcyjnego z dowolnego miejsca na mapie.', 50, 'cash', 72161, 1, '72161'
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM itemshop.ishop_items WHERE vnum = 72161);
+
 INSERT INTO itemshop.wheel_prizes (id, level, is_jackpot, name_item, item_desc, vnum, vnum_icon, count, weight)
 SELECT * FROM (SELECT
    1 AS id, 1 AS level, 1 AS is_jackpot, 'Medal Konny' AS name_item, 'Glowna wygrana' AS item_desc, 50050 AS vnum, '50050' AS vnum_icon, 1 AS count, 1 AS weight

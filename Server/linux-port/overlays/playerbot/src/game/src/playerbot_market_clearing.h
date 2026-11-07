@@ -89,13 +89,19 @@ namespace
 		if (vnum == 0 || IsPlayerBotCorVnum(vnum) || vnum == PLAYERBOT_CRAFT_MATERIAL_VNUM_PRICED ||
 				vnum == PLAYERBOT_MOONLIGHT_CHEST_VNUM || IsPlayerBotGuildBuildMaterial(vnum) ||
 				IsPlayerBotFixedPriceTalismanVnum(vnum) ||
-				IsPlayerBotBeltVnum(vnum) || IsPlayerBotSashVnum(vnum))
+				IsPlayerBotBeltVnum(vnum) || IsPlayerBotSashVnum(vnum) ||
+				IsPlayerBotGreenBonusStone(vnum) ||
+				vnum == 30368 || vnum == 30369 || vnum == 30370)
 			return false;
 		const TItemTable* proto = ITEM_MANAGER::instance().GetTable(vnum);
 		if (!proto)
 			return false;
 		if (proto->bType == ITEM_WEAPON || proto->bType == ITEM_ARMOR || proto->bType == ITEM_COSTUME ||
 				proto->bType == ITEM_SKILLBOOK || proto->bType == ITEM_DS || proto->bType == ITEM_BELT)
+			return false;
+		// MT2PLUS_EXCLUDE_BONUS_FROM_CLEARING: Wykluczenie przedmiotow dodawania, zmiany i 5. bonusu (Wzmocnienie, Zaczarowanie, Zielona Sila, Zielony Czar, Marmur)
+		if (proto->bType == ITEM_USE && (proto->bSubType == USE_CHANGE_ATTRIBUTE ||
+				proto->bSubType == USE_ADD_ATTRIBUTE || proto->bSubType == USE_ADD_ATTRIBUTE2))
 			return false;
 		return IS_SET(proto->dwFlags, ITEM_FLAG_STACKABLE) || GetPlayerBotRefineMaterialVnums().count(vnum) != 0;
 	}

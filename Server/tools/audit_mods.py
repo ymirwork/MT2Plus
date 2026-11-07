@@ -258,6 +258,15 @@ results['zielone-dodanie-bizuteria'] = bool(
     'ARMOR_PENDANT' in c42_ci
 )
 
+# 43. wykluczenie-bonusow-market-clearing
+c43_mc = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/playerbot_market_clearing.h'))
+c43_tw = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/playerbot_town.h'))
+results['wykluczenie-bonusow-market-clearing'] = bool(
+    c43_mc and c43_tw and
+    'MT2PLUS_EXCLUDE_BONUS_FROM_CLEARING' in c43_mc and
+    'MT2PLUS_GREEN_BONUS_FLOOR' in c43_tw
+)
+
 all_ok = True
 print(f'{"NAZWA MODYFIKACJI":42} | STATUS')
 print('-' * 60)

@@ -9783,3 +9783,34 @@ bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, lon
 
 	return true;
 }
+
+
+// MT2009_PLUS_AUTODUNGEON_DT_V1: Auto-Dung for Demon Tower
+DWORD CPlayerBotManager::GetAutoHuntTowerTarget(LPCHARACTER ch)
+{
+	if (!ch || !ch->GetSectree() || ch->IsDead())
+		return 0;
+
+	const DWORD dwNow = get_dword_time();
+	const TPlayerBotTowerScan* scan = ScanPlayerBotTowerMap(ch->GetMapIndex(), dwNow);
+	if (!scan)
+		return 0;
+
+	int level = -1;
+	for (int i = 0; i < 8; ++i)
+	{
+		long fx = 0, fy = 0;
+		if (GetPlayerBotTowerFloorCentre(i, fx, fy))
+		{
+			if (DISTANCE_APPROX(fx - ch->GetX(), fy - ch->GetY()) <= PLAYERBOT_TOWER_FLOOR_RADIUS)
+			{
+				level = i;
+				break;
+			}
+		}
+	}
+
+	bool parter = (level < 0);
+	LPCHARACTER target = PickPlayerBotTowerObjective(ch, scan, level, parter, 0);
+	return target ? target->GetVID() : 0;
+}

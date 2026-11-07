@@ -57,6 +57,8 @@ class CPlayerBotManager : public singleton<CPlayerBotManager>
 		// no Update, and its chests used to drop whatever the events said; this
 		// stops by itself once the first bot's Update is running.
 		void	StartWorldClock();
+		// MT2009_PLUS_AUTODUNGEON_DT_V1: Auto-Dung for Demon Tower
+		DWORD	GetAutoHuntTowerTarget(LPCHARACTER ch);
 		// A player's shout, after the channel has it, and a whisper addressed to
 		// a bot. Both from patch 0007 in input_main.cpp; playerbot_chat_trade.h
 		// decides whether and which bot answers.

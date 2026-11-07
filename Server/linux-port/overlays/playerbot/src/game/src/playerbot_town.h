@@ -3536,6 +3536,11 @@ namespace
 		if (item->GetVnum() == PLAYERBOT_MOONLIGHT_CHEST_VNUM)
 			unit = playerbot_moonlight_rules::ChestFloor(GetPlayerBotMoonlightChestWorth(),
 					PLAYERBOT_MOONLIGHT_CHEST_FLOOR_PERCENT);
+		// MT2PLUS_GREEN_BONUS_FLOOR: Zielony Czar i Zielona Sila maja wlasny floor ze swoich cen bazowych
+		else if (IsPlayerBotGreenBonusStone(item->GetVnum()))
+		{
+			unit = GetPlayerBotMaterialAskingBase(item->GetVnum());
+		}
 		else if (IsPlayerBotBonusStoneItem(item))
 		{
 			playerbot_moonlight_rules::EBonusKind kind = playerbot_moonlight_rules::BONUS_NONE;

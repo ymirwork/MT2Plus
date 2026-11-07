@@ -33,13 +33,11 @@ quest acce_costume_uriel begin
 			setskin(NOWINDOW)
 		end
 		when 20011.chat."Polacz Szarfy" begin
-			say_title(mob_name(20011))
-			say("Przynies dwie Szarfy tego samego stopnia, a polacze je w jedna, silniejsza.")
+			setskin(NOWINDOW)
 			pc.open_acce(true)
 		end
 		when 20011.chat."Przechwyc bonus do Szarfy" begin
-			say_title(mob_name(20011))
-			say("Przynies Szarfe oraz przedmiot, z ktorego chcesz przechwycic bonus.")
+			setskin(NOWINDOW)
 			pc.open_acce(false)
 		end
 	end

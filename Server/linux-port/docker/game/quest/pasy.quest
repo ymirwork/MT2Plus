@@ -10,41 +10,15 @@
 quest pasy begin
 	state start begin
 		when 20082.chat."Wytwarzanie pasow" begin
-			say_title(mob_name(20082)..":")
-			say("Z kruszcow, perel i Odlamkow Energii")
-			say("wykuje dla ciebie pas. Kazdy pas ma")
-			say("kieszenie na mikstury - im wyzej go")
-			say("ulepszysz u Kowala, tym wiecej kieszeni.")
-			say("")
-			say("Odlamki Energii wydobywa Alchemik")
-			say("z rozebranych przedmiotow, a Kamienie")
-			say("Plomienia znajdziesz w skrzyniach")
-			say("Razadora i Nemere.")
-			say("")
-			if select("Otworz okno wytwarzania", "Anuluj") == 1 then
-				setskin(NOWINDOW)
-				cmdchat("CubeCategory belts")
-				command("cube open")
-			end
+			setskin(NOWINDOW)
+			cmdchat("CubeCategory belts")
+			command("cube open")
 		end
 
 		when 20082.chat."Wytwarzanie Cor Draconis" begin
-			say_title(mob_name(20082)..":")
-			say("Witaj! Jesli posiadasz Cor Draconis,")
-			say("moge polaczyc je w cenniejsze smocze serca")
-			say("o wyzszym stopniu szlifu.")
-			say("")
-			say("Wymiana odbywa sie w proporcji 3 do 1:")
-			say("- 3x Cor Draconis -> 1x Cor Draconis (szlif.)")
-			say("- 3x Cor Draconis (szlif.) -> 1x Cor Draconis (rzadkie)")
-			say("- 3x Cor Draconis (rzadkie) -> 1x Cor Draconis (antyczne)")
-			say("- 3x Cor Draconis (antyczne) -> 1x Cor Draconis (legend.)")
-			say("")
-			if select("Otworz okno wytwarzania", "Anuluj") == 1 then
-				setskin(NOWINDOW)
-				cmdchat("CubeCategory cors")
-				command("cube open")
-			end
+			setskin(NOWINDOW)
+			cmdchat("CubeCategory cors")
+			command("cube open")
 		end
 	end
 end

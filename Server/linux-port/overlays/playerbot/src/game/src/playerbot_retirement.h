@@ -864,7 +864,7 @@ EPlayerBotRetireStallResult AdvancePlayerBotRetirementStall(LPCHARACTER ch,
 		if (dwNow >= entry.dwNextAttempt)
 		{
 			entry.dwNextAttempt = dwNow + 2000;
-			ikashop::GetManager().SendShopForceHardCloseDBPacket(pid);
+			ikashop::GetManager().SendShopForceHardCloseDBPacket(pid, true); // MT2009_PLUS_BOT_RETIREMENT_FIX_V7: gm=true bypasses shop item guard
 			if (auto oldShop = ikashop::GetManager().GetShopByOwnerID(pid))
 				ikashop::GetManager().DestroyShopEntity(oldShop);
 			sys_log(0, "PLAYERBOT_RETIRE: pid=%u closing pre-existing drop shop for retirement stall", pid);

@@ -653,7 +653,8 @@ namespace {
         if (!IsPlayerBotRetiring(ch->GetPlayerID()) && now - state.dwSpawnTime < 120000) return false;
         const long long reservedGold = IsPlayerBotRetiring(ch->GetPlayerID()) ? 0 : (long long)GetPlayerBotReservedGold(ch);
         if (ch->GetGold() - aOfflineShopTime[duration].price < reservedGold ||
-                !BotOfflineBudget(now) || !Begin(ch->GetPlayerID(), Create, 0, now)) return false;
+                (!IsPlayerBotRetiring(ch->GetPlayerID()) && !BotOfflineBudget(now)) ||
+                !Begin(ch->GetPlayerID(), Create, 0, now)) return false; // MT2009_PLUS_BOT_RETIREMENT_FIX_V7
         // What goes up, read while the items are still in the bag: the create
         // takes them out of it.
         struct TPlayerBotNewLine { DWORD id, vnum, skill, count; BYTE refine; };

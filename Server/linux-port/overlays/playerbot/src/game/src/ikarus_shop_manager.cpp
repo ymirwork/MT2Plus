@@ -1630,14 +1630,14 @@ namespace ikashop
 
 
 	//SHOPS
-	void CShopManager::SendShopForceHardCloseDBPacket(DWORD pid)
+	void CShopManager::SendShopForceHardCloseDBPacket(DWORD pid, bool gm)
 	{
 		TPacketGDNewIkarusShop pack{};
 		pack.bSubHeader = SUBHEADER_GD_SHOP_FORCE_HARD_CLOSE;
 
 		TSubPacketGDShopForceClose subpack{};
 		subpack.ownerid = pid;
-		subpack.gm = false;
+		subpack.gm = gm;
 
 		TEMP_BUFFER buff;
 		buff.write(&pack, sizeof(pack));

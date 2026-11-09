@@ -2715,7 +2715,7 @@ namespace
 		const BYTE plus = item->GetRefineLevel();
 
 		// Negative or very weak average damage (<= 10%) at +0..+3 is pure scrap
-		if (avg <= 10 && plus <= 3)
+		if (plus <= 3 && !IsPlayerBotHighValueLevel30(item))
 			return true;
 
 		// When bag has multiple copies ahead, or bag is under pressure, surplus is scrap

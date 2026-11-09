@@ -1552,7 +1552,8 @@ namespace {
                 vnum == PLAYERBOT_MOONLIGHT_CHEST_VNUM ||
                 vnum == PLAYERBOT_CRAFT_MATERIAL_VNUM_PRICED || IsPlayerBotGuildBuildMaterial(vnum))
             return !forAdd;
-        if (IsPlayerBotStalkiItem(item) || IsPlayerBotSpecialLevel30Weapon(item) || IsPlayerBotPrizeItem(item))
+        if (IsPlayerBotStalkiItem(item) || IsPlayerBotHighValueLevel30(item) ||
+                (IsPlayerBotSpecialLevel30Weapon(item) && item->GetRefineLevel() >= 6) || IsPlayerBotPrizeItem(item))
             return true;
         if ((type == ITEM_WEAPON || type == ITEM_ARMOR) &&
                 ((int)item->GetRefineLevel() >= 7 || IsPlayerBotBonusGoodsPiece(item)))

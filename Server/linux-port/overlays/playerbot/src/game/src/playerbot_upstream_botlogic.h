@@ -37,7 +37,7 @@ namespace
 	// ---------------------------------------------------------------------
 	// How many surplus level-30 weapons a bot takes to the anvil a day, and
 	// how many +0 units of the family the counters must hold for it to.
-	const int PLAYERBOT_LOTTERY30_PER_DAY = 8;
+	const int PLAYERBOT_LOTTERY30_PER_DAY = 15;
 	const int PLAYERBOT_LOTTERY30_MARKET_PLUS0 = 6;
 	const char* const PLAYERBOT_LOTTERY30_DAY_FLAG = "mt2009_botlogic.lot30_day";
 	const char* const PLAYERBOT_LOTTERY30_COUNT_FLAG = "mt2009_botlogic.lot30_n";

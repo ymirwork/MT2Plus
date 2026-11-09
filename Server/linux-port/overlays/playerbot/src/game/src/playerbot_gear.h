@@ -3130,7 +3130,7 @@ namespace
 			return true;
 		const long avg = SumPlayerBotItemLines(item, APPLY_NORMAL_HIT_DAMAGE_BONUS);
 		const long skill = SumPlayerBotItemLines(item, APPLY_SKILL_DAMAGE_BONUS);
-		return (avg >= 25 || skill >= 8);
+		return (avg >= 20 || skill >= 6);
 	}
 
 	// What a bot picks up and keeps for a player's crafting whatever the

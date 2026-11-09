@@ -5368,6 +5368,11 @@ namespace
 		// counters at +0 on 17 September while 28 bots wore one.
 		if (IsPlayerBotSpecialLevel30Weapon(item))
 		{
+			// MT2009_PLUS_HARDCORE_L30_RECYCLE_V2:
+			// Low value / scrap level 30 weapons (+0..+3 with avg < 20% and skill < 6%)
+			// must never be listed on market stalls! They are scrap for the merchant or anvil.
+			if (!IsPlayerBotHighValueLevel30(item) && item->GetRefineLevel() <= 3)
+				return -1;
 			// One of another class stays in the bag while the anvil can take
 			// it towards its ceiling (PlayerBotRefinesLevel30ForSale), and is
 			// goods the moment it cannot.

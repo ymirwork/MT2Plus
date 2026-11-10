@@ -238,26 +238,8 @@ def publish_to_gh_pages(repo_root, web_dir):
         print(f"Błąd push do origin/gh-pages: {push_res.stderr.strip()}")
         return False
 
-    # Włącz GitHub Pages jeśli nie było włączone
-    if token:
-        try:
-            data = json.dumps({'source': {'branch': 'gh-pages', 'path': '/'}}).encode('utf-8')
-            req = urllib.request.Request('https://api.github.com/repos/ymirwork/MT2Plus/pages', data=data, method='POST')
-            req.add_header('Authorization', f'Bearer {token}')
-            req.add_header('Accept', 'application/vnd.github+json')
-            req.add_header('Content-Type', 'application/json')
-            req.add_header('User-Agent', 'MT2Plus-Patcher')
-            with urllib.request.urlopen(req) as resp:
-                print("Włączono GitHub Pages dla repozytorium MT2Plus!")
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode('utf-8')
-            if 'already' in err_body or e.code == 409:
-                print("GitHub Pages jest już aktywne.")
-            else:
-                print(f"Info GitHub Pages API ({e.code}): {err_body}")
-
     print("Publikacja zakończona sukcesem!")
-    print("Adres Patchlisty: https://ymirwork.github.io/MT2Plus/patcher/patchlist.json")
+    print("Adres Patchlisty (Git Raw): https://raw.githubusercontent.com/ymirwork/MT2Plus/gh-pages/patcher/patchlist.json")
     return True
 
 if __name__ == '__main__':

@@ -470,17 +470,17 @@
  },
  {
   "name": "pack\\dbdata.data",
-  "size": 408832,
-  "md5": "237C3857F882BCB28DBA5496AAE6CBD9",
-  "uid": "237c3857f882bcb28dba5496aae6cbd9",
+  "size": 368896,
+  "md5": "A1E78481130AEE868973EABD8645DDA9",
+  "uid": "a1e78481130aee868973eabd8645dda9",
   "delete": 0,
   "keep": 1
  },
  {
   "name": "pack\\dbdata.index",
-  "size": 292,
-  "md5": "E1407A49C39793A641B7E27305F7798E",
-  "uid": "e1407a49c39793a641b7e27305f7798e",
+  "size": 276,
+  "md5": "BB854DB95D8E7B67D271DD30DCAF5AFE",
+  "uid": "bb854db95d8e7b67d271dd30dcaf5afe",
   "delete": 0,
   "keep": 1
  },

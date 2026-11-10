@@ -532,7 +532,9 @@ bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, lon
 	if (!ch)
 		return false;
 	const long lMapIndex = ch->GetMapIndex();
-	if (GetHumanPathKind(lMapIndex) == 0)
+	if (GetHumanPathKind(lMapIndex) != 2)
+		return true;
+	if (DISTANCE_APPROX(ch->GetX() - targetX, ch->GetY() - targetY) <= 600)
 		return true;
 
 	const long base = lMapIndex >= PLAYERBOT_INSTANCE_MAP_INDEX_MIN ? lMapIndex / 10000 : lMapIndex;

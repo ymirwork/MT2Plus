@@ -267,6 +267,17 @@ results['wykluczenie-bonusow-market-clearing'] = bool(
     'MT2PLUS_GREEN_BONUS_FLOOR' in c43_tw
 )
 
+# 44. kostiumy-mounty-czas-noszenia
+c44_ms = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/MountSystem.cpp'))
+c44_im = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/item_manager.cpp'))
+c44_pb = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/playerbot_bonus.h'))
+results['kostiumy-mounty-czas-noszenia'] = bool(
+    c44_ms and c44_im and c44_pb and
+    'MT2009_PLUS_COSTUMES_MOUNTS_WEAR_TIMER_V1' in c44_ms and
+    'item->GetType() == ITEM_COSTUME' in c44_im and
+    'LIMIT_TIMER_BASED_ON_WEAR' in c44_pb
+)
+
 all_ok = True
 print(f'{"NAZWA MODYFIKACJI":42} | STATUS')
 print('-' * 60)

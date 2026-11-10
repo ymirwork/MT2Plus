@@ -2578,7 +2578,7 @@ namespace
 		return good;
 	}
 
-	// Seconds a costume has left: its REAL_TIME limit counts down in socket 0.
+	// Seconds a costume has left: wear timer or REAL_TIME limit in socket 0.
 	long GetPlayerBotCostumeSecondsLeft(LPITEM item)
 	{
 		if (!item)
@@ -2586,6 +2586,13 @@ namespace
 		for (int i = 0; i < ITEM_LIMIT_MAX_NUM; ++i)
 		{
 			const BYTE type = item->GetProto()->aLimits[i].bType;
+			if (type == LIMIT_TIMER_BASED_ON_WEAR)
+			{
+				const long remain = item->GetSocket(0);
+				if (remain <= 0)
+					return item->GetProto()->aLimits[i].lValue;
+				return remain;
+			}
 			if (type == LIMIT_REAL_TIME || type == LIMIT_REAL_TIME_START_FIRST_USE)
 			{
 				const long end = item->GetSocket(0);

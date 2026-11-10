@@ -89,6 +89,14 @@ def main():
     if os.path.exists(gamedata_index):
         overrides['pack\\gamedata.index'] = gamedata_index
 
+    # dbdata.data i dbdata.index (item_proto, mob_proto MT2Plus)
+    dbdata_data = os.path.join(klient_dir, 'pack', 'dbdata.data')
+    dbdata_index = os.path.join(klient_dir, 'pack', 'dbdata.index')
+    if os.path.exists(dbdata_data):
+        overrides['pack\\dbdata.data'] = dbdata_data
+    if os.path.exists(dbdata_index):
+        overrides['pack\\dbdata.index'] = dbdata_index
+
     # pack\Index
     pack_index_path = os.path.join(klient_dir, 'pack', 'Index')
     if os.path.exists(pack_index_path):

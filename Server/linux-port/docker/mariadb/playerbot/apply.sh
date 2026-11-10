@@ -3978,6 +3978,22 @@ done
 db -e "UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = 2592000 WHERE vnum IN (71135, 71136, 71143, 71145, 71148, 71149);" \
   || fail_step "could not update amulets and rings duration to 30 days" >&2
 
+# MT2009_PLUS_COSTUMES_MOUNTS_WEAR_TIMER: Kostiumy i wierzchowce (type = 28) - czas leci wylacznie podczas noszenia / gry (limittype = 9)
+db -e "
+UPDATE world.item_proto SET limittype0 = 9, limitvalue0 = IF(limitvalue0 = 0, 604800, limitvalue0) WHERE type = 28 AND limittype0 IN (7, 8);
+UPDATE world.item_proto SET limittype1 = 9, limitvalue1 = IF(limitvalue1 = 0, 604800, limitvalue1) WHERE type = 28 AND limittype1 IN (7, 8);
+UPDATE player.item_proto SET limittype0 = 9, limitvalue0 = IF(limitvalue0 = 0, 604800, limitvalue0) WHERE type = 28 AND limittype0 IN (7, 8);
+UPDATE player.item_proto SET limittype1 = 9, limitvalue1 = IF(limitvalue1 = 0, 604800, limitvalue1) WHERE type = 28 AND limittype1 IN (7, 8);
+UPDATE player.item i
+JOIN world.item_proto p ON i.vnum = p.vnum
+SET i.socket0 = CASE 
+    WHEN i.socket0 > 100000000 THEN GREATEST(CAST(i.socket0 AS SIGNED) - CAST(UNIX_TIMESTAMP(NOW()) AS SIGNED), 0)
+    WHEN i.socket0 = 0 THEN IF(p.limitvalue0 > 0, p.limitvalue0, 604800)
+    ELSE i.socket0
+END
+WHERE p.type = 28 AND (p.limittype0 = 9 OR p.limittype1 = 9) AND (i.socket0 > 100000000 OR i.socket0 = 0);
+" || fail_step "could not migrate costumes and mounts to wear timer" >&2
+
 
 # MT2009_PLUS_STACK_200_EXTENDED: Zwiekszenie stackowania wybranych przedmiotow do 200
 # Ziola malp, kowalstwo/ulepszanie, malze, perly, ryby, przetopy, ksiegi pasywne, klucze i przedmioty specjalne

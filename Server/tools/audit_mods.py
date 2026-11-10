@@ -278,6 +278,27 @@ results['kostiumy-mounty-czas-noszenia'] = bool(
     'LIMIT_TIMER_BASED_ON_WEAR' in c44_pb
 )
 
+# 45. zniesienie-limitu-poziomu-drop
+c45_im = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/item_manager.cpp'))
+c45_cb = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/char_battle.cpp'))
+c45_ds = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/quest/dragon_soul.quest'))
+results['zniesienie-limitu-poziomu-drop'] = bool(
+    c45_im and c45_cb and c45_ds and
+    'MT2009_PLUS_NO_LEVEL_DELTA_DROP' in c45_im and
+    'MT2009_PLUS_NO_LEVEL_DELTA_DROP' in c45_cb and
+    'MT2009_PLUS_NO_LEVEL_DELTA_DROP' in c45_ds
+)
+
+# 46. balans-mikstury-szybkosci
+c46_tt = read_file_safe(os.path.join(repo, 'Klient/pack/root/uitooltip.py'))
+c46_id = read_file_safe(os.path.join(repo, 'Klient/pack/dbdata/locale/pl/itemdesc.txt'))
+results['balans-mikstury-szybkosci'] = bool(
+    c46_tt and c46_id and
+    '27053' in c46_tt and
+    '27102' in c46_id and
+    '+30%' in c46_id
+)
+
 all_ok = True
 print(f'{"NAZWA MODYFIKACJI":42} | STATUS')
 print('-' * 60)

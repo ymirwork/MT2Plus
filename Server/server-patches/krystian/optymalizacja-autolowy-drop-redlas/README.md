@@ -85,8 +85,8 @@ Lochy Małp (i podobne krainy) posiadają oddzielone komnaty połączone portala
   ```cpp
   bool CPlayerBotManager::IsHumanTargetReachable(LPCHARACTER ch, long targetX, long targetY)
   ```
-  Sprawdza ona, czy `navigation.GetComponentAtWorld(...)` gracza i celu zwraca ten sam identyfikator.
-- W `cmd_general.cpp` w `FAutoHuntTarget::operator()` wykluczono cele, do których postać nie może dotrzeć pieszo.
+  Sprawdza ona, czy `navigation.GetComponentAtWorld(...)` gracza i celu zwraca ten sam identyfikator. Filtr jest ograniczony wyłącznie do map typu lochy (`GetHumanPathKind == 2`) oraz posiada bypass dla dystansu melee `<= 600`, co zapobiega blokowaniu celów na otwartych expowiskach.
+- W `cmd_general.cpp` w `FAutoHuntTarget::operator()` wykluczono cele za ścianami w lochach (`GetHumanPathKind == 2`).
 
 ### Rozwiązanie Klienckie (`uiautohunt.py`):
 - Zwiększono margines dotarcia do punktu nawigacji `PATH_POINT_REACH` z `70.0` do `140.0`.

@@ -486,16 +486,16 @@
  },
  {
   "name": "pack\\gamedata.data",
-  "size": 23388672,
-  "md5": "0F8B66E7B2522C86D64BFA531DA5C043",
-  "uid": "0f8b66e7b2522c86d64bfa531da5c043",
+  "size": 22928896,
+  "md5": "82A3D0DDCBAEC04B6D3BA427A7480389",
+  "uid": "82a3d0ddcbaec04b6d3ba427a7480389",
   "delete": 0
  },
  {
   "name": "pack\\gamedata.index",
-  "size": 4084,
-  "md5": "7AF41BFE1AE8A91B36031C656AB26765",
-  "uid": "7af41bfe1ae8a91b36031c656ab26765",
+  "size": 3796,
+  "md5": "223563244E7D1CF0E5352988DB0AB36C",
+  "uid": "223563244e7d1cf0e5352988db0ab36c",
   "delete": 0
  },
  {
@@ -731,16 +731,16 @@
  },
  {
   "name": "pack\\root.data",
-  "size": 49044480,
-  "md5": "9F410C1DEB8BEAFCF276723D3B600432",
-  "uid": "9f410c1deb8beafcf276723d3b600432",
+  "size": 49296384,
+  "md5": "1D87E11F37933E2B5558FA1FF9A17F30",
+  "uid": "1d87e11f37933e2b5558fa1ff9a17f30",
   "delete": 0
  },
  {
   "name": "pack\\root.index",
-  "size": 58828,
-  "md5": "E37950DD16F969A3E6612A61BEEC795F",
-  "uid": "e37950dd16f969a3e6612a61beec795f",
+  "size": 58980,
+  "md5": "3691E50905736B31EBB37C91BBF23306",
+  "uid": "3691e50905736b31ebb37c91bbf23306",
   "delete": 0
  },
  {

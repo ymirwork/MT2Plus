@@ -51,6 +51,7 @@ Każde zadanie bezwzględnie realizuje poniższy 5-etapowy proces:
 W projekcie MT2Plus użytkownik stosuje **Vibe Coding** – oczekuje szybkiej, sprawnej i samodzielnej realizacji zadań w kodzie:
 - **Konkretne działanie zamiast wykładów:** Brak zbędnego lania wody, teorii i długich dyskusji. Agent natychmiast diagnozuje problem, lokalizuje właściwe pliki, pisze niezbędny kod C++/Python/Lua i nanosi modyfikacje.
 - **Samodzielna obsługa narzędzi:** Agent sam zarządza patchami w `Server/server-patches/krystian/`, dba o uruchomienie `patch_dockerfile.py`, `audit_mods.py`, kompilację paczek klienta oraz automatyczne czyszczenie śmieci (`clean_workspace.py`).
+- **Orkiestracja i delegacja do subagentów (>1 zadanie):** Gdy zlecenie obejmuje więcej niż 1 niezależne zadanie (np. równoległy serwer C++ + klient Python, kilka odrębnych modułów, research logów/grafu + fix), agent główny działa jako Główny Koordynator i deleguje podzadania do subagentów (`invoke_subagent`). Obowiązuje separacja plików (zero kolizji edycji), a kompilację Docker, MariaDB i bramkę Git trzyma wyłącznie Koordynator.
 - **Dostarczenie gotowego stanu do gry:** Po wykonaniu zadania agent natychmiast podaje zwięzły checklist według Szablonu C ("Co masz przetestować w grze") i czeka na potwierdzenie przed pushem na Git.
 
 ---

@@ -11,9 +11,9 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | Tag | Znaczenie i Cel | Zachowanie i Rola Asystenta |
 | :--- | :--- | :--- |
 | **`[AKTUALIZUJ]` / `[UPSTREAM]`** | Pobranie i merge nowości z oficjalnego repozytorium `mt2009-sp-plus`. | Ścisła realizacja 5-etapowej procedury merge (Krok 1–5): analiza diffa, adaptacja na `dev`, a następnie **bezwzględne ponowne wgranie i zintegrowanie wszystkich naszych autorskich modyfikacji** z rejestru `Server/server-patches/krystian/` (Krok 3). Weryfikacja ewentualnych kolizji z upstreamem i bezpieczne usunięcie tylko tych modów, które oficjalny kod sam wdrożył. |
-| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie modułu w `Server/server-patches/krystian/`, testy w `mt2dev`. Plan krok po kroku (oszczędność tokenów AI, Zasada nr 16), obowiązkowa lista kontrolna testów na koniec; upload na GitHub wyłącznie po potwierdzeniu pomyślnego testu przez użytkownika (Zasada nr 17). |
-| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. Plan krok po kroku (Zasada nr 16), lista kontrolna testów na koniec; **dopiero po potwierdzeniu pomyślnego testu przez gracza następuje upload na GitHub oraz bezwzględna synchronizacja patchera (`python Server/tools/publish_patcher_web.py`, Zasada nr 15 i 17)**. |
-| **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa celowana analiza logów (`syserr`, `syslog`, `docker logs`), plan krok po kroku (oszczędność tokenów AI, Zasada nr 16), minimalny bezpieczny patch, lista kontrolna testów na koniec i upload na GitHub dopiero po pomyślnym przetestowaniu przez gracza (Zasada nr 17). |
+| **`[DEV]` / `[SERVER]`** | Rozwój serwera: modyfikacje C++, questy, baza danych MariaDB, kontenery Docker. | Pełne poszanowanie reguły bezpieczeństwa (Zasada nr 12: STOP serwera + backup bazy), kompilacja i386 C++20, tworzenie modułu w `Server/server-patches/krystian/`, testy w `mt2dev`. Plan krok po kroku z bazami `graphify-out` (oszczędność tokenów AI, Zasada nr 16), obowiązkowa lista kontrolna testów na koniec; upload na GitHub wyłącznie po potwierdzeniu pomyślnego testu przez użytkownika (Zasada nr 17). |
+| **`[CLIENT]` / `[PACK]`** | Prace nad klientem gry: skrypty Pythona (`root`, `uiscript`), interfejsy UI, pakowanie paczek `.data`/`.index`. | Bez zatrzymywania serwera (brak przestoju); pakowanie przez `Klient/Kompiluj-Paczki.bat` lub `Compile-ClientPack.ps1`, zachowanie kompatybilności z `dbdata`. Plan krok po kroku z bazą `Klient/pack/root/graphify-out/` (Zasada nr 16), lista kontrolna testów na koniec; **dopiero po potwierdzeniu pomyślnego testu przez gracza następuje upload na GitHub oraz bezwzględna synchronizacja patchera (`python Server/tools/publish_patcher_web.py`, Zasada nr 15 i 17)**. |
+| **`[BUG]` / `[FIX]`** | Zgłoszenie i diagnoza błędu lub crasha w grze. | Natychmiastowa celowana analiza logów (`syserr`, `syslog`, `docker logs`), weryfikacja relacji w `graphify-out` zamiast błądzenia po kodzie, plan krok po kroku (oszczędność tokenów AI, Zasada nr 16), minimalny bezpieczny patch, lista kontrolna testów na koniec i upload na GitHub dopiero po pomyślnym przetestowaniu przez gracza (Zasada nr 17). |
 | **`[DISCORD]`** | Przygotowanie materiałów, ogłoszeń i instrukcji dla społeczności graczy na Discordzie. | Przejście na język gracza: brak zbędnego żargonu kompilacji, zwięzły opis zmian oraz jasna instrukcja instalacji krok po kroku (patrz szablony poniżej). |
 | **`[DOCS]` / `[RELEASE]`** | Aktualizacja dokumentacji, generowanie podsumowań, tworzenie wydań na GitHub (Releases) oraz Changelogu. | Przygotowanie taga wydania, archiwów `.zip`/`.rar` typu Ready-to-Play (zawierających wyłącznie pliki niezbędne do uruchomienia serwera i klienta np. dla siostry/innych graczy bez zbędnego śmietnika), sformatowanego Changelogu z kropkami i podsumowaniami, a **na sam koniec utworzenie GitHub Release i wrzucenie obu paczek (serwera i klienta z naszymi modyfikacjami) na GitHub Releases (po uprzednim pomyślnym przetestowaniu zmian przez gracza)**. |
 
@@ -30,7 +30,7 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 | **Pakowanie paczek klienta** | `Klient/Kompiluj-Paczki.bat` / `Klient/Compile-ClientPack.ps1` | PackMakerLite-RS (klucz `22srh2fgh3`) |
 | **Serwer aktualizacji Patchera (CDN)** | `Server/tools/publish_patcher_web.py` | Generowanie i synchronizacja drzewa patchera na gałąź `gh-pages` (raw CDN) |
 | **Katalog autorskich modyfikacji** | `Server/server-patches/krystian/` | Podfoldery z autorskimi modyfikacjami i systemami |
-| **Grafy wiedzy kodu (Graphify)** | `Server/graphify-out/` \| `Klient/pack/root/graphify-out/` | Mapy zaleznosci C++/Python/Lua: `graph.html`, `graph.json`, `GRAPH_REPORT.md` |
+| **Grafy wiedzy kodu (Graphify-Out)** | `Server/graphify-out/` \| `Klient/pack/root/graphify-out/` | Mapy zależności C++/Python/Lua: `graph.json`, `GRAPH_REPORT.md`, `graph.html`. ZAWSZE sprawdzaj graf/raport przed edycją, aby nie przepalać tokenów na błądzenie po kodzie! |
 | **Bufor wydań i higiena dysku** | `dist/` \| `Klient/syserr.txt` | Tymczasowy bufor wydań i logi do okresowego czyszczenia (Zasada nr 14) |
 | **Kopie zapasowe bazy SQL** | `Server/backups/` | Zrzuty bazy przed zmianami w serwerze (retencja: maks. 2 dni, starsze usuwane) |
 | **Automatyczna higiena i czyszczenie śmieci** | `Server/tools/clean_workspace.py` | Jedno-klikowe usuwanie Docker build cache, starych backupów >48h, duplikatów SQL, plików `.bak` i bufora `dist/` |
@@ -94,11 +94,13 @@ Aby przyspieszyć pracę i nadać precyzyjny kontekst zapytaniom, stosuj poniżs
 
 ### 0.3. Żelazny Cykl Realizacji Zadań (Oszczędność Tokenów AI, Higiena & Bramka Testowa)
 
-Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzględnie realizuje poniższy 5-etapowy proces:
+Każde zadanie (poprawka błędu, dodanie nowego systemu, modyfikacja) bezwzględnie realizuje poniższy 5-etapowy proces. **Zasada wielu zadań:** Gdy zapytanie użytkownika obejmuje więcej niż 1 niezależne zadanie (np. modyfikacje na serwerze i w kliencie, kilka oddzielnych modułów lub fix + analityka logów/grafu), asystent główny pełni rolę **Głównego Koordynatora (Orkiestratora)** i rozdziela podzadania na równoległych subagentów (`invoke_subagent`), maksymalizując szybkość i izolując kontekst (Zasada nr 19).
 
-1. **Precyzyjny Plan Krok po Kroku (Oszczędność Tokenów AI):**
-   - Przed dotknięciem kodu asystent precyzyjnie lokalizuje docelowe pliki (wąskim, celowanym wyszukiwaniem) i układa dla siebie zwięzłą instrukcję krok po kroku (które pliki, które funkcje, jaka zmiana logiczna).
-   - Zakaz bezmyślnego przeglądania całych katalogów czy wielkich plików po omacku. Maksymalna precyzja ("chirurgiczne cięcie") ogranicza zużycie tokenów AI i eliminuje halucynacje.
+1. **Precyzyjny Plan Krok po Kroku z Graphify (Oszczędność Tokenów AI):**
+   - Zanim asystent dotknie kodu, obowiązkowo sprawdza zależności architektoniczne w bazach grafu: `Server/graphify-out/` (dla serwera C++/Lua/AI) oraz `Klient/pack/root/graphify-out/` (dla klienta Python).
+   - Weryfikacja węzła przez `GRAPH_REPORT.md`, `graphify query <symbol>` lub `graphify path` natychmiast ujawnia callerów, powiązane klasy i pliki, co zapobiega bezsensownemu przeszukiwaniu kodu i halucynacjom.
+   - **Kategoryczny zakaz bezmyślnego przeglądania wielkich plików po omacku** (np. `char.cpp`, `game.py`, 70KB `PROJECT_CONTEXT.md`). Chirurgiczne namierzenie celu oszczędza dziesiątki tysięcy tokenów AI na każde zadanie.
+   - Na tej podstawie asystent układa dla siebie zwięzłą instrukcję krok po kroku (które pliki, które funkcje, jaka zmiana logiczna).
 2. **Chirurgiczna Implementacja:**
    - Edycja wyłącznie niezbędnych bloków kodu z zachowaniem pełnej integralności projektu i bez naruszania istniejącej logiki upstreamu.
 3. **Automatyczne Czyszczenie Śmieci i Higiena Dysku (Auto-Clean Guard):**
@@ -463,11 +465,17 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
     - **Zakaz zamykania zadania bez synchronizacji CDN:** Żadne zadanie dotyczące zmian w kliencie gry nie może zostać uznane za ukończone przed pomyślnym wykonaniem powyższego skryptu i wypchnięciem zmian na gałąź `gh-pages`.
     - **Konsekwencje zaniechania:** Jeżeli pliki na CDN nie zostaną natychmiast zaktualizowane, uruchomienie gry przez `MT2009-Patcher.exe` potraktuje lokalne modyfikacje jako "uszkodzone/niezgodne" i natychmiast **pobierze starszą wersję z CDN, bezpowrotnie nadpisując autorskie zmiany w `root.data`**. Synchronizacja patchera jest integralną, obowiązkową częścią każdego taska modyfikującego klienta (wykonywaną zaraz po pomyślnym przetestowaniu zmian przez gracza zgodnie z Zasadą nr 17).
 
-16. **Zasada Precyzyjnego Planowania i Oszczędzania Tokenów AI (Token-Saving Precision Blueprint Guard):**
-    - Przy każdym zadaniu (poprawka błędu, tworzenie nowego systemu, modyfikacja plików C++ lub Pythona), asystent ma bezwzględny obowiązek optymalizować swoją pracę pod kątem precyzji i zużycia tokenów AI:
-      - **A. Wewnętrzny plan krok po kroku:** Zanim asystent dotknie jakiegokolwiek pliku, formułuje jasną, sekwencyjną instrukcję działania: określa dokładnie docelowe pliki, docelowe funkcje/metody oraz logikę wprowadzanej zmiany.
-      - **B. Chirurgiczne wyszukiwanie i odczyt:** Kategoryczny zakaz bezcelowego wczytywania wielkich plików w całości lub skanowania całych drzew katalogów bez wyraźnej potrzeby. Zawsze należy używać precyzyjnych narzędzi (`Select-String` / grep, celowane odczytywanie konkretnych zakresów linii `StartLine`-`EndLine`).
-      - **C. Zwięzłe, celowane edycje:** Modyfikacje kodu muszą być wprowadzane punktowo, bez zbędnego przepisywania działających fragmentów, bez prób i błędów oraz bez wielokrotnego odczytywania tego samego kodu.
+16. **Zasada Precyzyjnego Planowania, Oszczędzania Tokenów AI i Wykorzystania Graphify-Out (Token-Saving & Graphify Guard):**
+    - Przy każdym zadaniu (poprawka błędu, tworzenie nowego systemu, modyfikacja plików C++ lub Pythona), asystent ma bezwzględny obowiązek optymalizować swoją pracę pod kątem precyzji i unikania bezsensownego przepalania tokenów AI:
+      - **A. Obowiązkowe użycie baz wiedzy architektury (`graphify-out`):**
+        - Kod projektu jest zmapowany w postaci grafów relacji:
+          - **Serwer C++ / AI / Lua:** `Server/graphify-out/` (`GRAPH_REPORT.md`, `graph.json` — 34k węzłów, 84k relacji; kluczowe huby: `TPlayerBotAIState`, `CPlayerBotManager`).
+          - **Klient Python:** `Klient/pack/root/graphify-out/` (`GRAPH_REPORT.md`, `graph.json` — 12k węzłów, 27k relacji; kluczowe huby: `GameWindow`, `Interface`).
+        - **Zasada działania:** Zanim asystent zacznie przeszukiwać kod lub otwierać duże pliki, weryfikuje węzły i ścieżki zależności w odpowiednim `graphify-out` (odpytanie skillem `graphify query <symbol>`, analiza ścieżki `graphify path <źródło> <cel>` lub sprawdzenie sekcji klastrów i god-nodes w `GRAPH_REPORT.md`). To pozwala natychmiast namierzyć powiązane pliki i funkcje bez wczytywania zbędnego kodu do kontekstu.
+        - **Aktualizacja grafów po dużych zmianach:** Po większych modyfikacjach silnika lub klienta należy odświeżyć graf (`graphify update Server` lub klienta), aby zachować aktualną mapę zależności.
+      - **B. Wewnętrzny plan krok po kroku:** Zanim asystent dotknie jakiegokolwiek pliku, formułuje jasną, sekwencyjną instrukcję działania: określa dokładnie docelowe pliki, docelowe funkcje/metody oraz logikę wprowadzanej zmiany.
+      - **C. Chirurgiczne wyszukiwanie i odczyt (Zero-Bloat Reading):** Kategoryczny zakaz bezcelowego wczytywania wielkich plików w całości (np. 70KB `PROJECT_CONTEXT.md`, wielotysięczne `char.cpp`, `char_item.cpp`, `game.py`) lub skanowania całych drzew katalogów po omacku. Zawsze należy używać precyzyjnych narzędzi (`Select-String` / grep, celowane odczytywanie wąskich zakresów linii `StartLine`-`EndLine`).
+      - **D. Zwięzłe, celowane edycje:** Modyfikacje kodu muszą być wprowadzane punktowo, bez zbędnego przepisywania działających fragmentów, bez prób i błędów oraz bez wielokrotnego odczytywania tego samego kodu.
 
 17. **Żelazna Zasada Obowiązkowej Listy Testów i Warunkowego Uploadu na GitHub (User Verification & Guarded GitHub Push Rule):**
     - **A. Obowiązkowa lista kontrolna testów na sam koniec zadania:**
@@ -487,4 +495,20 @@ Wszystkie nasze autorskie modyfikacje, systemy oraz poprawki są zorganizowane w
     - **C. Zabezpieczenie sieciowe budowy Docker i Patcher CDN:**
       - Budowanie kontenerów w środowisku deweloperskim powinno korzystać z flagi `--network=host` w przypadku problemów z DNS dockera.
       - Skrypty patchera (`publish_patcher_web.py`) muszą posiadać twarde timeouty na połączenia sieciowe (max 5-10s) oraz flagę separującą generowanie manifestów od finalnego pusha na `gh-pages`.
+
+19. **Żelazna Zasada Orkiestracji Zadań Równoległych i Delegacji do Subagentów (Subagent Task Parallelization & Resource Separation Guard):**
+    - **A. Automatyczne rozdzielanie pracy przy wielu zadaniach:**
+      - Gdy użytkownik zleca więcej niż 1 zadanie (np. równoczesne prace nad klientem i serwerem, tworzenie/naprawa kilku odrębnych modułów, refaktoryzacja + research logów czy audyt kodu):
+        - Asystent główny natychmiast przejmuje rolę **Głównego Koordynatora (Orkiestratora)**.
+        - Koordynator dekomponuje zakres prac na niezależne podzadania i deleguje je do równoległych subagentów (`invoke_subagent`).
+        - Każdy subagent operuje we własnym, wyizolowanym i czystym kontekście, co maksymalizuje szybkość wykonania i zapobiega degradacji jakości odpowiedzi przy długich sesjach ("vibe coding").
+    - **B. Twarda reguła separacji zasobów (Brak Kolizji Plikowych):**
+      - Dwóch subagentów **nigdy nie może jednocześnie edytować tych samych plików** (np. jednoczesny zapis do `char.cpp` czy `game.py`), aby uniknąć nadpisywania zmian i wyścigów zapisu (race conditions).
+      - Zadania muszą być podzielone domenowo (np. Subagent 1: `Klient/pack/root/`, Subagent 2: `Server/server-patches/krystian/`, Subagent 3: `Server/tools/` lub analiza logów/grafu).
+    - **C. Wyłączność Głównego Koordynatora na Operacje Krytyczne:**
+      - **Środowisko Docker i MariaDB:** Zatrzymywanie/uruchamianie serwera, tworzenie backupów SQL oraz kompilację obrazów Docker (`docker compose build`) wykonuje **wyłącznie Główny Koordynator** po zebraniu wyników od wszystkich subagentów. Subagenci nie restartują kontenerów ani nie manipulują bazą danych na własną rękę.
+      - **Czyszczenie dysku i higiena:** Wywołanie procedury `python Server/tools/clean_workspace.py` należy wyłącznie do Koordynatora na zakończenie całego cyklu.
+    - **D. Centralna Weryfikacja i Bramka Git:**
+      - Żaden subagent nie ma prawa wykonywać `git commit`, `git push` ani publikować patchera na `gh-pages`.
+      - Po zakończeniu prac przez subagentów, Główny Koordynator dokonuje przeglądu diffa, integruje zmiany, generuje dla użytkownika zbiorczą **Listę Kontrolną Testów (Szablon C)** i czeka na potwierdzenie przed jakimkolwiek pushem do zdalnego repozytorium.
 

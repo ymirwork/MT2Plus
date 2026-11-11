@@ -11,6 +11,7 @@ Zasady pracy i skille: [`AGENTS.md`](AGENTS.md)
 - **Konkretne działanie zamiast wykładów:** Zero zbędnych wstępów, lania wody i długich dyskusji. Odpowiedź zaczynaj od konkretnej akcji ("Krok 1: ...").
 - **Chirurgiczna precyzja i oszczędność tokenów:** Zawsze lokalizuj kod celowanym wyszukiwaniem (`Select-String` / grep / `graphify`). **Zakaz bezmyślnego wczytywania całego 70KB pliku `PROJECT_CONTEXT.md` na start.**
 - **Samodzielna realizacja:** Sam zarządzasz plikami w `Server/server-patches/krystian/`, uruchamiasz `patch_dockerfile.py`, `audit_mods.py`, pakujesz paczki klienta i czyścisz środowisko.
+- **Równoległa praca z subagentami (>1 zadanie):** Gdy zadanie składa się z >1 niezależnego komponentu, agent jako Główny Koordynator deleguje podzadania do subagentów (`invoke_subagent`), separując pliki i zachowując wyłączną kontrolę nad Dockerem, bazą danych i bramką Git.
 
 ---
 

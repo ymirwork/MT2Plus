@@ -52,7 +52,9 @@ Moduł wprowadzający ulepszenia w rozgrywce MT2Plus:
 - `Klient/pack/root/uitooltip.py`:
   - Usunięto `"metin2_map_trent02"` ze słownika `blockedPreviewMapNames`.
 - Utworzono pliki atlasu w `Klient/pack/root/ymir work/ui/atlas/metin2_map_trent02/` (`atlas.sub` i tekstura `atlas.dds`) oraz zsynchronizowano z paczką `etc`.
-- Spakowano paczki `root` i `etc`.
+- `Klient/pack/gamedata/gamedata/atlasinfo.txt`:
+  - Poprawiono wymiary atlasu `metin2_map_trent02` z legacy `4 4` na faktyczny rozmiar mapy `3 3` (768x768m / 12x12 sectree), zgodny z serwerowym `Setting.txt`. Eliminacja 25% przesunięcia pozycji gracza i nieosiągalności dolno-prawej części mapy.
+- Spakowano paczki `root`, `etc` oraz `gamedata`.
 
 ---
 

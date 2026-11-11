@@ -465,6 +465,38 @@ def _Prune():
 			del _requests[requestID]
 
 
+def GetDragonSoulPrice(vnum):
+	"""Oblicza sugerowana cene kamienia smoczej alchemii na podstawie
+	kosztu bazowego Cor Draconis (100k), oplat za stopnie/poziomy oraz
+	Smoczych Fasoli, zgodnie ze wzorem silnika PlayerBot (playerbot_alchemy.h)."""
+	try:
+		vnum = int(vnum)
+	except (TypeError, ValueError):
+		return 0
+	if 110000 <= vnum < 180000:
+		grade = min(5, (vnum // 1000) % 10)
+		step = min(4, (vnum // 100) % 10)
+		strength = min(6, (vnum // 10) % 10)
+		grade_base = [100000.0, 360000.0, 1180000.0, 3680000.0, 11240000.0, 34020000.0]
+		g = grade_base[grade]
+		step_fees = [20000.0, 30000.0, 40000.0, 50000.0]
+		for si in xrange(step):
+			g = (2.0 + (1.0 / 0.7 - 1.0)) * g + (1.0 / 0.7) * step_fees[si]
+		if strength > 0:
+			probs = [1.0, 0.8, 0.7, 0.5, 0.3, 0.2]
+			e = 1.0
+			sum_e = 0.0
+			for k in xrange(strength):
+				if k > 0:
+					e = (1.0 + (1.0 - probs[k]) * e) / probs[k]
+				sum_e += e
+			g += sum_e * 1010000.0
+		price = g * 1.25
+		price = (long(price) + 500) // 1000 * 1000
+		return max(1000, price)
+	return 0
+
+
 def RequestDialog(dialog, windowType, slotIndex):
 	"""Asks the server for the hint of the item at (windowType, slotIndex)
 	for this price window, and gives the window its Ceny button."""
@@ -490,16 +522,35 @@ def RequestDialog(dialog, windowType, slotIndex):
 	}
 	_requests[requestID] = request
 	dialog.fleaPriceRequestID = requestID
-	if windowType == player.INVENTORY:
-		dialog.fleaPriceLines = FormatPriceLines(None, None, None)
+
+	try:
+		itemVNum = player.GetItemIndex(windowType, slotIndex)
+		itemCount = max(1, player.GetItemCount(windowType, slotIndex))
+		dsPrice = GetDragonSoulPrice(itemVNum) * itemCount
+	except Exception:
+		dsPrice = 0
+
+	dsInventory = getattr(player, "DRAGON_SOUL_INVENTORY", 5)
+	if windowType in (player.INVENTORY, dsInventory):
+		if dsPrice > 0:
+			request["quote"] = (dsPrice, 0, 0)
+			dialog.fleaPriceLines = FormatPriceLines(request["quote"], None, None)
+		else:
+			dialog.fleaPriceLines = FormatPriceLines(None, None, None)
 		net.SendChatPacket("/flea_price %d %d %d %d" % (
 			requestID, windowType, slotIndex, REQUEST_VERSION))
 	else:
-		# The server prices a cell of the inventory only (do_flea_price).
-		request["answered"] = True
-		dialog.fleaPriceLines = (T("Brak danych cenowych dla tego przedmiotu.", "No price data for this item."), "", "", "")
+		if dsPrice > 0:
+			request["answered"] = True
+			request["quote"] = (dsPrice, 0, 0)
+			dialog.fleaPriceLines = FormatPriceLines(request["quote"], None, None)
+		else:
+			# The server prices a cell of the inventory only (do_flea_price).
+			request["answered"] = True
+			dialog.fleaPriceLines = (T("Brak danych cenowych dla tego przedmiotu.", "No price data for this item."), "", "", "")
 	if _GetPriceWindowOpen():
 		OpenPriceWindow(dialog)
+	_TryApply(requestID)
 	return requestID
 
 

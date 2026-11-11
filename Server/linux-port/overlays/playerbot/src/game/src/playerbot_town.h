@@ -4169,6 +4169,13 @@ namespace
 		}
 		if (item->IsDragonSoul())
 		{
+			const DWORD custom = playerbot_custom_prices::GetCustomItemPrice(item->GetVnum());
+			if (custom > 0)
+			{
+				const DWORD stone = ScalePlayerBotIwakuraPrice(custom);
+				PlayerBotPriceStep(per::STEP_OPERATOR_PRICE, stone, stone);
+				return stone;
+			}
 			const DWORD stone = GetPlayerBotDragonSoulPrice(item);
 			PlayerBotPriceStep(per::STEP_OPERATOR_PRICE, stone, stone);
 			return stone;

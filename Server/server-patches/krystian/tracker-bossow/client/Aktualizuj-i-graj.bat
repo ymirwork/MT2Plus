@@ -35,15 +35,9 @@ if exist "MT2009-Dopalacze.exe" (
   if errorlevel 1 goto failed
 )
 
-if exist "MT2009-Tracker.exe" (
-  "MT2009-Tracker.exe" --install
-  if errorlevel 1 goto failed
-)
-
-if exist "MT2009-Sklep.exe" (
-  "MT2009-Sklep.exe" --client "%CD%" --install
-  if errorlevel 1 goto failed
-)
+if not exist "MT2009-Tracker.exe" goto no_tracker
+"MT2009-Tracker.exe" --install
+if errorlevel 1 goto failed
 
 if not exist "metin2client.exe" goto no_client
 start "" "metin2client.exe"
@@ -51,6 +45,9 @@ exit /b 0
 
 :no_patcher
 echo Nie znaleziono MT2009-Patcher.exe.
+goto failed
+:no_tracker
+echo Nie znaleziono MT2009-Tracker.exe.
 goto failed
 :no_client
 echo Nie znaleziono metin2client.exe.

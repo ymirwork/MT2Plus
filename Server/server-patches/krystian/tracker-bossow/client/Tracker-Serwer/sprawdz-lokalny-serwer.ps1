@@ -1,11 +1,19 @@
 $ErrorActionPreference = 'Stop'
 $config = Join-Path $env:APPDATA 'MT2009-Tracker\server-root.txt'
-if (-not (Test-Path -LiteralPath $config)) { exit 0 }
+if (-not (Test-Path -LiteralPath $config)) {
+    Write-Error 'Najpierw uruchom Ustaw-serwer-PC.bat i wskaz glowny folder lokalnego serwera.'
+    exit 1
+}
 
 $serverRoot = (Get-Content -LiteralPath $config -Raw -Encoding UTF8).Trim()
 $script = Join-Path $PSScriptRoot 'tracker_maintenance.py'
 if (-not (Test-Path -LiteralPath (Join-Path $serverRoot 'VERSION'))) {
     Write-Error "Nie znaleziono lokalnego serwera: $serverRoot. Uruchom ponownie Ustaw-serwer-PC.bat."
+    exit 1
+}
+$version = (Get-Content -LiteralPath (Join-Path $serverRoot 'VERSION') -Raw).Trim()
+if ($version -ne '2.42.0') {
+    Write-Error "Ta paczka wymaga serwera 2.42.0; wykryto $version."
     exit 1
 }
 if (-not (Test-Path -LiteralPath $script)) {

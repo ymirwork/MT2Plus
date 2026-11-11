@@ -1,0 +1,13 @@
+TRACKER BOSSOW I METINOW — WLASNY SERWER NA PC, MT2009 Plus 2.42.0 / klient 2.0.71
+
+Ta paczka jest dla osoby, ktora uruchamia serwer u siebie na komputerze przez Docker Desktop i gra na tym samym PC. Zawiera czesc serwerowa i klienta.
+
+Wymagania: dzialajacy Docker Desktop, Python 3 i Git for Windows dostepne w PATH. Zrob kopie swiata i zamknij gre; instalacja chwilowo uruchomi ponownie usluge game.
+
+1. Zaktualizuj serwer do 2.42.0 i klienta do 2.0.71. Zamknij oficjalny patcher bez klikania GRAJ.
+2. Rozpakuj cala zawartosc paczki obok metin2client.exe. Folder Tracker-Serwer musi lezec obok BAT; nie kopiuj go do folderu serwera.
+3. Uruchom Ustaw-serwer-PC.bat. Wpisz glowny folder serwera: ten zawierajacy plik VERSION oraz folder linux-port\docker. Nie wskazuj folderu klienta ani samego docker.
+4. Uruchom Aktualizuj-i-graj.bat. Poczekaj na koniec budowy gry. Po otwarciu patchera zamknij jego okno bez klikania GRAJ. BAT nalozy tracker na klienta i uruchomi gre.
+5. Na mapie z regularnym respawnem otworz tracker i wybierz filtr Wszystkie. Jesli jest samo okno bez respow, sprawdz wynik instalacji czesci serwerowej.
+
+Gdy instalator zglosi NIEZGODNA AKTUALIZACJA, nie wymuszaj poprawki. Przeslij komunikat administratorowi paczki.

@@ -1,6 +1,6 @@
-# Tracker — aktualizacja własnego VPS do 2.33.0
+# Tracker — aktualizacja własnego VPS do 2.42.0
 
-Jeśli prowadzisz własny serwer, najpierw dokończ jego oficjalną aktualizację do 2.33.0 i zrób kopię świata. Poniższy przykład używa katalogu `/opt/metin2/stack`. Przy innym katalogu zastąp go własną ścieżką do folderu z `VERSION` i `linux-port`.
+Jeśli prowadzisz własny serwer, najpierw dokończ jego oficjalną aktualizację do 2.42.0 i zrób kopię świata. Poniższy przykład używa katalogu `/opt/metin2/stack`. Przy innym katalogu zastąp go własną ścieżką do folderu z `VERSION` i `linux-port`.
 
 Prześlij **zawartość** katalogu `server` z tej paczki do `/opt/metin2/mods/boss-tracker/` (albo do własnego trwałego katalogu poza folderem aktualizowanym przez MT2009 Plus). Zachowaj oba dołączone pliki `.patch`.
 

@@ -1,6 +1,6 @@
-# Tracker — aktualizacja własnego serwera PC do 2.33.0
+# Tracker — aktualizacja własnego serwera PC do 2.42.0
 
-Dotyczy osób prowadzących lokalny serwer w Docker Desktop. Wymagane są Python 3, Git for Windows i działające `docker compose`. Zrób kopię serwera i świata. Zaktualizuj serwer oficjalnym launcherem do 2.33.0.
+Dotyczy osób prowadzących lokalny serwer w Docker Desktop. Wymagane są Python 3, Git for Windows i działające `docker compose`. Zrób kopię serwera i świata. Zaktualizuj serwer oficjalnym launcherem do 2.42.0.
 
 Zamknij grę i patcher. Skopiuj **zawartość** katalogu `client` z paczki do folderu klienta, obok `metin2client.exe`; zastąp stary `Aktualizuj-i-graj.bat` i folder `Tracker-Serwer`. Zachowaj inne programy dodatków obecne w folderze.
 

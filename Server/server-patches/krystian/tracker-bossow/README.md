@@ -1,6 +1,6 @@
-# MT2009 Plus — aktualizacja trackera do serwera 2.33.0
+# MT2009 Plus — aktualizacja trackera do serwera 2.42.0
 
-Paczka zawiera część serwerową i kliencką. Sprawdzona na VPS z serwerem 2.33.0 oraz kliencie 2.0.64. Dotychczasowa poprawka źródeł 2.31.0 pasuje do nowego silnika; instalator sprawdza to przed zapisem, buduje grę i czeka na stan `healthy`.
+Paczka zawiera część serwerową i kliencką. Sprawdzona na serwerze 2.42.0 oraz kliencie 2.0.71. Poprawka źródeł pasuje do nowego silnika; instalator sprawdza to przed zapisem, buduje grę i czeka na stan `healthy`.
 
 - `INSTRUKCJA-VPS.md` — aktualizacja własnego serwera Linux/VPS.
 - `INSTRUKCJA-PC.md` — aktualizacja własnego serwera Windows/PC.

@@ -5229,7 +5229,10 @@ namespace
 			return -1;
 		// Nor the materials a saddlebag bot keeps for its rows, nor refine goods
 		// on their way to the Dozorca (playerbot_saddlebag.h).
-		if (ch && (IsPlayerBotKeptCraftMaterial(ch, item) || IsPlayerBotCraftExchangeStock(ch, item)))
+		// Boty bonujace rezerwuja do 30 ulepszaczy na Zielone Kamienie, a nadmiar wystawiaja na rynek.
+		if (ch && (IsPlayerBotKeptCraftMaterial(ch, item) || IsPlayerBotCraftExchangeStock(ch, item) ||
+				(PlayerBotWantsGreenExchange(ch) && IsPlayerBotCraftExchangeVnum(item->GetVnum()) &&
+				 CountPlayerBotRefineMaterialsForGreen(ch) <= 30)))
 			return -1;
 		// A Cor Draconis or a sash (MT2009 Plus) is a player's goods, high on
 		// the counter - unless a line of its kind came home unsold, when it is

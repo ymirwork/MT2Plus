@@ -226,7 +226,7 @@ inline int Pick(const TPiece* pieces, int count, const TBag& bag, const TLimits&
 	choice.step = STEP_NONE;
 	choice.stone = STONE_NONE;
 	greenPick = false;
-	for (int rank = 0; rank < 2; ++rank)
+	for (int rank = 0; rank < 8; ++rank)
 		for (int i = 0; i < count; ++i)
 		{
 			if (pieces[i].greenRank != rank)

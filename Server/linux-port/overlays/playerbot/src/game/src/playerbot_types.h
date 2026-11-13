@@ -8152,6 +8152,8 @@ namespace
 	bool IsPlayerBotCraftExchangeStock(LPCHARACTER ch, LPITEM item);
 	bool IsPlayerBotKeptCraftMaterial(LPCHARACTER ch, LPITEM item);
 	bool IsPlayerBotCraftExchangeVnum(DWORD vnum);
+	bool PlayerBotWantsGreenExchange(LPCHARACTER ch);
+	int CountPlayerBotRefineMaterialsForGreen(LPCHARACTER ch);
 	void NotePlayerBotCraftRecalled(DWORD pid, DWORD itemId);
 	bool WantsPlayerBotCraftMaterialOffer(LPCHARACTER ch, LPITEM offer);
 	bool WantsPlayerBotCraftGoodsOffer(LPCHARACTER ch, LPITEM offer);

@@ -268,18 +268,22 @@ namespace
 			}
 			return true;
 		}
-		// Zielony Czar (71151) i Zielona Sila (71152) - handel i skup przez boty <= 40 lvl:
+		// Zielony Czar (71151) i Zielona Sila (71152) - handel i skup przez boty ze slabym eq lub do 45 lvl:
 		if (IsPlayerBotGreenTradeableBonusVnum(offer->GetVnum()))
 		{
-			if ((int)ch->GetLevel() > 40 || !PlayerBotCanSpendBonusStoneKind(ch, offer) || offer->GetCount() > 1)
+			if (!PlayerBotWantsGreenExchange(ch) && ((int)ch->GetLevel() > 45 || !PlayerBotCanSpendBonusStoneKind(ch, offer)))
 				return false;
+			if (offer->GetCount() > 10)
+				return false;
+			int totalGreen = 0;
 			for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
 			{
 				LPITEM held = ch->GetInventoryItem(cell);
-				if (held && held->GetType() == ITEM_USE && held->GetSubType() == offer->GetSubType() &&
-						IsPlayerBotGreenBonusStone(held->GetVnum()))
-					return false;
+				if (held && IsPlayerBotGreenBonusStone(held->GetVnum()))
+					totalGreen += held->GetCount();
 			}
+			if (totalGreen >= 15)
+				return false;
 			return true;
 		}
 
@@ -315,6 +319,14 @@ namespace
 		if (IsPlayerBotCraftExchangeVnum(offer->GetVnum()) && WantsPlayerBotCraftGoodsOffer(ch, offer) &&
 				!PlayerBotNeedsRefineMaterial(ch, offer->GetVnum()))
 			return true;
+
+		// MT2Plus: Skup ulepszaczy na Moduł Wymian (Zielona Siła/Czar) przez boty z gotówką i słabym eq
+		if (IsPlayerBotCraftExchangeVnum(offer->GetVnum()) && PlayerBotWantsGreenExchange(ch))
+		{
+			if (CountPlayerBotFreeInventoryCells(ch) >= 4 &&
+				CountPlayerBotRefineMaterialsForGreen(ch) < 45)
+				return true;
+		}
 
 		// MT2009_PLUS_BOT_WORKSHOP_V1: a belt maker's materials and a talisman worker's spare
 		// +0 and Ornament (playerbot_workshop.h).
@@ -888,6 +900,13 @@ namespace
 		if (IsPlayerBotCraftExchangeVnum(item->GetVnum()) && WantsPlayerBotCraftGoodsOffer(ch, item) &&
 				!PlayerBotNeedsRefineMaterial(ch, item->GetVnum()))
 			return CanPlayerBotPayForCraftGoods(ch, item, price);
+		// MT2Plus: Platnosc za ulepszacze na Moduł Wymian (Zielona Siła/Czar)
+		if (IsPlayerBotCraftExchangeVnum(item->GetVnum()) && PlayerBotWantsGreenExchange(ch))
+		{
+			const DWORD unit = (DWORD)(price / std::max<DWORD>(1, (DWORD)item->GetCount()));
+			if (unit > 0 && unit <= ScalePlayerBotIwakuraPrice(50000) && price <= spare * 30 / 100)
+				return true;
+		}
 		if (IsPlayerBotProgressionOffer(ch, item)) {
 			const long long fair = GetPlayerBotShopAskingPrice(item);
 			// A book comes out of the visit's book purse (community patch 2,

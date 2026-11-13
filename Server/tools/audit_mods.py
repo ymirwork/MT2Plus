@@ -232,10 +232,12 @@ results['szklo-handlu'] = bool(
 # 40. zdalne-npc
 c40_cg = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/server/game/src/cmd_general.cpp'))
 c40_ui = read_file_safe(os.path.join(repo, 'Klient/pack/root/uiremotenpc.py'))
+c40_cr = read_file_safe(os.path.join(repo, 'Server/linux-port/docker/game/src/serverfiles/share/locale/poland/quest/libs/crafting/crafting.lua'))
 results['zdalne-npc'] = bool(
-    c40_cg and c40_ui and
+    c40_cg and c40_ui and c40_cr and
     'do_remote_npc' in c40_cg and
-    'RemoteNPCWindow' in c40_ui
+    'RemoteNPCWindow' in c40_ui and
+    'craft_vnum == 104' in c40_cr
 )
 
 # 41. auto-dungeon-dt
@@ -297,6 +299,18 @@ results['balans-mikstury-szybkosci'] = bool(
     '27053' in c46_tt and
     '27102' in c46_id and
     '+30%' in c46_id
+)
+
+# 47. boty-skup-ulepszaczy-zielone
+c47_pb = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_bonus.h'))
+c47_pm = read_file_safe(os.path.join(repo, 'Server/linux-port/overlays/playerbot/src/game/src/playerbot_market.h'))
+c47_rd = read_file_safe(os.path.join(repo, 'Server/server-patches/krystian/boty-skup-ulepszaczy-zielone/README.md'))
+results['boty-skup-ulepszaczy-zielone'] = bool(
+    c47_pb and c47_pm and c47_rd and
+    'PlayerBotWantsGreenExchange' in c47_pb and
+    'ManagePlayerBotGreenExchange' in c47_pb and
+    'CountPlayerBotRefineMaterialsForGreen' in c47_pm and
+    'IsPlayerBotCraftExchangeVnum' in c47_pm
 )
 
 all_ok = True

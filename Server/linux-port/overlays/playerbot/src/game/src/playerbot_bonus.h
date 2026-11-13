@@ -1252,9 +1252,31 @@ namespace
 	{
 		if (!target)
 			return false;
-		if (target->GetType() != ITEM_WEAPON &&
-				!(target->GetType() == ITEM_ARMOR && target->GetSubType() == ARMOR_BODY))
+		bool validSubtype = false;
+		if (target->GetType() == ITEM_WEAPON)
+			validSubtype = true;
+		else if (target->GetType() == ITEM_ARMOR)
+		{
+			switch (target->GetSubType())
+			{
+				case ARMOR_BODY:
+				case ARMOR_HEAD:
+				case ARMOR_SHIELD:
+				case ARMOR_WRIST:
+				case ARMOR_FOOTS:
+				case ARMOR_NECK:
+				case ARMOR_EAR:
+					validSubtype = true;
+					break;
+				default:
+					validSubtype = false;
+					break;
+			}
+		}
+
+		if (!validSubtype)
 			return false;
+
 		for (int i = 0; i < ITEM_LIMIT_MAX_NUM; ++i)
 			if (target->GetLimitType(i) == LIMIT_LEVEL &&
 					target->GetLimitValue(i) > PLAYERBOT_GREEN_BONUS_MAX_LEVEL)
@@ -1273,8 +1295,22 @@ namespace
 	// three and three lay in the bag for the rest of the game.
 	bool CanPlayerBotTakeGreenBonusStone(LPITEM item)
 	{
-		return CanPlayerBotTakeBonusStone(item) && CanPlayerBotSpendGreenBonusStoneOn(item) &&
-				(int)item->GetRefineLevel() >= PLAYERBOT_BONUS_JEWEL_MIN_PLUS;
+		return CanPlayerBotTakeBonusStone(item) && CanPlayerBotSpendGreenBonusStoneOn(item);
+	}
+
+	bool PlayerBotKeepsGreenBonusStones(LPCHARACTER ch)
+	{
+		if (!ch)
+			return true;
+		if (ch->GetLevel() <= PLAYERBOT_GREEN_BONUS_MAX_LEVEL)
+			return true;
+		static const BYTE slots[] = { WEAR_WEAPON, WEAR_BODY, WEAR_HEAD, WEAR_SHIELD, WEAR_WRIST, WEAR_FOOTS, WEAR_NECK, WEAR_EAR };
+		for (size_t i = 0; i < sizeof(slots)/sizeof(slots[0]); ++i)
+		{
+			if (CanPlayerBotSpendGreenBonusStoneOn(ch->GetWear(slots[i])))
+				return true;
+		}
+		return false;
 	}
 
 	// A weapon whose proto carries the damage addon: CItem::ChangeAttribute
@@ -1668,8 +1704,26 @@ namespace
 		piece.goods = target.kind == PLAYERBOT_BONUS_TARGET_GOODS;
 		// The green round's order: the armour, then the weapon - worn, or the
 		// piece the swap rule holds for the slot.
-		piece.greenRank = piece.goods ? -1
-				: (target.wearCell == WEAR_BODY ? 0 : (target.wearCell == WEAR_WEAPON ? 1 : -1));
+		if (piece.goods)
+			piece.greenRank = -1;
+		else if (target.wearCell == WEAR_BODY)
+			piece.greenRank = 0;
+		else if (target.wearCell == WEAR_WEAPON)
+			piece.greenRank = 1;
+		else if (target.wearCell == WEAR_HEAD)
+			piece.greenRank = 2;
+		else if (target.wearCell == WEAR_SHIELD)
+			piece.greenRank = 3;
+		else if (target.wearCell == WEAR_FOOTS)
+			piece.greenRank = 4;
+		else if (target.wearCell == WEAR_WRIST)
+			piece.greenRank = 5;
+		else if (target.wearCell == WEAR_NECK)
+			piece.greenRank = 6;
+		else if (target.wearCell == WEAR_EAR)
+			piece.greenRank = 7;
+		else
+			piece.greenRank = -1;
 		// MT2009_PLUS_BOT_L30_AVG_MIX_V2: a level-30 weapon short of its average.
 		piece.mixAverage = item && IsPlayerBotSpecialLevel30Weapon(item) &&
 				(int)item->GetRefineLevel() >= PLAYERBOT_BONUS_L30_MIX_MIN_PLUS &&
@@ -2421,6 +2475,157 @@ namespace
 		return convertedAny;
 	}
 
+	// MT2Plus: Wymiana ulepszaczy na Zielona Sile i Zielony Czar dla botow ze slabym eq i nadmiarem gotowki
+	int CountPlayerBotGreenBonusMissingAdds(LPCHARACTER ch)
+	{
+		if (!ch)
+			return 0;
+		int missing = 0;
+		static const BYTE slots[] = { WEAR_WEAPON, WEAR_BODY, WEAR_HEAD, WEAR_SHIELD, WEAR_WRIST, WEAR_FOOTS, WEAR_NECK, WEAR_EAR };
+		for (size_t i = 0; i < sizeof(slots)/sizeof(slots[0]); ++i)
+		{
+			LPITEM worn = ch->GetWear(slots[i]);
+			if (worn && CanPlayerBotSpendGreenBonusStoneOn(worn))
+			{
+				const int lines = worn->GetAttributeCount();
+				if (lines < 4 && CanPlayerBotItemRollNewLine(worn))
+					missing += (4 - lines);
+			}
+		}
+		return missing;
+	}
+
+	int CountPlayerBotGreenBonusUnfinished(LPCHARACTER ch)
+	{
+		if (!ch)
+			return 0;
+		int unfinished = 0;
+		static const BYTE slots[] = { WEAR_WEAPON, WEAR_BODY, WEAR_HEAD, WEAR_SHIELD, WEAR_WRIST, WEAR_FOOTS, WEAR_NECK, WEAR_EAR };
+		for (size_t i = 0; i < sizeof(slots)/sizeof(slots[0]); ++i)
+		{
+			LPITEM worn = ch->GetWear(slots[i]);
+			if (worn && CanPlayerBotSpendGreenBonusStoneOn(worn) && worn->GetAttributeCount() >= 4)
+			{
+				TPlayerBotBonusTarget target;
+				target.item = worn;
+				target.wearCell = slots[i];
+				target.kind = PLAYERBOT_BONUS_TARGET_WORN;
+				target.plain = (BYTE)playerbot_bonus_rules::PLAIN_NONE;
+				if (PlayerBotWantsBonusChange(ch, target, true))
+					++unfinished;
+			}
+		}
+		return unfinished;
+	}
+
+	bool PlayerBotNeedsGreenAdd(LPCHARACTER ch)
+	{
+		return CountPlayerBotGreenBonusMissingAdds(ch) > 0;
+	}
+
+	bool PlayerBotNeedsGreenChange(LPCHARACTER ch)
+	{
+		return CountPlayerBotGreenBonusUnfinished(ch) > 0;
+	}
+
+	bool PlayerBotHasWeakGreenGear(LPCHARACTER ch)
+	{
+		return PlayerBotNeedsGreenAdd(ch) || PlayerBotNeedsGreenChange(ch);
+	}
+
+	bool PlayerBotWantsGreenExchange(LPCHARACTER ch)
+	{
+		if (!ch || !PlayerBotKeepsGreenBonusStones(ch))
+			return false;
+		const long long gold = (long long)ch->GetGold();
+		if (gold < 200000 || gold <= GetPlayerBotReservedGold(ch) + (long long)PLAYERBOT_SHOPPING_GOLD_FLOOR)
+			return false;
+		if (!PlayerBotHasWeakGreenGear(ch))
+			return false;
+		const int bagGreen = (int)ch->CountSpecifyItem(71151) + (int)ch->CountSpecifyItem(71152) +
+				(int)ch->CountSpecifyItem(76023) + (int)ch->CountSpecifyItem(76024);
+		return bagGreen < 15;
+	}
+
+	int CountPlayerBotRefineMaterialsForGreen(LPCHARACTER ch)
+	{
+		if (!ch)
+			return 0;
+		int count = 0;
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (item && !item->isLocked() && IsPlayerBotCraftExchangeVnum(item->GetVnum()))
+				count += item->GetCount();
+		}
+		return count;
+	}
+
+	const int PLAYERBOT_GREEN_EXCHANGE_UNITS = 15;
+	const DWORD PLAYERBOT_GREEN_EXCHANGE_FEE = 25000;
+	const DWORD PLAYERBOT_GREEN_EXCHANGE_GAP_MS = 2 * 60 * 1000;
+	std::map<DWORD, DWORD> s_mapPlayerBotGreenExchangeNext;
+
+	bool ManagePlayerBotGreenExchange(LPCHARACTER ch)
+	{
+		if (!ch || !ch->IsItemLoaded() || ch->GetEmptyInventory(1) < 0)
+			return false;
+		if (!PlayerBotWantsGreenExchange(ch))
+			return false;
+
+		const DWORD now = get_dword_time();
+		std::map<DWORD, DWORD>::const_iterator next = s_mapPlayerBotGreenExchangeNext.find(ch->GetPlayerID());
+		if (next != s_mapPlayerBotGreenExchangeNext.end() && (int)(now - next->second) < 0)
+			return false;
+
+		const long long fee = (long long)ScalePlayerBotIwakuraPrice(PLAYERBOT_GREEN_EXCHANGE_FEE);
+		if ((long long)ch->GetGold() - fee < GetPlayerBotReservedGold(ch) + (long long)PLAYERBOT_SHOPPING_GOLD_FLOOR)
+			return false;
+
+		const bool needAdd = PlayerBotNeedsGreenAdd(ch);
+		const bool needChange = PlayerBotNeedsGreenChange(ch);
+		if (!needAdd && !needChange)
+			return false;
+
+		const DWORD rewardVnum = needAdd ? 71152 : 71151;
+
+		DWORD chosenMaterial = 0;
+		std::set<DWORD> seen;
+		for (WORD cell = 0; cell < PLAYERBOT_BAG_CELLS; ++cell)
+		{
+			LPITEM item = ch->GetInventoryItem(cell);
+			if (!item || item->isLocked() || !seen.insert(item->GetVnum()).second)
+				continue;
+			const DWORD vnum = item->GetVnum();
+			if (!IsPlayerBotCraftExchangeVnum(vnum))
+				continue;
+
+			const int surplus = GetPlayerBotExchangeSurplus(ch, vnum);
+			if (surplus >= PLAYERBOT_GREEN_EXCHANGE_UNITS)
+			{
+				chosenMaterial = vnum;
+				break;
+			}
+		}
+
+		if (chosenMaterial == 0)
+			return false;
+
+		ch->RemoveSpecifyItem(chosenMaterial, PLAYERBOT_GREEN_EXCHANGE_UNITS);
+		PlayerBotChangeGold(ch, -fee);
+		s_mapPlayerBotGreenExchangeNext[ch->GetPlayerID()] = now + PLAYERBOT_GREEN_EXCHANGE_GAP_MS;
+
+		LPITEM reward = ch->AutoGiveItem(rewardVnum, 1, -1, false);
+		if (reward)
+			LogManager::instance().ItemLog(ch, reward, "PLAYERBOT_GREEN_EXCHANGE", reward->GetName());
+
+		sys_log(0, "PLAYERBOT_GREEN_EXCHANGE: pid=%u name=%s material=%u units=%d fee=%lld reward=%u ok=%d gold=%lld",
+				ch->GetPlayerID(), ch->GetName(), chosenMaterial, PLAYERBOT_GREEN_EXCHANGE_UNITS, fee, rewardVnum,
+				reward ? 1 : 0, (long long)ch->GetGold());
+
+		return true;
+	}
+
 	bool ManagePlayerBotBonusReroll(LPCHARACTER ch, TPlayerBotAIState& state, DWORD dwNow)
 	{
 		if (!ch || !ch->IsItemLoaded() || dwNow < state.dwNextBonusCheckTime)
@@ -2430,6 +2635,8 @@ namespace
 		// change stone the pass below spends at once.
 		if (!ManagePlayerBotDustMarble(ch))
 			ManagePlayerBotDustBonusStones(ch);
+		ManagePlayerBotPermitExchange(ch);
+		ManagePlayerBotGreenExchange(ch);
 		ManagePlayerBotRefinerExchange(ch);
 		// Nothing to spend, nothing to weigh: the pass below scores every line
 		// of eight worn pieces, and a bag with no stone and no marble ends here.
@@ -2878,14 +3085,6 @@ namespace
 	// (shop_buy_price 0) - they stay for a piece of forty or less that passes
 	// through the bag: a level-30 weapon kept for sale
 	// (PLAYERBOT_BONUS_TARGET_GOODS) or a gambler's (ApplyPlayerBotGreenBonusToItem).
-	bool PlayerBotKeepsGreenBonusStones(LPCHARACTER ch)
-	{
-		if (!ch)
-			return true;
-		return !playerbot_bonus_rules::PastGreenBand((int)ch->GetLevel(), PLAYERBOT_GREEN_BONUS_MAX_LEVEL,
-				CanPlayerBotSpendGreenBonusStoneOn(ch->GetWear(WEAR_WEAPON)),
-				CanPlayerBotSpendGreenBonusStoneOn(ch->GetWear(WEAR_BODY)));
-	}
 
 	// Whether a piece of this bot's own could take a stone of this one's kind
 	// now: the pass's own question (playerbot_bonus_rules::StepFor over the

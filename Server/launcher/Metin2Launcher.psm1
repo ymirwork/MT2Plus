@@ -27,6 +27,200 @@ $script:M2ManifestMirrors = @()
 # 'github', a mirror base, or '' before the first read.
 $script:M2LastUpdateSource = ''
 
+# MT2009_PLUS_SUPPORTER_UPDATES_V1 + MT2009_PLUS_YOHARA_UPGRADE_V1 (2.x, 14
+# November 2026): the 2.x launcher's way up to Yohara. Yohara is for the
+# project's supporters: the supporter's code (our Discord bot: !kod) is entered
+# once (GUI "AKTUALIZUJ DO YOHARY" / -Action UpdateYohara -SupporterCode), the
+# supporters' hub binds this install's random id to it and answers an install
+# key, both kept in linux-port\docker\.env (M2_SUPPORTER_INSTALL_ID,
+# M2_SUPPORTER_KEY) - the same keys and the same hub API as the Yohara
+# launcher, so the Yohara launcher that the package brings carries on from
+# there. The package comes from the short-lived signed link of the hub's
+# manifest, never from GitHub or the fallback server. The key is never printed
+# or logged.
+$script:M2_SUPPORTER_HUB_DEFAULT = 'https://hub.metin2sp.pl'
+$script:M2_SUPPORT_PAGE_URL = 'https://buycoffee.to/mt2009plus'
+$script:M2SupporterServerRoot = Split-Path -Parent $PSScriptRoot
+# Why the last update check did not use the hub although this install has a
+# key ('' when it did, or when there is no key).
+$script:M2SupporterNotice = ''
+
+function Get-M2SupporterEnvPath {
+    param([string]$ServerRoot = $script:M2SupporterServerRoot)
+    return (Join-Path $ServerRoot 'linux-port\docker\.env')
+}
+
+function Get-M2SupporterSettings {
+    # The hub, this install's id and key from .env; Enabled when there is a key.
+    param([string]$ServerRoot = $script:M2SupporterServerRoot)
+    $values = @{}
+    $envPath = Get-M2SupporterEnvPath -ServerRoot $ServerRoot
+    if (Test-Path -LiteralPath $envPath -PathType Leaf) {
+        foreach ($line in [IO.File]::ReadAllLines($envPath)) {
+            if ($line -match '^\s*(M2_SUPPORTER_[A-Z_]+)\s*=(.*)$') { $values[$Matches[1]] = $Matches[2].Trim().Trim('"') }
+        }
+    }
+    $hub = [string]$values['M2_SUPPORTER_HUB']
+    # https only; plain http just for a hub on this machine (tests)
+    if (-not ($hub.StartsWith('https://', [StringComparison]::OrdinalIgnoreCase) -or $hub -match '^http://(127\.0\.0\.1|localhost):\d+/?$')) { $hub = $script:M2_SUPPORTER_HUB_DEFAULT }
+    $key = [string]$values['M2_SUPPORTER_KEY']
+    if ($key -notmatch '^[A-Za-z0-9_-]{32,64}$') { $key = '' }
+    [pscustomobject]@{
+        Hub = $hub.TrimEnd('/')
+        InstallId = [string]$values['M2_SUPPORTER_INSTALL_ID']
+        Key = $key
+        Enabled = [bool]$key
+        EnvPath = $envPath
+    }
+}
+
+function Set-M2SupporterEnvValue {
+    # One key of .env replaced in place or appended; nothing else touched.
+    param([Parameter(Mandatory = $true)][string]$EnvPath, [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
+    if (-not (Test-Path -LiteralPath $EnvPath -PathType Leaf)) {
+        throw "Brak pliku .env ($EnvPath). Uruchom najpierw serwer (GRAJ), aby go utworzyć, a potem wpisz kod."
+    }
+    $content = [IO.File]::ReadAllText($EnvPath)
+    $pattern = '(?m)^' + [regex]::Escape($Name) + '=[^\r\n]*'
+    $line = $Name + '=' + $Value
+    if ([regex]::IsMatch($content, $pattern)) { $content = [regex]::Replace($content, $pattern, $line.Replace('$', '$$')) }
+    else {
+        if ($content -and -not $content.EndsWith("`n")) { $content += "`r`n" }
+        $content += $line + "`r`n"
+    }
+    [IO.File]::WriteAllText($EnvPath, $content, [Text.UTF8Encoding]::new($false))
+}
+
+function Test-M2SupporterUrl {
+    # True for an address on the supporters' hub (its packages have no mirror).
+    param([AllowEmptyString()][string]$Url)
+    $uri = $null
+    if (-not [Uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$uri)) { return $false }
+    $hubUri = [Uri](Get-M2SupporterSettings).Hub
+    return $uri.Host.Equals($hubUri.Host, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Invoke-M2SupporterRequest {
+    # One call to the hub's API: the parsed JSON, or an exception carrying the
+    # hub's own message (Polish, for the player). The exception's Data['Reason']
+    # holds the hub's reason (bad_code, slots, revoked, ...) when it gave one.
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('GET', 'POST')][string]$Method,
+        [Parameter(Mandatory = $true)][string]$Path,
+        $Body = $null,
+        [switch]$NoKey,
+        [int]$TimeoutSec = 30
+    )
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    $settings = Get-M2SupporterSettings
+    $headers = @{ 'User-Agent' = 'mt2009-launcher-2x/1'; Accept = 'application/json' }
+    if ($settings.Key -and -not $NoKey) { $headers['Authorization'] = 'Bearer ' + $settings.Key }
+    if ($settings.InstallId) { $headers['X-Install-Id'] = $settings.InstallId }
+    $versionFile = Join-Path $script:M2SupporterServerRoot 'VERSION'
+    if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
+        $headers['X-Installed-Version'] = ((Get-Content -LiteralPath $versionFile -Raw).Trim() -replace '[^0-9A-Za-z._+-]', '')
+    }
+    $arguments = @{ Uri = ($settings.Hub + $Path); Method = $Method; UseBasicParsing = $true; TimeoutSec = $TimeoutSec; Headers = $headers }
+    if ($null -ne $Body) {
+        $arguments['Body'] = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 4 -Compress))
+        $arguments['ContentType'] = 'application/json'
+    }
+    try {
+        $response = Invoke-WebRequest @arguments
+        $content = $response.Content
+        $text = if ($content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($content) } else { [string]$content }
+        return (ConvertFrom-M2ManifestText -Text $text -Origin $settings.Hub)
+    }
+    catch {
+        $message = ''
+        $reason = ''
+        $raw = ''
+        try { if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $raw = [string]$_.ErrorDetails.Message } } catch { }
+        if (-not $raw) {
+            try {
+                $stream = $_.Exception.Response.GetResponseStream()
+                $raw = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8).ReadToEnd()
+            }
+            catch { }
+        }
+        if ($raw) {
+            try {
+                $parsed = $raw | ConvertFrom-Json
+                $message = [string]$parsed.error
+                $reason = [string]$parsed.reason
+            }
+            catch { }
+        }
+        if (-not $message) {
+            $reason = 'offline'
+            $message = "Hub wspierających ($($settings.Hub)) nie odpowiada: $($_.Exception.Message). Sprawdź internet i spróbuj za chwilę - serwer działa dalej bez zmian."
+        }
+        $failure = [Exception]::new($message)
+        $failure.Data['Reason'] = $reason
+        throw $failure
+    }
+}
+
+function Get-M2SupporterManifest {
+    # The manifest of this install's channel on the hub (server only; the
+    # Yohara client has its own patcher).
+    $manifest = Invoke-M2SupporterRequest -Method GET -Path '/api/upd/manifest'
+    $script:M2ManifestMirrors = @()
+    $script:M2LastUpdateSource = 'hub'
+    return $manifest
+}
+
+function Register-M2SupporterCode {
+    # Binds this install to the supporter's code; writes the install id (once)
+    # and the key into .env. Returns the hub's answer without the key.
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Code, [string]$ServerRoot = $script:M2SupporterServerRoot)
+    $clean = ($Code.ToUpperInvariant() -replace '[^A-Z0-9]', '')
+    if ($clean.Length -lt 12 -or $clean.Length -gt 32) {
+        $failure = [Exception]::new('To nie wygląda na kod wspierającego (np. ABCD-EFGH-JKLM-NPQR). Kod przysyła bot na Discordzie: napisz do niego !kod.')
+        $failure.Data['Reason'] = 'bad_format'
+        throw $failure
+    }
+    $settings = Get-M2SupporterSettings -ServerRoot $ServerRoot
+    $installId = $settings.InstallId
+    if ($installId -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        $installId = [Guid]::NewGuid().ToString()
+        Set-M2SupporterEnvValue -EnvPath $settings.EnvPath -Name 'M2_SUPPORTER_INSTALL_ID' -Value $installId
+    }
+    $version = ''
+    $versionFile = Join-Path $ServerRoot 'VERSION'
+    if (Test-Path -LiteralPath $versionFile -PathType Leaf) { $version = (Get-Content -LiteralPath $versionFile -Raw).Trim() }
+    $label = ([string]$env:COMPUTERNAME -replace '[^A-Za-z0-9._-]', '')
+    if ($label.Length -gt 40) { $label = $label.Substring(0, 40) }
+    $answer = Invoke-M2SupporterRequest -Method POST -Path '/api/upd/activate' -NoKey -Body ([ordered]@{
+        code = $clean; install_id = $installId; label = $label; platform = 'windows'; version = $version })
+    $key = [string]$answer.install_key
+    if ($key -notmatch '^[A-Za-z0-9_-]{32,64}$') { throw 'Hub wspierających odpowiedział bez klucza instalacji. Spróbuj ponownie za chwilę.' }
+    Set-M2SupporterEnvValue -EnvPath $settings.EnvPath -Name 'M2_SUPPORTER_HUB' -Value $settings.Hub
+    Set-M2SupporterEnvValue -EnvPath $settings.EnvPath -Name 'M2_SUPPORTER_KEY' -Value $key
+    # the code's last four characters for the Yohara launcher's button (never the code itself)
+    try { [IO.File]::WriteAllText((Join-Path $ServerRoot '.m2launcher-supporter-code'), $clean.Substring($clean.Length - 4)) } catch { }
+    [pscustomobject]@{
+        Message = [string]$answer.message
+        Channel = [string]$answer.channel
+        SlotsUsed = [int]$answer.slots_used
+        SlotsMax = [int]$answer.slots_max
+        InstallId = $installId
+    }
+}
+
+function Get-M2SupporterStatus {
+    # The code's state for the GUI: $null without a key, else the hub's answer
+    # {status, channel, slots_used, slots_max, latest} (or status 'error' with
+    # the hub's message and reason).
+    $settings = Get-M2SupporterSettings
+    if (-not $settings.Enabled) { return $null }
+    try { return (Invoke-M2SupporterRequest -Method GET -Path '/api/upd/status' -TimeoutSec 15) }
+    catch { return [pscustomobject]@{ status = 'error'; error = [string]$_.Exception.Message; reason = [string]$_.Exception.Data['Reason'] } }
+}
+
+function Get-M2SupporterNotice { return $script:M2SupporterNotice }
+
 function Get-M2UpdateMirrorBases {
     # The mirror bases, the manifest's "mirrors" first, each ending in '/',
     # http(s) only, no duplicates.
@@ -58,6 +252,8 @@ function Get-M2MirrorUrls {
     param([Parameter(Mandatory = $true)][string]$Url)
     $uri = $null
     if (-not [Uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$uri)) { return @() }
+    # MT2009_PLUS_SUPPORTER_UPDATES_V1: the hub's packages have no mirror.
+    if (Test-M2SupporterUrl -Url $Url) { return @() }
     $name = [Uri]::UnescapeDataString(($uri.AbsolutePath.TrimEnd('/') -split '/')[-1])
     if (-not $name -or $name -notmatch '^[0-9A-Za-z._-]+$') { return @() }
     $urls = @()
@@ -661,6 +857,27 @@ function Get-M2UpdateManifest {
         return ConvertFrom-M2ManifestText -Text $text -Origin $Source
     }
 
+    # MT2009_PLUS_SUPPORTER_UPDATES_V1 / MT2009_PLUS_YOHARA_UPGRADE_V1: an
+    # install with a supporter's key reads the supporters' hub first. A 2.x
+    # install (the code entered, Yohara not yet on it) falls back to the 2.x
+    # channel when the hub has no release for its code or refuses the key, so
+    # it never stops getting 2.x updates while it is still 2.x.
+    $script:M2SupporterNotice = ''
+    if ((Get-M2SupporterSettings).Enabled) {
+        $installedMajor = ''
+        $versionFile = Join-Path $script:M2SupporterServerRoot 'VERSION'
+        if (Test-Path -LiteralPath $versionFile -PathType Leaf) { $installedMajor = (((Get-Content -LiteralPath $versionFile -Raw).Trim()) -split '\.')[0] }
+        if ($installedMajor -ne '2') { return (Get-M2SupporterManifest) }
+        try {
+            $hubManifest = Get-M2SupporterManifest
+            $hubServer = $hubManifest.PSObject.Properties['server']
+            if ($hubServer -and $hubServer.Value -and [string]$hubServer.Value.version) { return $hubManifest }
+            $script:M2SupporterNotice = [string]$hubManifest.statusMessage
+        }
+        catch { $script:M2SupporterNotice = [string]$_.Exception.Message }
+        $script:M2LastUpdateSource = ''
+    }
+
     $uri = $null
     if (-not [Uri]::TryCreate($Source, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https') {
         throw 'Manifest musi być lokalnym plikiem albo adresem HTTPS.'
@@ -1001,6 +1218,71 @@ function New-M2AccessDeniedError {
     return ($lines -join [Environment]::NewLine)
 }
 
+# MT2009_PLUS_UPDATE_PROGRESS_V1 (14 November 2026): the long parts of an
+# update say how far they are. "[postep] NAME|DONE|TOTAL|EXTRA" lines go to the
+# action's output (at most one per label every 3 s); the window reads them as
+# phase progress (bar, percent), so a slow download or unpack is never taken
+# for a stall. The first 2.43.0 test on Windows: 284 s of a silent 242 MB
+# download raised "nic się nie zmienia" half-way through.
+$script:M2ProgressClock = $null
+$script:M2ProgressLabel = ''
+function Write-M2Progress {
+    param([Parameter(Mandatory = $true)][string]$Label, [long]$Done, [long]$Total, [string]$Extra = '', [switch]$Force)
+    if (-not $script:M2ProgressClock -or $script:M2ProgressLabel -ne $Label) {
+        $script:M2ProgressClock = [Diagnostics.Stopwatch]::StartNew()
+        $script:M2ProgressLabel = $Label
+        $Force = $true
+    }
+    if (-not $Force -and $script:M2ProgressClock.ElapsedMilliseconds -lt 3000) { return }
+    $script:M2ProgressClock.Restart()
+    Write-Host ('[postep] {0}|{1}|{2}|{3}' -f $Label, $Done, $Total, $Extra)
+}
+
+function Save-M2HttpDownload {
+    # One HTTP(S) download streamed to a file with its progress in MB, %, MB/s
+    # and the time left. Invoke-WebRequest -OutFile on Windows PowerShell 5.1
+    # draws its progress bar for every block it reads, which held the first
+    # Yohara download from the hub at 0.85 MB/s on a line that does far more.
+    param(
+        [Parameter(Mandatory = $true)][string]$Url,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [int]$TimeoutSec = 60,
+        [string]$Label = 'pobieranie paczki (MB)'
+    )
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    $request = [Net.HttpWebRequest]::Create($Url)
+    $request.UserAgent = 'mt2009-launcher/2'
+    $request.Timeout = $TimeoutSec * 1000
+    $request.ReadWriteTimeout = 120000
+    $request.AllowAutoRedirect = $true
+    $response = $request.GetResponse()
+    try {
+        $total = [long]$response.ContentLength
+        $totalMb = if ($total -gt 0) { [int][Math]::Ceiling($total / 1MB) } else { 0 }
+        $stream = $response.GetResponseStream()
+        $output = [IO.File]::Open($Destination, [IO.FileMode]::Create, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try {
+            $buffer = New-Object byte[] (1MB)
+            $done = [long]0
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            Write-M2Progress -Label $Label -Done 0 -Total $totalMb -Force
+            while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                $output.Write($buffer, 0, $read)
+                $done += $read
+                $seconds = [Math]::Max(0.1, $clock.Elapsed.TotalSeconds)
+                $speed = $done / 1MB / $seconds
+                $left = ''
+                if ($total -gt 0 -and $speed -gt 0) { $left = ', zostało ~{0}' -f ([TimeSpan]::FromSeconds([int](($total - $done) / 1MB / $speed))).ToString('m\:ss') }
+                Write-M2Progress -Label $Label -Done ([int]($done / 1MB)) -Total $totalMb -Extra ('{0:N1} MB/s{1}' -f $speed, $left)
+            }
+            if ($total -gt 0 -and $done -ne $total) { throw ('Pobieranie przerwane: {0:N1} z {1:N1} MB.' -f ($done / 1MB), ($total / 1MB)) }
+            Write-M2Progress -Label $Label -Done $totalMb -Total $totalMb -Extra ('{0:N1} MB/s' -f ($done / 1MB / [Math]::Max(0.1, $clock.Elapsed.TotalSeconds))) -Force
+        }
+        finally { $output.Dispose(); $stream.Dispose() }
+    }
+    finally { $response.Close() }
+}
+
 function Get-M2Download {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
@@ -1046,7 +1328,7 @@ function Get-M2Download {
                 $noticeShown = $true
             }
             try {
-                Invoke-WebRequest -Uri $sources[$index] -OutFile $Destination -UseBasicParsing -TimeoutSec $timeout
+                Save-M2HttpDownload -Url $sources[$index] -Destination $Destination -TimeoutSec $timeout
                 if ($expected) {
                     $actual = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToUpperInvariant()
                     if ($actual -ne $expected) {
@@ -1082,7 +1364,11 @@ function Expand-M2SafeZip {
     $root = [IO.Path]::GetFullPath($Destination).TrimEnd('\') + '\'
     $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
     try {
+        $entryCount = $archive.Entries.Count
+        $entryIndex = 0
         foreach ($entry in $archive.Entries) {
+            $entryIndex++
+            Write-M2Progress -Label 'rozpakowywanie paczki (pliki)' -Done $entryIndex -Total $entryCount
             $relative = $entry.FullName.Replace('/', '\').TrimStart('\')
             if (-not $relative) { continue }
             if ([IO.Path]::IsPathRooted($relative) -or $relative.Split('\') -contains '..') {
@@ -1188,8 +1474,10 @@ function Invoke-M2PackageUpdate {
         $downloadMb = [Math]::Round((Get-Item -LiteralPath $download).Length / 1MB, 1)
         Write-Host ("[faza] pakiet pobrany i sprawdzony: {0} MB w {1} s" -f $downloadMb, [int]$downloadWatch.Elapsed.TotalSeconds) -ForegroundColor DarkCyan
 
+        Write-Host '[faza] rozpakowywanie paczki' -ForegroundColor DarkCyan
         Expand-M2SafeZip -ArchivePath $download -Destination $expanded
         $files = @(Get-ChildItem -LiteralPath $expanded -Recurse -File -Force)
+        Write-Host ('[faza] porównywanie plików ({0})' -f $files.Count) -ForegroundColor DarkCyan
         if ($files.Count -eq 0) { throw 'Pakiet aktualizacji jest pusty.' }
 
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -1197,7 +1485,10 @@ function Invoke-M2PackageUpdate {
         New-Item -ItemType Directory -Path $backup -Force | Out-Null
 
         $changes = @()
+        $fileIndex = 0
         foreach ($file in $files) {
+            $fileIndex++
+            Write-M2Progress -Label 'porównywanie plików' -Done $fileIndex -Total $files.Count
             $relative = $file.FullName.Substring($expanded.Length).TrimStart('\')
             if (Test-M2ProtectedPath -RelativePath $relative) {
                 throw "Pakiet próbuje zmienić chroniony plik: $relative"
@@ -1222,7 +1513,11 @@ function Invoke-M2PackageUpdate {
             }
         }
 
+        Write-Host ('[faza] kopia zapasowa i podmiana {0} plików' -f $changes.Count) -ForegroundColor DarkCyan
+        $changeIndex = 0
         foreach ($change in $changes) {
+            $changeIndex++
+            Write-M2Progress -Label 'kopia zapasowa plików' -Done $changeIndex -Total $changes.Count
             if ($change.Existed) {
                 $backupFile = Join-Path $backup $change.Relative
                 New-Item -ItemType Directory -Path (Split-Path -Parent $backupFile) -Force | Out-Null
@@ -1237,7 +1532,10 @@ function Invoke-M2PackageUpdate {
         # how carefully the copy loop had named the cause.
         $applied = @()
         try {
+            $changeIndex = 0
             foreach ($change in $changes) {
+                $changeIndex++
+                Write-M2Progress -Label 'podmiana plików serwera' -Done $changeIndex -Total $changes.Count
                 New-Item -ItemType Directory -Path (Split-Path -Parent $change.Destination) -Force | Out-Null
                 try {
                     Invoke-M2FileRetry { Copy-Item -LiteralPath $change.Source -Destination $change.Destination -Force }
@@ -3407,6 +3705,12 @@ function Reset-M2WorldToFreshInstall {
 }
 
 Export-ModuleMember -Function @(
+    'Get-M2SupporterSettings',
+    'Register-M2SupporterCode',
+    'Get-M2SupporterStatus',
+    'Get-M2SupporterManifest',
+    'Get-M2SupporterNotice',
+    'Test-M2SupporterUrl',
     'Get-M2DefaultLauncherConfig',
     'Get-M2LauncherConfig',
     'Save-M2LauncherConfig',
